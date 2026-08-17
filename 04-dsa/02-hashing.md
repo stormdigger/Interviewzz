@@ -1,865 +1,1197 @@
-# #️⃣ Hashing & Sets — 30 Problems
+# #️⃣ Hashing & Sets
 
-> The hash map is the single most valuable data structure in interviews. It converts "search for something" from O(n) to O(1), which is the core move in a majority of optimizations.
+> The hash map converts "search for something" from **O(n)** to **O(1)**. That single substitution is the core move behind a majority of interview optimizations.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
 ## 🧠 When to Reach for a Hash Map
 
-```
-   Signal in the problem                     → Structure
-   ─────────────────────                       ─────────
-   "have I seen this before?"                → unordered_set
-   "how many times does X appear?"           → unordered_map<T,int>
-   "group things that share a property"      → unordered_map<key, vector<T>>
-   "find a complement/pair"                  → unordered_map<value, index>
-   "O(1) insert + delete + random"           → map + vector combo
-   "need order too"                          → map (ordered) or map + linked list
-   "cache with eviction"                     → map + doubly linked list (LRU)
+```mermaid
+flowchart TD
+    Q{"What does the<br/>problem ask?"}
+    Q -->|"'have I seen this?'"| A["unordered_set"]
+    Q -->|"'how many times?'"| B["unordered_map&lt;T,int&gt;"]
+    Q -->|"'group by a property'"| C["unordered_map&lt;key, vector&lt;T&gt;&gt;"]
+    Q -->|"'find a complement/pair'"| D["unordered_map&lt;value, index&gt;"]
+    Q -->|"'O(1) insert+delete+random'"| E["map + vector"]
+    Q -->|"'need ordering too'"| F["map (RB-tree) or<br/>map + linked list"]
+    Q -->|"'cache with eviction'"| G["map + doubly linked list<br/>(LRU)"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#bbdefb,stroke:#1565c0,color:#000
+    style F fill:#bbdefb,stroke:#1565c0,color:#000
+    style G fill:#e1bee7,stroke:#6a1b9a,color:#000
 ```
 
-**The core trade:** O(n) space to make lookups O(1). Almost always worth it in an interview.
+**The core trade:** spend **O(n) space** to make lookups **O(1)**. Almost always worth it.
 
-⚠️ **C++ specifics you must know:**
+⚠️ **C++ specifics that cause real bugs:**
 ```cpp
-mp[key]                 // ⚠️ INSERTS a default-constructed value if absent
-mp.count(key)           // safe existence check
-mp.find(key)            // returns iterator; compare with mp.end()
-mp.at(key)              // throws if absent
-auto [it, inserted] = mp.insert({k, v});   // doesn't overwrite
-mp.reserve(n);          // ⭐ avoids rehashing — meaningful speedup
+mp[key]                 // ⚠️ INSERTS a default-constructed value if absent!
+                        //    `if (mp[k])` silently grows the map
+mp.count(key)           // ✅ safe existence check
+mp.find(key)            // returns an iterator; compare against mp.end()
+mp.at(key)              // throws std::out_of_range if absent
+auto [it, ok] = mp.insert({k, v});   // does NOT overwrite an existing key
+mp.reserve(n);          // ⭐ avoids rehashing — a real, measurable speedup
 ```
 
 ---
 
-## A. Counting & Frequency
+## 📑 Contents
 
-### 1. Two Sum 🟢
-> (Covered in [Arrays](01-arrays-strings.md#1-two-sum-) — the canonical hash map problem.)
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-longest-consecutive-sequence) | Longest Consecutive Sequence | 🟡 | 🔵 **Full** | O(n) set + sequence-start check |
+| [2](#2-subarray-sum-equals-k) | Subarray Sum Equals K | 🟡 | 🔵 **Full** | O(n) prefix-sum map |
+| [3](#3-lru-cache) | LRU Cache | 🟡 | 🔵 **Full** | O(1) map + doubly linked list |
+| [4](#4-lfu-cache) | LFU Cache | 🔴 | ⚪ Variation | O(1) freq buckets |
+| [5](#5-insert-delete-getrandom-o1) | Insert Delete GetRandom O(1) | 🟡 | 🔵 **Full** | map + vector, swap-with-last |
+| [6](#6-4sum-ii) | 4Sum II | 🟡 | 🔵 **Full** | O(n²) meet in the middle |
+| [7](#7-two-sum-iii--design) | Two Sum III (design) | 🟢 | ⚪ Variation | trade insert vs find |
+| [8](#8-first-unique-character) | First Unique Character | 🟢 | ⚪ Variation | two-pass counting |
+| [9](#9-isomorphic-strings--word-pattern) | Isomorphic Strings / Word Pattern | 🟢 | 🔵 **Full** | bijection needs TWO maps |
+| [10](#10-find-all-anagrams-in-a-string) | Find All Anagrams | 🟡 | 🔵 **Full** | O(n) rolling frequency window |
+| [11](#11-substring-with-concatenation-of-all-words) | Substring w/ Concatenation of All Words | 🔴 | ⚪ Variation | word-level window |
+| [12](#12-copy-list-with-random-pointer) | Copy List with Random Pointer | 🟡 | 🔵 **Full** | O(1) space interleaving |
+| [13](#13-design-hashmap-from-scratch) | Design HashMap | 🟢 | 🔵 **Full** | buckets + chaining |
+| [14](#14-consistent-hashing-design-note) | Consistent Hashing | — | 📘 Concept | the distributed-systems version |
+
+🔵 **Full** = complete approach ladder · ⚪ **Variation** = reuses a ladder · 📘 **Concept** = design note
+
+---
+
+# 1. Longest Consecutive Sequence
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The "only start from a start" trick**
+
+> Length of the longest run of consecutive integers. **Unsorted array. O(n) required.**
+
+```
+   Input:  [100, 4, 200, 1, 3, 2]
+   Output: 4       (the sequence 1, 2, 3, 4)
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BRUTE FORCE<br/>for each x, scan for<br/>x+1, x+2, ... in the array<br/><b>O(n³)</b>"] -->|"make lookups<br/>O(1)"| B["⚡ SET + SCAN EACH<br/><b>O(n²)</b> worst case"]
+    B -->|"sorting removes<br/>the redundancy"| C["⚡ SORT + SCAN<br/><b>O(n log n)</b> / O(1)"]
+    C -->|"only walk each<br/>sequence ONCE"| D["🚀 SET + START CHECK<br/><b>O(n)</b> / O(n)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+| Approach | Time | Space | Verdict |
+|---|---|---|---|
+| Brute force | O(n³) | O(1) | ❌ |
+| Set, walk from every element | O(n²) | O(n) | ⚠️ looks O(n), isn't |
+| Sort + linear scan | O(n log n) | O(1) | ✅ acceptable if space matters |
+| **Set + sequence-start check** | **O(n)** | O(n) | 🏆 **the required answer** |
+
+## 2️⃣ Set + Scan From Every Element — the trap
 
 ```cpp
-vector<int> twoSum(vector<int>& a, int t) {
-    unordered_map<int,int> seen;
-    for (int i = 0; i < (int)a.size(); ++i) {
-        auto it = seen.find(t - a[i]);
-        if (it != seen.end()) return {it->second, i};
-        seen[a[i]] = i;
-    }
-    return {};
+// ⚠️ LOOKS linear. Is NOT.
+for (int x : nums) {
+    int len = 0, cur = x;
+    while (s.count(cur)) { ++len; ++cur; }     // walks the whole sequence
+    best = max(best, len);
 }
 ```
-
----
-
-### 2. Valid Anagram 🟢
-```cpp
-bool isAnagram(string s, string t) {
-    if (s.size() != t.size()) return false;
-    int c[26] = {};
-    for (char x : s) c[x - 'a']++;
-    for (char x : t) if (--c[x - 'a'] < 0) return false;
-    return true;
-}
 ```
-**Key insight:** For a fixed small alphabet, an array beats a hash map — no hashing overhead, perfect cache locality.
+   ⚠️ WHY IT'S O(n²)
 
----
+   On [1,2,3,4,5]:
+     from 1 → walks 5 steps
+     from 2 → walks 4 steps
+     from 3 → walks 3 steps ...
 
-### 3. Group Anagrams 🟡
-```cpp
-vector<vector<string>> groupAnagrams(vector<string>& v) {
-    unordered_map<string, vector<string>> g;
-    for (auto& s : v) {
-        array<int,26> c{};
-        for (char x : s) c[x - 'a']++;
-        string key;
-        for (int i = 0; i < 26; ++i) { key += '#'; key += to_string(c[i]); }
-        g[key].push_back(s);
-    }
-    vector<vector<string>> out;
-    for (auto& [_, vec] : g) out.push_back(move(vec));
-    return out;
-}
-```
-**Complexity:** O(N·L). The `#` separator prevents `[1,11]` and `[11,1]` colliding.
+   Total = 5+4+3+2+1 = O(n²)
 
----
-
-### 4. Top K Frequent Elements 🟡
-```cpp
-vector<int> topKFrequent(vector<int>& a, int k) {
-    unordered_map<int,int> cnt;
-    for (int x : a) cnt[x]++;
-    vector<vector<int>> bucket(a.size() + 1);
-    for (auto& [v, c] : cnt) bucket[c].push_back(v);
-
-    vector<int> out;
-    for (int f = a.size(); f >= 1 && (int)out.size() < k; --f)
-        for (int v : bucket[f]) { out.push_back(v); if ((int)out.size() == k) break; }
-    return out;
-}
-```
-**Complexity:** O(n) via bucket sort — frequency is bounded by n, so no comparison sort is needed.
-
----
-
-### 5. Top K Frequent Words 🟡
-```cpp
-vector<string> topKFrequent(vector<string>& w, int k) {
-    unordered_map<string,int> cnt;
-    for (auto& s : w) cnt[s]++;
-
-    // min-heap of size k; ties broken lexicographically (REVERSED, since
-    // we pop the "worst" element)
-    auto cmp = [](const pair<string,int>& a, const pair<string,int>& b) {
-        if (a.second != b.second) return a.second > b.second;
-        return a.first < b.first;
-    };
-    priority_queue<pair<string,int>, vector<pair<string,int>>, decltype(cmp)> pq(cmp);
-
-    for (auto& p : cnt) { pq.push(p); if ((int)pq.size() > k) pq.pop(); }
-
-    vector<string> out;
-    while (!pq.empty()) { out.push_back(pq.top().first); pq.pop(); }
-    reverse(out.begin(), out.end());
-    return out;
-}
-```
-⚠️ **The comparator is reversed** relative to intuition, because a min-heap pops the element you want to discard.
-
----
-
-### 6. First Unique Character 🟢
-```cpp
-int firstUniqChar(string s) {
-    int c[26] = {};
-    for (char x : s) c[x - 'a']++;
-    for (int i = 0; i < (int)s.size(); ++i) if (c[s[i] - 'a'] == 1) return i;
-    return -1;
-}
+   ⭐ Every element re-walks the entire tail of its sequence.
 ```
 
----
+## 4️⃣ Set + Sequence-Start Check — ⭐ OPTIMAL
 
-### 7. Sort Characters By Frequency 🟡
-```cpp
-string frequencySort(string s) {
-    unordered_map<char,int> cnt;
-    for (char c : s) cnt[c]++;
-    vector<string> bucket(s.size() + 1);
-    for (auto& [c, f] : cnt) bucket[f] += string(f, c);
-    string out;
-    for (int f = s.size(); f >= 1; --f) out += bucket[f];
-    return out;
-}
+#### 💬 The fix in one sentence
+**Only start walking from a number that begins a sequence** — i.e. one where `x-1` is absent.
+
+```mermaid
+flowchart TD
+    A["put everything in a hash set"] --> B["for each x in the set"]
+    B --> C{"does x−1 exist?"}
+    C -->|"YES → x is in the MIDDLE"| D["⭐ SKIP entirely —<br/>someone else will walk<br/>this sequence"]
+    C -->|"NO → x is a START"| E["walk x, x+1, x+2, ...<br/>counting the length"]
+    E --> F["update the best"]
+    D --> B
+    F --> B
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
-
-### 8. Find All Anagrams in a String 🟡
-```cpp
-vector<int> findAnagrams(string s, string p) {
-    if (s.size() < p.size()) return {};
-    int need[26] = {}, win[26] = {};
-    for (char c : p) need[c - 'a']++;
-
-    vector<int> out;
-    for (int i = 0; i < (int)s.size(); ++i) {
-        win[s[i] - 'a']++;
-        if (i >= (int)p.size()) win[s[i - p.size()] - 'a']--;   // slide
-        if (i >= (int)p.size() - 1 && equal(need, need + 26, win))
-            out.push_back(i - p.size() + 1);
-    }
-    return out;
-}
 ```
-**Complexity:** O(26n). Track a `matched` counter instead of comparing arrays for true O(n).
+   TRACE  [100, 4, 200, 1, 3, 2]
+   set = {1, 2, 3, 4, 100, 200}
 
----
-
-### 9. Ransom Note 🟢
-```cpp
-bool canConstruct(string note, string mag) {
-    int c[26] = {};
-    for (char x : mag) c[x - 'a']++;
-    for (char x : note) if (--c[x - 'a'] < 0) return false;
-    return true;
-}
-```
-
----
-
-### 10. Isomorphic Strings 🟢
-```cpp
-bool isIsomorphic(string s, string t) {
-    int m1[256] = {}, m2[256] = {};                // 0 = unmapped
-    for (int i = 0; i < (int)s.size(); ++i) {
-        if (m1[(unsigned char)s[i]] != m2[(unsigned char)t[i]]) return false;
-        m1[(unsigned char)s[i]] = m2[(unsigned char)t[i]] = i + 1;   // ⭐ 1-indexed
-    }
-    return true;
-}
-```
-**Key insight:** Storing `i+1` avoids needing a separate "seen" flag, and requiring **both** maps enforces a bijection. One map alone would accept `"ab" → "aa"`.
-
----
-
-### 11. Word Pattern 🟢
-```cpp
-bool wordPattern(string p, string s) {
-    vector<string> words;
-    istringstream iss(s);
-    string w;
-    while (iss >> w) words.push_back(w);
-    if (words.size() != p.size()) return false;
-
-    unordered_map<char,int> c2i;
-    unordered_map<string,int> w2i;
-    for (int i = 0; i < (int)p.size(); ++i) {
-        if (c2i[p[i]] != w2i[words[i]]) return false;
-        c2i[p[i]] = w2i[words[i]] = i + 1;
-    }
-    return true;
-}
-```
-
----
-
-## B. Existence & Deduplication
-
-### 12. Contains Duplicate II (within k distance) 🟢
-```cpp
-bool containsNearbyDuplicate(vector<int>& a, int k) {
-    unordered_map<int,int> last;
-    for (int i = 0; i < (int)a.size(); ++i) {
-        auto it = last.find(a[i]);
-        if (it != last.end() && i - it->second <= k) return true;
-        last[a[i]] = i;
-    }
-    return true, false;
-}
-```
-
----
-
-### 13. Contains Duplicate III (value and index window) 🔴
-```cpp
-bool containsNearbyAlmostDuplicate(vector<int>& a, int k, int t) {
-    if (t < 0 || k <= 0) return false;
-    set<long long> win;                            // ordered set = the window
-    for (int i = 0; i < (int)a.size(); ++i) {
-        auto it = win.lower_bound((long long)a[i] - t);
-        if (it != win.end() && *it <= (long long)a[i] + t) return true;
-        win.insert(a[i]);
-        if ((int)win.size() > k) win.erase(a[i - k]);   // maintain window size
-    }
-    return false;
-}
-```
-**Complexity:** O(n log k). Bucketing gives O(n).
-**Key insight:** An ordered set lets you ask "is there any value within ±t?" in O(log k) — a plain hash map cannot answer range queries.
-
----
-
-### 14. Longest Consecutive Sequence 🟡
-> Find the length of the longest run of consecutive integers, in O(n). The array is unsorted.
-
-#### 💬 Think of it like this
-Sorting would make this trivial, but sorting is O(n log n) and we want O(n).
-
-Put everything in a set, so membership checks are O(1). Now for any number you could walk upward — is `x+1` present? `x+2`? — counting the run.
-
-But doing that from *every* number re-walks the same sequences repeatedly. For the run 1,2,3,4 you'd walk it from 1, then again from 2, then from 3.
-
-**The fix is one line: only start walking from the beginning of a run.** A number `x` starts a run only if `x-1` is *not* in the set. If `x-1` exists, you're standing in the middle of a sequence someone else will walk, so skip it.
-
-#### 📊 Tracing `[100, 4, 200, 1, 3, 2]`
-
-```
-   set = {100, 4, 200, 1, 3, 2}
-
-   ┌─────────────────────────────────────────────────────────────┐
-   │ x=100:  is 99 in the set?  NO  → ⭐ this STARTS a run        │
-   │         walk: 101? no.  run length = 1                      │
-   ├─────────────────────────────────────────────────────────────┤
-   │ x=4:    is 3 in the set?   YES → ⚠️ SKIP (mid-sequence)      │
-   ├─────────────────────────────────────────────────────────────┤
-   │ x=200:  is 199 in the set? NO  → starts a run               │
-   │         walk: 201? no.  run length = 1                      │
-   ├─────────────────────────────────────────────────────────────┤
-   │ x=1:    is 0 in the set?   NO  → ⭐ starts a run             │
-   │         walk: 2? yes. 3? yes. 4? yes. 5? no.                │
-   │         run length = 4  ⭐ BEST                              │
-   ├─────────────────────────────────────────────────────────────┤
-   │ x=3:    is 2 in the set?   YES → SKIP                       │
-   │ x=2:    is 1 in the set?   YES → SKIP                       │
-   └─────────────────────────────────────────────────────────────┘
-
-   ANSWER = 4   (the run 1,2,3,4)
-```
-
-#### Why this is genuinely O(n), despite the nested loop
-
-```
-   ⭐ The inner while-loop only ever executes for numbers that
-     START a run. And a run of length L is walked exactly ONCE,
-     costing L steps.
-
-     Since every number belongs to exactly one run, the total
-     inner work summed across the whole outer loop is at most n.
-
-   Total = n (outer) + n (all inner walks combined) = O(n)
-
-   ⚠️ Remove the `if (s.count(x-1)) continue;` guard and it
-     becomes O(n²) — that single line is what makes the
-     complexity work.
+   ┌───────┬────────────────┬──────────────────────────────┐
+   │   x   │ is x−1 in set? │ action                       │
+   ├───────┼────────────────┼──────────────────────────────┤
+   │  100  │  99? NO        │ ⭐ START → walk: 100 → len 1 │
+   │   4   │   3? YES       │ skip (middle)                │
+   │  200  │ 199? NO        │ ⭐ START → walk: 200 → len 1 │
+   │   1   │   0? NO        │ ⭐ START → 1,2,3,4 → len 4 🏆│
+   │   3   │   2? YES       │ skip                         │
+   │   2   │   1? YES       │ skip                         │
+   └───────┴────────────────┴──────────────────────────────┘
+   ANSWER: 4
 ```
 
 ```cpp
 int longestConsecutive(vector<int>& a) {
     unordered_set<int> s(a.begin(), a.end());
     int best = 0;
+
     for (int x : s) {
-        if (s.count(x - 1)) continue;              // ⭐ only start from sequence heads
-        int len = 1;
-        while (s.count(x + len)) ++len;
+        if (s.count(x - 1)) continue;          // ⭐⭐ NOT a sequence start → skip
+
+        int cur = x, len = 1;
+        while (s.count(cur + 1)) { ++cur; ++len; }
         best = max(best, len);
     }
     return best;
 }
 ```
-**Complexity:** O(n) — despite the nested loop.
-**Key insight:** The `if (s.count(x-1)) continue` guard means each sequence is walked exactly once, from its smallest element. Total inner work across all iterations is O(n).
+
+```
+   ⭐⭐ WHY THIS IS GENUINELY O(n)
+
+   The inner while loop only ever runs for sequence STARTS.
+   Each element is visited by the inner loop AT MOST ONCE,
+   because it belongs to exactly one sequence, which is walked
+   exactly once — from its unique starting point.
+
+   Outer loop: O(n) · Inner loops total: O(n) → O(n) overall ✅
+```
+
+⭐ **Iterate over the SET, not the array.** Duplicates in the array would otherwise cause redundant walks.
+
+## ⚠️ Edge Cases
+
+| Input | Output | Why |
+|---|---|---|
+| `[]` | `0` | `best` initialized to 0 |
+| `[1,1,1]` | `1` | set deduplicates |
+| `[INT_MIN]` | `1` | ⚠️ `x-1` overflows — `count()` on a wrapped value is still safe here, but flag it |
+| `[1,2,0,1]` | `3` | duplicates don't extend a run |
+
+## 📌 Pattern Card
+```
+SIGNAL   consecutive/contiguous runs in UNSORTED data
+KEY      ⭐ only expand from sequence STARTS (x−1 absent)
+RELATED  Longest Consecutive in a Binary Tree · Union-Find variant
+```
 
 ---
 
-### 15. Happy Number 🟢
-```cpp
-int sq(int n) { int s = 0; while (n) { int d = n % 10; s += d * d; n /= 10; } return s; }
+# 2. Subarray Sum Equals K
 
-bool isHappy(int n) {
-    int slow = n, fast = n;                        // Floyd — O(1) space
-    do { slow = sq(slow); fast = sq(sq(fast)); } while (slow != fast);
-    return slow == 1;
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Prefix sums in a hash map**
+
+> Count subarrays summing to exactly `k`. Values may be **negative**.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL SUBARRAYS<br/>+ re-sum each<br/><b>O(n³)</b>"] --> B["⚡ RUNNING SUM<br/>all subarrays<br/><b>O(n²)</b> / O(1)"]
+    B -->|"look up the<br/>needed prefix"| C["🚀 PREFIX + HASH MAP<br/><b>O(n)</b> / O(n)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+⚠️ **Why not a sliding window?** Sliding window requires that extending the window *monotonically* increases the sum. With negative numbers that breaks — the sum can go down, so shrinking/growing gives no usable signal.
+
+## 3️⃣ Prefix Sums + Hash Map — ⭐ OPTIMAL
+
+#### 💬 The algebra
+```
+   sum(i..j) = prefix[j] − prefix[i−1]
+
+   We want:  prefix[j] − prefix[i−1] = k
+   Rearrange: prefix[i−1] = prefix[j] − k
+
+   ⭐ So at each j, ask: "how many earlier prefixes equal
+     (current prefix − k)?" That count is the number of
+     subarrays ending at j with sum k.
+```
+
+```mermaid
+flowchart TD
+    A["running = 0<br/>⭐ count[0] = 1"] --> B["for each element"]
+    B --> C["running += x"]
+    C --> D["⭐ answer += count[running − k]"]
+    D --> E["count[running]++"]
+    E --> B
+
+    N["⭐ count[0] = 1 seeds the<br/>'empty prefix', so a subarray<br/>starting at index 0 is counted"] -.-> A
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style N fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
+```
+   TRACE  a = [1, 2, 3], k = 3
+
+   ┌───┬─────────┬─────────────┬────────┬──────────────────┐
+   │ x │ running │ need = r−k  │ found  │ count map after  │
+   ├───┼─────────┼─────────────┼────────┼──────────────────┤
+   │ — │    0    │      —      │   —    │ {0:1} ⭐ seed    │
+   │ 1 │    1    │   1−3 = −2  │   0    │ {0:1, 1:1}       │
+   │ 2 │    3    │   3−3 =  0  │ ⭐ 1   │ {0:1, 1:1, 3:1}  │
+   │ 3 │    6    │   6−3 =  3  │ ⭐ 1   │ {...,3:1, 6:1}   │
+   └───┴─────────┴─────────────┴────────┴──────────────────┘
+   ANSWER: 2   →  [1,2] and [3] ✅
+```
+
+```cpp
+int subarraySum(vector<int>& a, int k) {
+    unordered_map<long long, int> count;
+    count[0] = 1;                              // ⭐⭐ the empty prefix
+
+    long long running = 0;
+    int ans = 0;
+
+    for (int x : a) {
+        running += x;
+
+        auto it = count.find(running - k);      // ⭐ find, not [] — avoids
+        if (it != count.end()) ans += it->second;  //    inserting junk keys
+
+        count[running]++;
+    }
+    return ans;
 }
 ```
 
----
+⚠️ **`count[0] = 1` is the single most-forgotten line.** Without it, `[3], k=3` returns 0 instead of 1 — because `running - k == 0` has no match.
 
-### 16. Intersection of Two Arrays 🟢
-```cpp
-vector<int> intersection(vector<int>& a, vector<int>& b) {
-    unordered_set<int> sa(a.begin(), a.end()), out;
-    for (int x : b) if (sa.count(x)) out.insert(x);
-    return vector<int>(out.begin(), out.end());
-}
+⚠️ **Use `find`, not `count[running - k]`.** The `[]` operator would insert a zero entry for every miss, silently bloating the map.
+
+## 📌 Pattern Card
+```
+SIGNAL   "count subarrays with sum/property = X", negatives allowed
+KEY      prefix[j] − prefix[i] = k  → look up (prefix − k)
+         ⭐ seed count[0] = 1
+RELATED  Continuous Subarray Sum (mod) · Subarrays Div by K
+         Contiguous Array (map 0→−1) · Max Size Subarray Sum K
 ```
 
 ---
 
-### 17. Intersection of Two Arrays II (with multiplicity) 🟢
-```cpp
-vector<int> intersect(vector<int>& a, vector<int>& b) {
-    unordered_map<int,int> cnt;
-    for (int x : a) cnt[x]++;
-    vector<int> out;
-    for (int x : b) { auto it = cnt.find(x); if (it != cnt.end() && it->second > 0) { out.push_back(x); it->second--; } }
-    return out;
-}
-```
-🎤 **Follow-up:** if the arrays are sorted, use two pointers with O(1) space. If one array is huge and on disk, hash the smaller one and stream the larger.
+# 3. LRU Cache
 
----
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The canonical design problem**
 
-### 18. Valid Sudoku 🟡
-```cpp
-bool isValidSudoku(vector<vector<char>>& b) {
-    unordered_set<string> seen;
-    for (int i = 0; i < 9; ++i)
-        for (int j = 0; j < 9; ++j) {
-            if (b[i][j] == '.') continue;
-            char c = b[i][j];
-            string r = "r" + to_string(i) + c;
-            string col = "c" + to_string(j) + c;
-            string box = "b" + to_string(i/3) + to_string(j/3) + c;
-            if (!seen.insert(r).second || !seen.insert(col).second
-                || !seen.insert(box).second) return false;
-        }
-    return true;
-}
-```
-**Key insight:** Encoding all three constraints as strings in one set is clean; the bitmask version (in Arrays §53) is faster.
+> `get` and `put` in **O(1)**. Evict the least-recently-used key when full.
 
----
+## 🗺️ Approach Ladder
 
-## C. Design Problems
+```mermaid
+flowchart LR
+    A["🐌 ARRAY + timestamps<br/>eviction scans everything<br/><b>get O(n) / put O(n)</b>"] --> B["⚡ MAP + timestamps<br/>get O(1) but eviction<br/>still scans<br/><b>put O(n)</b>"]
+    B --> C["⚡ MAP + ORDERED MAP<br/>by timestamp<br/><b>O(log n)</b>"]
+    C -->|"need O(1) removal<br/>from the MIDDLE"| D["🚀 MAP + DOUBLY LINKED LIST<br/><b>O(1)</b> both"]
 
-### 19. LRU Cache 🟡
-> `get` and `put` both O(1). Evict the least recently used item when full.
-
-#### 💬 Think of it like this
-You need two things simultaneously, and no single data structure gives you both:
-
-- **Fast lookup by key** → that's a hash map
-- **Fast "which item was used longest ago?" and fast reordering** → that's an ordered list
-
-So use both, pointing at the same nodes.
-
-The list is ordered by recency: most-recently-used at the front, least-recently-used at the back. Every access moves that node to the front. When you're full, you evict from the back — which is O(1) because you know exactly where it is.
-
-The list must be **doubly** linked. With a singly linked list, removing a node from the middle requires finding its predecessor, which is O(n). With a `prev` pointer, unlinking is O(1).
-
-#### 📊 The structure
-
-```
-   HASH MAP                    DOUBLY LINKED LIST
-   key → node pointer          (ordered by recency)
-
-   ┌─────────┐
-   │ "a" ────┼──────┐   head ⇄ [c] ⇄ [b] ⇄ [a] ⇄ tail
-   │ "b" ────┼───┐  │           ▲               ▲
-   │ "c" ────┼┐  │  │       most recent    least recent
-   └─────────┘│  │  │                      ⭐ evict from here
-              └──┴──┘
-        pointers into the same nodes
-
-   ⭐ The map gives O(1) "where is this node?"
-     The list gives O(1) "reorder" and O(1) "who's oldest?"
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-#### Watching a sequence with capacity 2
+## 💬 Why exactly these two structures
 
-```
-   put(1,A):  head ⇄ [1] ⇄ tail                      map {1}
-   put(2,B):  head ⇄ [2] ⇄ [1] ⇄ tail                map {1,2}
+```mermaid
+flowchart TD
+    R["We need THREE O(1) operations"] --> N1["① find a key by value<br/>→ ⭐ HASH MAP"]
+    R --> N2["② know which key is oldest<br/>→ ⭐ ORDER, i.e. a LIST"]
+    R --> N3["③ move a node to 'newest'<br/>from the MIDDLE of that order"]
+    N3 --> W["⚠️ A singly linked list can't unlink<br/>a middle node in O(1) —<br/>you'd need its predecessor"]
+    W --> S["⭐ DOUBLY linked list:<br/>each node knows both neighbours<br/>→ unlink in O(1)"]
+    N1 --> C["Map stores key → NODE POINTER,<br/>so we jump straight to the node"]
+    S --> C
 
-   get(1):    found. ⭐ MOVE TO FRONT.
-              head ⇄ [1] ⇄ [2] ⇄ tail                map {1,2}
-
-   put(3,C):  ⚠️ at capacity → evict from the TAIL, which is [2]
-              head ⇄ [3] ⇄ [1] ⇄ tail                map {1,3}
-                                 ▲
-                          key 2 removed from BOTH
-                          the list and the map
-
-   ⭐ Note that get(1) is what saved key 1 from eviction.
-     That's the whole point of "least recently USED" rather
-     than "least recently inserted."
+    style R fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style W fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style S fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-#### Why sentinel nodes matter
-
 ```
-   Without sentinels, every insert and remove needs null checks:
-     "is this the head? is this the tail? is the list empty?"
+   THE STRUCTURE
 
-   ⭐ With permanent dummy head and tail nodes that never hold
-     data, every real node ALWAYS has both a prev and a next.
-     The unlink and insert operations become three lines with
-     no branching.
+   map: { 1 → ●,  2 → ●,  3 → ● }
+              │      │      │
+              ▼      ▼      ▼
+   HEAD ⇄ [ 3 ] ⇄ [ 1 ] ⇄ [ 2 ] ⇄ TAIL
+    ▲       ⭐ newest        ⭐ oldest    ▲
+    │                                    │
+   sentinel                          sentinel
 
-   This is a general technique worth remembering — it applies
-   to most linked-structure problems.
+   ⭐ SENTINEL HEAD AND TAIL eliminate every null check.
+     No "is this the first node?" special case. Ever.
+```
+
+```mermaid
+flowchart LR
+    subgraph "get(key)"
+        G1["look up node<br/>in the map"] --> G2["unlink it"] --> G3["⭐ re-insert<br/>right after HEAD"]
+    end
+    subgraph "put(key,val) when full"
+        P1["evict tail->prev<br/>⭐ the oldest node"] --> P2["erase from map"] --> P3["insert the new node<br/>after HEAD"]
+    end
+
+    style G3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style P1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
 ```
 
 ```cpp
 class LRUCache {
-    struct Node { int k, v; Node *prev, *next; };
+    struct Node {
+        int key, val;
+        Node *prev = nullptr, *next = nullptr;
+        Node(int k, int v) : key(k), val(v) {}
+    };
+
     int cap;
     unordered_map<int, Node*> mp;
-    Node *head, *tail;                             // sentinels
+    Node *head, *tail;                          // ⭐ sentinels — never hold data
 
-    void remove(Node* n) { n->prev->next = n->next; n->next->prev = n->prev; }
-    void addFront(Node* n) {
-        n->next = head->next; n->prev = head;
-        head->next->prev = n; head->next = n;
+    void unlink(Node* n) {
+        n->prev->next = n->next;                // ⭐ no null checks needed,
+        n->next->prev = n->prev;                //    thanks to the sentinels
     }
+    void pushFront(Node* n) {
+        n->next = head->next;
+        n->prev = head;
+        head->next->prev = n;
+        head->next = n;
+    }
+
 public:
-    LRUCache(int c) : cap(c) {
-        head = new Node(); tail = new Node();
-        head->next = tail; tail->prev = head;
+    LRUCache(int capacity) : cap(capacity) {
+        head = new Node(0, 0);
+        tail = new Node(0, 0);
+        head->next = tail;
+        tail->prev = head;
+        mp.reserve(capacity * 2);               // ⭐ avoid rehashing
     }
-    int get(int k) {
-        auto it = mp.find(k);
+
+    int get(int key) {
+        auto it = mp.find(key);
         if (it == mp.end()) return -1;
-        remove(it->second); addFront(it->second);  // mark as recently used
-        return it->second->v;
+
+        unlink(it->second);                     // ⭐ touch → becomes newest
+        pushFront(it->second);
+        return it->second->val;
     }
-    void put(int k, int v) {
-        auto it = mp.find(k);
-        if (it != mp.end()) {
-            it->second->v = v;
-            remove(it->second); addFront(it->second);
+
+    void put(int key, int value) {
+        auto it = mp.find(key);
+
+        if (it != mp.end()) {                   // update in place
+            it->second->val = value;
+            unlink(it->second);
+            pushFront(it->second);
             return;
         }
-        if ((int)mp.size() == cap) {
-            Node* lru = tail->prev;                // evict from the tail
-            remove(lru); mp.erase(lru->k); delete lru;
+
+        if ((int)mp.size() == cap) {            // ⭐ evict the LRU
+            Node* lru = tail->prev;
+            unlink(lru);
+            mp.erase(lru->key);                 // ⚠️ erase BEFORE delete
+            delete lru;
         }
-        Node* n = new Node{k, v, nullptr, nullptr};
-        mp[k] = n; addFront(n);
+
+        Node* n = new Node(key, value);
+        pushFront(n);
+        mp[key] = n;
     }
 };
 ```
-**Key insight:** Hash map gives O(1) lookup; the doubly linked list gives O(1) reorder and eviction. Neither alone suffices. Sentinel head/tail nodes eliminate every null check.
 
-⭐ In C++ you can also use `list<pair<int,int>>` plus `unordered_map<int, list<...>::iterator>` with `splice()`.
+⚠️ **`mp.erase(lru->key)` must come before `delete lru`** — reading `lru->key` after freeing is use-after-free.
+
+⭐ **The C++ shortcut:** `std::list` + `unordered_map<int, list<pair<int,int>>::iterator>` gives the same thing, because `list::splice` moves a node in O(1) without invalidating iterators. Worth mentioning, but implementing the list manually shows you understand *why*.
+
+## 📌 Pattern Card
+```
+SIGNAL   "O(1) get + put + eviction by recency"
+KEY      hash map → node pointer · DOUBLY linked list for O(1) unlink
+         ⭐ sentinel head/tail kill every edge case
+RELATED  LFU Cache · All O(1) Data Structure · Design Twitter
+```
 
 ---
 
-### 20. LFU Cache 🔴
+# 4. LFU Cache
+🔴 ⚪ **Variation of #3** — evict by *frequency* instead of recency, ties broken by recency.
+
+```mermaid
+flowchart TD
+    A["⭐ TWO maps instead of one"] --> B["keyToNode: key → list iterator"]
+    A --> C["freqToList: frequency →<br/>a doubly linked list of<br/>keys at that frequency"]
+    C --> D["⭐ track minFreq"]
+    D --> E["evict = back of freqToList[minFreq]<br/>⭐ that's the least-recently-used<br/>among the least-frequent"]
+    E --> F["on access: move the node from<br/>list[f] to list[f+1]"]
+    F --> G["⚠️ if list[minFreq] becomes empty<br/>AND the accessed node had f == minFreq,<br/>then minFreq++"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style G fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+```
+
 ```cpp
 class LFUCache {
     int cap, minFreq = 0;
-    unordered_map<int, pair<int,int>> kv;                       // key -> {value, freq}
-    unordered_map<int, list<int>> freqList;                     // freq -> keys (LRU order)
-    unordered_map<int, list<int>::iterator> pos;                // key -> iterator
+    // key → {value, freq, iterator into freqList[freq]}
+    unordered_map<int, tuple<int,int,list<int>::iterator>> mp;
+    unordered_map<int, list<int>> freqList;     // freq → keys, newest at FRONT
 
-    void touch(int k) {
-        int f = kv[k].second;
-        freqList[f].erase(pos[k]);
-        if (freqList[f].empty()) { freqList.erase(f); if (minFreq == f) ++minFreq; }
-        ++kv[k].second;
-        freqList[f + 1].push_front(k);
-        pos[k] = freqList[f + 1].begin();
+    void touch(int key) {
+        auto& [val, f, it] = mp[key];
+        freqList[f].erase(it);                  // ⭐ O(1) via the stored iterator
+        if (freqList[f].empty() && minFreq == f) ++minFreq;   // ⚠️ the tricky line
+
+        ++f;
+        freqList[f].push_front(key);
+        it = freqList[f].begin();
     }
+
 public:
-    LFUCache(int c) : cap(c) {}
-    int get(int k) {
-        if (!kv.count(k) || cap == 0) return -1;
-        touch(k);
-        return kv[k].first;
+    LFUCache(int capacity) : cap(capacity) {}
+
+    int get(int key) {
+        if (!cap || !mp.count(key)) return -1;
+        touch(key);
+        return get<0>(mp[key]);
     }
-    void put(int k, int v) {
-        if (cap == 0) return;
-        if (kv.count(k)) { kv[k].first = v; touch(k); return; }
-        if ((int)kv.size() == cap) {
-            int evict = freqList[minFreq].back();               // least frequent, then LRU
+
+    void put(int key, int value) {
+        if (!cap) return;
+
+        if (mp.count(key)) { get<0>(mp[key]) = value; touch(key); return; }
+
+        if ((int)mp.size() == cap) {
+            int evict = freqList[minFreq].back();   // ⭐ LRU within the min freq
             freqList[minFreq].pop_back();
-            if (freqList[minFreq].empty()) freqList.erase(minFreq);
-            kv.erase(evict); pos.erase(evict);
+            mp.erase(evict);
         }
-        kv[k] = {v, 1};
-        freqList[1].push_front(k);
-        pos[k] = freqList[1].begin();
-        minFreq = 1;                                            // ⭐ reset
+
+        minFreq = 1;                            // ⭐ the new key has freq 1
+        freqList[1].push_front(key);
+        mp[key] = {value, 1, freqList[1].begin()};
     }
 };
 ```
-**Key insight:** Three maps. `minFreq` only ever increases by 1 in `touch` and resets to 1 on insert, so tracking it is O(1).
+
+⭐ **Why `minFreq = 1` on every insert:** a brand-new key is by definition the least frequently used, so the minimum resets unconditionally.
 
 ---
 
-### 21. Insert Delete GetRandom O(1) 🟡
+# 5. Insert Delete GetRandom O(1)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Swap-with-last**
+
+> `insert`, `remove`, `getRandom` — all **O(1) average**.
+
+## 💬 Why one structure isn't enough
+
+```mermaid
+flowchart TD
+    A["getRandom needs<br/>⭐ INDEXED access → an ARRAY"] --> C["⚠️ but array removal<br/>from the middle is O(n)"]
+    B["remove needs<br/>⭐ O(1) lookup → a HASH MAP"] --> D["⚠️ but a map has no<br/>uniform random access"]
+    C --> E["⭐ COMBINE: vector holds the values,<br/>map holds value → INDEX"]
+    D --> E
+    E --> F["⭐ To remove: SWAP the target<br/>with the LAST element,<br/>then pop_back — O(1)"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style E fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   REMOVE(10) from  vec = [10, 20, 30, 40]
+                    map = {10:0, 20:1, 30:2, 40:3}
+
+   ① find the index of 10 → 0
+   ② ⭐ overwrite it with the LAST element (40)
+        vec = [40, 20, 30, 40]
+   ③ ⭐ update the moved element's index in the map
+        map[40] = 0
+   ④ pop_back + erase
+        vec = [40, 20, 30]
+        map = {40:0, 20:1, 30:2}   ✅ all O(1)
+
+   ⚠️ Order matters: the array becomes UNORDERED. That's fine —
+     nothing in the spec requires ordering.
+```
+
 ```cpp
 class RandomizedSet {
-    vector<int> v;
-    unordered_map<int,int> idx;                    // value -> index in v
+    vector<int> vec;
+    unordered_map<int,int> idx;                 // value → index in vec
+
 public:
-    bool insert(int x) {
-        if (idx.count(x)) return false;
-        idx[x] = v.size();
-        v.push_back(x);
+    bool insert(int val) {
+        if (idx.count(val)) return false;
+        idx[val] = vec.size();
+        vec.push_back(val);
         return true;
     }
-    bool remove(int x) {
-        auto it = idx.find(x);
+
+    bool remove(int val) {
+        auto it = idx.find(val);
         if (it == idx.end()) return false;
-        int i = it->second, last = v.back();
-        v[i] = last; idx[last] = i;                // ⭐ swap with the last element
-        v.pop_back(); idx.erase(it);
+
+        int i = it->second, last = vec.back();
+        vec[i] = last;                          // ⭐ move the last into the hole
+        idx[last] = i;                          // ⭐ fix its recorded index
+
+        vec.pop_back();
+        idx.erase(it);                          // ⚠️ erase AFTER using `it`
         return true;
     }
-    int getRandom() { return v[rand() % v.size()]; }
-};
-```
-**Key insight:** The vector gives O(1) random access; the map gives O(1) lookup. Deletion is O(1) by swapping the target with the last element — order doesn't matter for random selection.
 
----
-
-### 22. Insert Delete GetRandom O(1) — Duplicates Allowed 🔴
-```cpp
-class RandomizedCollection {
-    vector<int> v;
-    unordered_map<int, unordered_set<int>> idx;    // value -> set of indices
-public:
-    bool insert(int x) {
-        bool isNew = idx[x].empty();
-        idx[x].insert(v.size());
-        v.push_back(x);
-        return isNew;
-    }
-    bool remove(int x) {
-        auto it = idx.find(x);
-        if (it == idx.end() || it->second.empty()) return false;
-        int i = *it->second.begin();
-        it->second.erase(i);
-
-        int last = v.back();
-        v[i] = last;
-        if (i != (int)v.size() - 1) {              // ⭐ guard self-swap
-            idx[last].erase(v.size() - 1);
-            idx[last].insert(i);
-        }
-        v.pop_back();
-        return true;
-    }
-    int getRandom() { return v[rand() % v.size()]; }
-};
-```
-⚠️ The self-swap guard matters when removing the last element — otherwise you erase the index you just inserted.
-
----
-
-### 23. Design HashMap 🟢
-```cpp
-class MyHashMap {
-    static const int N = 10007;                    // prime bucket count
-    vector<list<pair<int,int>>> b;
-public:
-    MyHashMap() : b(N) {}
-    void put(int k, int v) {
-        for (auto& p : b[k % N]) if (p.first == k) { p.second = v; return; }
-        b[k % N].push_back({k, v});
-    }
-    int get(int k) {
-        for (auto& p : b[k % N]) if (p.first == k) return p.second;
-        return -1;
-    }
-    void remove(int k) {
-        b[k % N].remove_if([k](auto& p){ return p.first == k; });
-    }
-};
-```
-🎤 **Follow-ups:** load factor and resizing; open addressing vs chaining; why a prime modulus reduces clustering.
-
----
-
-### 24. Design Twitter 🟡
-```cpp
-class Twitter {
-    int time = 0;
-    unordered_map<int, vector<pair<int,int>>> tweets;      // user -> {time, tweetId}
-    unordered_map<int, unordered_set<int>> follows;
-public:
-    void postTweet(int u, int t) { tweets[u].push_back({time++, t}); }
-
-    vector<int> getNewsFeed(int u) {
-        priority_queue<pair<int,int>> pq;                  // max-heap by time
-        auto add = [&](int uid) {
-            auto& v = tweets[uid];
-            for (int i = max(0, (int)v.size() - 10); i < (int)v.size(); ++i)
-                pq.push(v[i]);                             // ⭐ only the last 10 each
-        };
-        add(u);
-        for (int f : follows[u]) if (f != u) add(f);
-
-        vector<int> out;
-        while (!pq.empty() && (int)out.size() < 10) { out.push_back(pq.top().second); pq.pop(); }
-        return out;
-    }
-    void follow(int a, int b)   { follows[a].insert(b); }
-    void unfollow(int a, int b) { follows[a].erase(b); }
-};
-```
-🎤 This is a mini system-design question — see [Twitter case study](../05-system-design/03-case-studies-1.md) for fanout-on-write vs fanout-on-read at scale.
-
----
-
-### 25. Design Underground System 🟡
-```cpp
-class UndergroundSystem {
-    unordered_map<int, pair<string,int>> inTransit;                    // id -> {station, t}
-    unordered_map<string, pair<long long,int>> stats;                  // route -> {sum, count}
-public:
-    void checkIn(int id, string s, int t) { inTransit[id] = {s, t}; }
-    void checkOut(int id, string e, int t) {
-        auto [s, st] = inTransit[id];
-        inTransit.erase(id);
-        auto& [sum, cnt] = stats[s + "->" + e];
-        sum += t - st; ++cnt;
-    }
-    double getAverageTime(string s, string e) {
-        auto& [sum, cnt] = stats[s + "->" + e];
-        return (double)sum / cnt;
+    int getRandom() {
+        return vec[rand() % vec.size()];        // ⭐ uniform, O(1)
     }
 };
 ```
 
+⚠️ **Subtle bug:** if `val` *is* the last element, `idx[last] = i` writes to the entry we're about to erase. Erasing after the write keeps it correct — but reversing the two lines breaks it.
+
+🎤 **Follow-up: duplicates allowed (RandomizedCollection)?** Change the map to `unordered_map<int, unordered_set<int>>` — value → set of indices. Same swap-with-last, but you must update the index sets of both the removed and moved values.
+
 ---
 
-### 26. Time Based Key-Value Store 🟡
-```cpp
-class TimeMap {
-    unordered_map<string, vector<pair<int,string>>> m;   // timestamps are increasing
-public:
-    void set(string k, string v, int t) { m[k].push_back({t, v}); }
-    string get(string k, int t) {
-        auto it = m.find(k);
-        if (it == m.end()) return "";
-        auto& v = it->second;
-        // largest timestamp <= t
-        int lo = 0, hi = v.size();
-        while (lo < hi) {
-            int mid = lo + (hi - lo) / 2;
-            if (v[mid].first <= t) lo = mid + 1; else hi = mid;
-        }
-        return lo == 0 ? "" : v[lo - 1].second;
-    }
-};
+# 6. 4Sum II
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Meet in the middle**
+
+> Four arrays of length n. Count tuples `(i,j,k,l)` with `a[i]+b[j]+c[k]+d[l] == 0`.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 FOUR NESTED LOOPS<br/><b>O(n⁴)</b>"] --> B["⚡ THREE LOOPS<br/>+ hash the fourth<br/><b>O(n³)</b>"]
+    B -->|"split into<br/>TWO halves"| C["🚀 MEET IN THE MIDDLE<br/>hash all a+b sums,<br/>look up −(c+d)<br/><b>O(n²)</b> / O(n²)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-**Key insight:** Timestamps arrive in increasing order, so the vector is already sorted — binary search directly, no sorting needed.
 
----
+```mermaid
+flowchart TD
+    A["Split 4 arrays into<br/>TWO PAIRS"] --> B["⭐ Build a map of ALL n²<br/>sums of a[i]+b[j]<br/>→ how many times each occurs"]
+    B --> C["For each of the n² sums c[k]+d[l],<br/>look up −(c+d) in the map"]
+    C --> D["⭐ Add the stored COUNT,<br/>not 1 — many (i,j) pairs<br/>can share a sum"]
+    D --> E(["O(n²) total"])
 
-### 27. Logger Rate Limiter 🟢
-```cpp
-class Logger {
-    unordered_map<string,int> last;
-public:
-    bool shouldPrintMessage(int t, string msg) {
-        auto it = last.find(msg);
-        if (it != last.end() && t < it->second + 10) return false;
-        last[msg] = t;
-        return true;
-    }
-};
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-🎤 **Follow-up:** unbounded memory growth. Fix with a sliding-window purge or an LRU-bounded map.
 
----
-
-### 28. Design Hit Counter 🟡
 ```cpp
-class HitCounter {
-    deque<pair<int,int>> q;                        // {timestamp, count}
-    int total = 0;
-    void evict(int t) {
-        while (!q.empty() && q.front().first <= t - 300) { total -= q.front().second; q.pop_front(); }
+int fourSumCount(vector<int>& a, vector<int>& b,
+                 vector<int>& c, vector<int>& d) {
+    unordered_map<int,int> ab;
+    ab.reserve(a.size() * a.size());            // ⭐ big win, avoids rehashing
+
+    for (int x : a) for (int y : b) ab[x + y]++;    // ⭐ n² sums
+
+    int ans = 0;
+    for (int x : c) for (int y : d) {
+        auto it = ab.find(-(x + y));
+        if (it != ab.end()) ans += it->second;  // ⭐ add the COUNT
     }
-public:
-    void hit(int t) {
-        evict(t);
-        if (!q.empty() && q.back().first == t) q.back().second++;
-        else q.push_back({t, 1});
-        ++total;
-    }
-    int getHits(int t) { evict(t); return total; }
-};
-```
-**Key insight:** Aggregating by timestamp bounds memory at 300 entries regardless of hit rate.
-
----
-
-## D. Advanced Hashing
-
-### 29. Longest Substring Without Repeating Characters 🟡
-```cpp
-int lengthOfLongestSubstring(string s) {
-    vector<int> last(128, -1);
-    int left = 0, best = 0;
-    for (int r = 0; r < (int)s.size(); ++r) {
-        left = max(left, last[s[r]] + 1);          // ⭐ never move left backwards
-        last[s[r]] = r;
-        best = max(best, r - left + 1);
-    }
-    return best;
-}
-```
-**Key insight:** `max` is essential — a repeat *before* the current window shouldn't drag `left` back.
-
----
-
-### 30. Subarray Sum Equals K 🟡
-```cpp
-int subarraySum(vector<int>& a, int k) {
-    unordered_map<long long,int> cnt{{0, 1}};
-    long long sum = 0; int ans = 0;
-    for (int x : a) { sum += x; ans += cnt[sum - k]; cnt[sum]++; }
     return ans;
 }
 ```
-⚠️ Note `cnt[sum - k]` uses `operator[]`, which inserts a zero entry. That's harmless here (it returns 0 correctly) but grows the map. `find` is cleaner in production code.
+
+⭐ **Meet in the middle** is a general technique: when a problem has `k` independent choices, splitting into two halves of `k/2` turns `O(n^k)` into `O(n^(k/2))`. It also solves Subset Sum for n ≈ 40.
 
 ---
 
-### 31. 4Sum II 🟡
+# 7. Two Sum III — Design
+🟢 ⚪ **Variation of Two Sum** — the interesting part is the **trade-off**.
+
+```mermaid
+flowchart LR
+    A["OPTIMIZE `add`<br/>add: O(1)<br/>find: O(n)"] -->|"choose based on<br/>the access pattern"| B["OPTIMIZE `find`<br/>add: O(n) — store all pair sums<br/>find: O(1)"]
+
+    style A fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
 ```cpp
-int fourSumCount(vector<int>& a, vector<int>& b, vector<int>& c, vector<int>& d) {
-    unordered_map<int,int> ab;
-    for (int x : a) for (int y : b) ab[x + y]++;   // O(n²)
-    int cnt = 0;
-    for (int x : c) for (int y : d) {
-        auto it = ab.find(-(x + y));
-        if (it != ab.end()) cnt += it->second;
+class TwoSum {
+    unordered_map<int,int> cnt;
+public:
+    void add(int n) { cnt[n]++; }               // O(1)
+
+    bool find(int target) {                     // O(distinct values)
+        for (auto& [v, c] : cnt) {
+            int need = target - v;
+            if (need == v) { if (c > 1) return true; }   // ⚠️ needs TWO copies
+            else if (cnt.count(need)) return true;
+        }
+        return false;
     }
-    return cnt;
+};
+```
+⭐ **The `need == v` case is the whole point of storing counts** rather than a set — `target = 4` with only one `2` present must return false.
+
+**When to pick which:** if `add` is called far more often than `find` (the usual case), optimize `add`. If it's read-heavy, precompute the sums.
+
+---
+
+# 8. First Unique Character
+🟢 ⚪ **Variation** — two passes, `int[26]`.
+
+```cpp
+int firstUniqChar(string s) {
+    int cnt[26] = {};
+    for (char c : s) cnt[c - 'a']++;            // pass 1: count
+    for (int i = 0; i < (int)s.size(); ++i)     // pass 2: ⭐ first with count 1
+        if (cnt[s[i] - 'a'] == 1) return i;
+    return -1;
 }
 ```
-**Complexity:** O(n²) instead of O(n⁴).
-**Key insight:** **Meet in the middle** — split four loops into two pairs and join with a hash map. This technique generalizes to many exponential problems.
+⭐ **Two passes beat one pass here.** A single pass with a "seen once" set requires ordered bookkeeping; counting first makes the second pass trivially ordered by index.
+
+🎤 **Follow-up: a stream (First Unique Number)?** Use a queue of candidates plus a count map — pop from the queue while its front has count > 1.
 
 ---
 
-### 32. Copy List with Random Pointer 🟡
+# 9. Isomorphic Strings / Word Pattern
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **A bijection needs TWO maps**
+
+> `"egg"` ↔ `"add"` ✅ · `"foo"` ↔ `"bar"` ❌ · `"badc"` ↔ `"baba"` ❌
+
+## ⚠️ Why one map is wrong
+
+```mermaid
+flowchart TD
+    A["s = 'badc'<br/>t = 'baba'"] --> B["ONE map: s → t"]
+    B --> C["b→b ✅  a→a ✅<br/>d→b ✅  c→a ✅"]
+    C --> D["❌ Reports TRUE, but it's wrong!"]
+    D --> E["⚠️ Both 'b' and 'd' map to 'b' —<br/>that's not a BIJECTION"]
+    E --> F["⭐ FIX: maintain a REVERSE map too,<br/>t → s, and check both directions"]
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+bool isIsomorphic(string s, string t) {
+    if (s.size() != t.size()) return false;
+
+    int fwd[256] = {}, bwd[256] = {};           // ⭐ 0 = "unmapped"
+
+    for (int i = 0; i < (int)s.size(); ++i) {
+        unsigned char a = s[i], b = t[i];
+
+        if (fwd[a] == 0 && bwd[b] == 0) {
+            fwd[a] = b;                         // ⭐ establish the pairing
+            bwd[b] = a;                         //    in BOTH directions
+        } else if (fwd[a] != b || bwd[b] != a) {
+            return false;                       // ⭐ conflicts either way
+        }
+    }
+    return true;
+}
+```
+
+⭐ **The elegant alternative:** compare the *index of last occurrence* for both strings — if `s` and `t` are isomorphic, the position of each character's previous appearance matches at every index.
+
+**Word Pattern** is the same problem with `char ↔ string` instead of `char ↔ char`:
+```cpp
+bool wordPattern(string pattern, string s) {
+    vector<string> words;
+    stringstream ss(s);
+    string w;
+    while (ss >> w) words.push_back(w);
+
+    if (words.size() != pattern.size()) return false;
+
+    unordered_map<char,string> fwd;
+    unordered_map<string,char> bwd;             // ⭐ still TWO maps
+
+    for (int i = 0; i < (int)pattern.size(); ++i) {
+        char c = pattern[i];
+        if (fwd.count(c) && fwd[c] != words[i]) return false;
+        if (bwd.count(words[i]) && bwd[words[i]] != c) return false;
+        fwd[c] = words[i];
+        bwd[words[i]] = c;
+    }
+    return true;
+}
+```
+
+## 📌 Pattern Card
+```
+SIGNAL   "one-to-one mapping" / "same structure" / "isomorphic"
+KEY      ⭐ a BIJECTION requires checking BOTH directions
+RELATED  Word Pattern · Find and Replace Pattern · Group Shifted Strings
+```
+
+---
+
+# 10. Find All Anagrams in a String
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Rolling frequency window**
+
+> All start indices where an anagram of `p` occurs in `s`.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 EVERY WINDOW<br/>+ sort &amp; compare<br/><b>O(n·k log k)</b>"] --> B["⚡ EVERY WINDOW<br/>+ rebuild the count<br/><b>O(n·k)</b>"]
+    B -->|"add one, remove one<br/>instead of rebuilding"| C["⚡ ROLLING COUNTS<br/>+ compare 26 slots<br/><b>O(26n)</b>"]
+    C -->|"track a single<br/>match counter"| D["🚀 ROLLING + MATCH COUNT<br/><b>O(n)</b> / O(1)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["slide a fixed-size window<br/>of length p.size()"] --> B["⭐ entering character:<br/>count++"]
+    B --> C["⭐ leaving character:<br/>count−−"]
+    C --> D{"do all 26 counts<br/>match p's?"}
+    D -->|"yes"| E["record the start index"]
+    D -->|"no"| A
+    E --> A
+
+    N["⭐ Instead of comparing 26 slots each step,<br/>maintain a `matched` counter that tracks<br/>how many letters have the exact right count"] -.-> D
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style N fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
+```cpp
+vector<int> findAnagrams(string s, string p) {
+    if (s.size() < p.size()) return {};
+
+    int need[26] = {}, win[26] = {};
+    for (char c : p) need[c - 'a']++;
+
+    int k = p.size(), matched = 0;
+    // ⭐ how many letters ALREADY have the correct count (0 counts as correct)
+    for (int i = 0; i < 26; ++i) if (need[i] == win[i]) ++matched;
+
+    vector<int> out;
+
+    for (int i = 0; i < (int)s.size(); ++i) {
+        int in = s[i] - 'a';
+        // ⭐ update `matched` around each mutation
+        if (win[in] == need[in]) --matched;
+        ++win[in];
+        if (win[in] == need[in]) ++matched;
+
+        if (i >= k) {                           // ⭐ evict the leaving character
+            int out_c = s[i - k] - 'a';
+            if (win[out_c] == need[out_c]) --matched;
+            --win[out_c];
+            if (win[out_c] == need[out_c]) ++matched;
+        }
+
+        if (i >= k - 1 && matched == 26) out.push_back(i - k + 1);
+    }
+    return out;
+}
+```
+
+⭐ **The `matched` counter turns an O(26) comparison per step into O(1).** The pattern — *decrement before mutating, increment after* — is the general way to maintain a derived counter incrementally.
+
+---
+
+# 11. Substring with Concatenation of All Words
+🔴 ⚪ **Variation of #10** — the same rolling window, but the unit is a **word**, not a character.
+
+```mermaid
+flowchart TD
+    A["all words have the SAME length L"] --> B["⭐ Run L separate sliding windows,<br/>one for each start offset 0..L−1"]
+    B --> C["Within each, slide by WHOLE words"]
+    C --> D["⭐ Total work is still O(n·L),<br/>not O(n·L·numWords)"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+vector<int> findSubstring(string s, vector<string>& words) {
+    if (words.empty() || s.empty()) return {};
+
+    int L = words[0].size(), n = words.size(), total = L * n;
+    if ((int)s.size() < total) return {};
+
+    unordered_map<string,int> need;
+    for (auto& w : words) need[w]++;
+
+    vector<int> out;
+
+    for (int off = 0; off < L; ++off) {         // ⭐ L independent windows
+        unordered_map<string,int> win;
+        int count = 0, left = off;
+
+        for (int right = off; right + L <= (int)s.size(); right += L) {
+            string w = s.substr(right, L);
+
+            if (!need.count(w)) {               // ⭐ invalid word → reset entirely
+                win.clear(); count = 0; left = right + L;
+                continue;
+            }
+
+            win[w]++; ++count;
+            while (win[w] > need[w]) {          // ⭐ too many copies → shrink
+                string lw = s.substr(left, L);
+                win[lw]--; --count;
+                left += L;
+            }
+
+            if (count == n) out.push_back(left);
+        }
+    }
+    return out;
+}
+```
+
+---
+
+# 12. Copy List with Random Pointer
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Interleaving beats the hash map**
+
+> Deep-copy a linked list where each node also has a `random` pointer to any node.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ HASH MAP<br/>original → copy,<br/>two passes<br/><b>O(n)</b> / <b>O(n)</b>"] -->|"encode the mapping<br/>IN the list itself"| B["🚀 INTERLEAVE<br/>three passes<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 1️⃣ Hash Map — the obvious answer
 ```cpp
 Node* copyRandomList(Node* head) {
-    if (!head) return nullptr;
     unordered_map<Node*, Node*> mp;
     for (Node* p = head; p; p = p->next) mp[p] = new Node(p->val);
     for (Node* p = head; p; p = p->next) {
-        mp[p]->next = mp[p->next];                 // nullptr maps to nullptr
-        mp[p]->random = mp[p->random];
+        mp[p]->next   = mp[p->next];            // ⭐ nullptr maps to nullptr
+        mp[p]->random = mp[p->random];          //    for free, via operator[]
     }
     return mp[head];
 }
 ```
-🎤 **Follow-up (O(1) space):** interleave copies into the original list, wire up randoms via `p->next->random = p->random->next`, then split the lists.
+⭐ **`mp[nullptr]` default-constructs to `nullptr`** — so the null cases need no special handling.
 
----
+## 2️⃣ Interleaving — ⭐ O(1) space
 
-### 33. Word Break 🟡
+```mermaid
+flowchart TD
+    A["PASS 1 — weave copies in<br/>A → A' → B → B' → C → C'"] --> B["⭐ Each copy sits IMMEDIATELY<br/>after its original — that IS the map"]
+    B --> C["PASS 2 — set random pointers<br/>copy->random = orig->random->next"]
+    C --> D["⭐ orig->random->next is exactly<br/>the copy of orig->random"]
+    D --> E["PASS 3 — unweave into<br/>two separate lists"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ORIGINAL     A ──→ B ──→ C
+                └───random──→ (A.random = C)
+
+   AFTER PASS 1 (weave)
+                A → A' → B → B' → C → C'
+
+   PASS 2       A.random = C
+                ⭐ so A'.random = C.next = C'   ✅
+                One dereference. No map needed.
+```
+
 ```cpp
-bool wordBreak(string s, vector<string>& dict) {
-    unordered_set<string> d(dict.begin(), dict.end());
-    int n = s.size();
-    vector<bool> dp(n + 1, false);
-    dp[0] = true;
-    for (int i = 1; i <= n; ++i)
-        for (int j = 0; j < i; ++j)
-            if (dp[j] && d.count(s.substr(j, i - j))) { dp[i] = true; break; }
-    return dp[n];
+Node* copyRandomList(Node* head) {
+    if (!head) return nullptr;
+
+    // ① weave copies in
+    for (Node* p = head; p; p = p->next->next) {
+        Node* c = new Node(p->val);
+        c->next = p->next;
+        p->next = c;
+    }
+
+    // ② wire up the random pointers
+    for (Node* p = head; p; p = p->next->next)
+        if (p->random) p->next->random = p->random->next;   // ⭐ the key line
+
+    // ③ unweave
+    Node* newHead = head->next;
+    for (Node* p = head; p; ) {
+        Node* c = p->next;
+        p->next = c->next;
+        c->next = c->next ? c->next->next : nullptr;
+        p = p->next;
+    }
+    return newHead;
 }
 ```
-**Complexity:** O(n²·L). Hashing turns dictionary lookup into O(L).
+
+⚠️ **The unweave must restore the original list too** — an interviewer will check that you didn't leave the input mangled.
 
 ---
 
-## 📋 Section Summary
+# 13. Design HashMap from Scratch
 
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║                    HASHING — PATTERN RECALL                       ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ "find a pair/complement"        → map value→index, check          ║
-║                                   BEFORE inserting                ║
-║ "group by property"             → map<canonicalKey, vector>       ║
-║   anagram key = count array, NOT sorted string (O(L) vs O(L logL))║
-║ "top k frequent"                → BUCKET SORT by frequency, O(n)  ║
-║ "longest consecutive"           → set + only start from heads     ║
-║ "O(1) insert/delete/random"     → vector + map, swap with last    ║
-║ "LRU"                           → map + doubly linked list        ║
-║ "O(n⁴) with 4 arrays"           → MEET IN THE MIDDLE, 2+2 → O(n²) ║
-║ "range query on values"         → ordered set, NOT hash map       ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ C++ TRAPS                                                         ║
-║   mp[key] INSERTS on read — use find() or count()                 ║
-║   small fixed alphabet → use int[26], not a hash map              ║
-║   mp.reserve(n) avoids rehashing                                  ║
-║   unordered_map is O(n) worst case (adversarial hash collisions)  ║
-╚═══════════════════════════════════════════════════════════════════╝
+🟢 **Easy to state, deep to discuss** · 🔵 Full ladder
+
+```mermaid
+flowchart TD
+    A["key"] --> B["⭐ hash(key) % numBuckets<br/>→ bucket index"]
+    B --> C["bucket = a list of<br/>(key, value) pairs"]
+    C --> D{"collision?"}
+    D -->|"CHAINING"| E["append to the bucket's list<br/>⭐ what std::unordered_map does"]
+    D -->|"OPEN ADDRESSING"| F["probe the next slot<br/>⭐ better cache locality,<br/>harder deletion"]
+    E --> G["⚠️ load factor = entries / buckets<br/>&gt; ~0.75 → REHASH (double + reinsert)"]
+    F --> G
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F fill:#bbdefb,stroke:#1565c0,color:#000
+    style G fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
 ```
 
-**Next:** [Two Pointers & Sliding Window →](03-two-pointers-sliding-window.md)
+```cpp
+class MyHashMap {
+    static const int BUCKETS = 1009;            // ⭐ PRIME — reduces clustering
+    vector<list<pair<int,int>>> table;
+
+    list<pair<int,int>>& bucket(int key) { return table[key % BUCKETS]; }
+
+public:
+    MyHashMap() : table(BUCKETS) {}
+
+    void put(int key, int value) {
+        for (auto& kv : bucket(key))
+            if (kv.first == key) { kv.second = value; return; }   // ⭐ update
+        bucket(key).emplace_back(key, value);
+    }
+
+    int get(int key) {
+        for (auto& kv : bucket(key)) if (kv.first == key) return kv.second;
+        return -1;
+    }
+
+    void remove(int key) {
+        auto& b = bucket(key);
+        b.remove_if([key](const auto& kv){ return kv.first == key; });
+    }
+};
+```
+
+```
+   ⭐ WHAT AN INTERVIEWER ACTUALLY WANTS TO HEAR
+
+   COMPLEXITY
+     O(1) average · O(n) worst case (all keys collide)
+     Java 8+ converts a long bucket chain into a red-black
+     tree → O(log n) worst case instead of O(n).
+
+   WHY A PRIME BUCKET COUNT
+     With a power of two, `% N` keeps only the low bits, so
+     any pattern in those bits causes clustering. A prime
+     spreads the entropy across the whole value.
+
+   HASH FLOODING (a real security issue)
+     An attacker who can predict your hash function submits
+     keys that all collide → every operation degrades to O(n)
+     → CPU exhaustion. This is CVE-2011-4815 and friends.
+     ⭐ FIX: SipHash with a per-process random seed. Python,
+     Rust, and Java all do this now.
+
+   LOAD FACTOR
+     Rehashing at ~0.75 keeps chains short. Rehashing is O(n)
+     but AMORTIZES to O(1) per insert, exactly like vector growth.
+```
+
+---
+
+# 14. Consistent Hashing (Design Note)
+
+📘 **Concept** · The distributed-systems version of the same idea. Comes up constantly in [system design](../05-system-design/01-building-blocks.md).
+
+## ⚠️ The problem with `hash(key) % N`
+
+```mermaid
+flowchart TD
+    A["hash(key) % 4 servers"] --> B["⚠️ Add ONE server → % 5"]
+    B --> C["⭐ Nearly EVERY key now maps<br/>to a different server"]
+    C --> D["❌ Total cache invalidation<br/>→ a thundering herd hits the database"]
+
+    style A fill:#fff9c4,stroke:#f9a825,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style C fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#ff8a80,stroke:#b71c1c,stroke-width:2px,color:#000
+```
+
+## ⭐ The fix: a hash ring
+
+```mermaid
+flowchart TD
+    A["Map both SERVERS and KEYS<br/>onto the same circular hash space<br/>(0 .. 2³²−1)"] --> B["A key belongs to the first<br/>server CLOCKWISE from it"]
+    B --> C["⭐ Adding/removing a server only<br/>affects the keys in ONE arc"]
+    C --> D["Only ~K/N keys move,<br/>not almost all of them"]
+    D --> E["⚠️ But few servers → uneven arcs<br/>→ hot spots"]
+    E --> F["⭐ VIRTUAL NODES: place each<br/>physical server at 100–200 points<br/>on the ring → smooth distribution"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+class ConsistentHash {
+    map<uint32_t, string> ring;                 // ⭐ ORDERED map — needs lower_bound
+    int vnodes;
+
+public:
+    ConsistentHash(int v = 150) : vnodes(v) {}
+
+    void addServer(const string& s) {
+        for (int i = 0; i < vnodes; ++i)
+            ring[hashOf(s + "#" + to_string(i))] = s;   // ⭐ virtual nodes
+    }
+
+    void removeServer(const string& s) {
+        for (int i = 0; i < vnodes; ++i)
+            ring.erase(hashOf(s + "#" + to_string(i)));
+    }
+
+    string getServer(const string& key) {
+        if (ring.empty()) return "";
+        auto it = ring.lower_bound(hashOf(key));  // ⭐ first server clockwise
+        if (it == ring.end()) it = ring.begin();  // ⭐ wrap around the circle
+        return it->second;
+    }
+};
+```
+
+⭐ **Used in production by:** Cassandra, DynamoDB, Riak, memcached clients, and most CDN request routers.
+
+---
+
+## 📋 Hashing Recall
+
+```mermaid
+mindmap
+  root(("Hashing"))
+    Core Trade
+      O(n) space → O(1) lookup
+      almost always worth it
+    Prefix + Map
+      prefix[j] − prefix[i] = k
+      ⭐ seed count[0] = 1
+      works with NEGATIVES
+      sliding window does not
+    Sequence Tricks
+      ⭐ only expand from starts
+      turns O(n²) into O(n)
+    Design
+      map + doubly linked list = LRU
+      map + freq lists = LFU
+      map + vector = O(1) random
+      ⭐ swap-with-last removal
+    Bijection
+      ⭐ TWO maps, both directions
+    Windows
+      rolling counts
+      `matched` counter → O(1) check
+    Under the Hood
+      chaining vs open addressing
+      prime buckets, load factor 0.75
+      ⚠️ hash flooding → SipHash
+      consistent hashing + vnodes
+```
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                     HASHING — PATTERN RECALL                         ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "have I seen this?"            → unordered_set                       ║
+║ "count subarrays with sum k"   → ⭐ prefix map, seed count[0]=1       ║
+║ "consecutive run, unsorted"    → ⭐ set + only start where x−1 absent ║
+║ "O(1) get/put + eviction"      → map + DOUBLY linked list            ║
+║ "O(1) insert/delete/random"    → ⭐ vector + map, swap-with-last      ║
+║ "count 4-tuples summing to 0"  → ⭐ meet in the middle, O(n²)         ║
+║ "one-to-one character mapping" → ⭐ TWO maps — check both directions  ║
+║ "all anagram positions"        → rolling counts + `matched` counter  ║
+║ "deep copy with random ptrs"   → ⭐ interleave for O(1) space         ║
+║ "distribute keys over servers" → consistent hashing + virtual nodes  ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   mp[key] INSERTS on miss — use find() or count()                    ║
+║   subarray sum: forgetting count[0] = 1                              ║
+║   longest consecutive: walking from every element is O(n²)           ║
+║   LRU: erase from the map BEFORE deleting the node                   ║
+║   isomorphic: one map silently accepts non-bijections                ║
+║   RandomizedSet: update the moved index BEFORE erasing               ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+**Next:** [Two Pointers & Sliding Window →](03-two-pointers-sliding-window.md) · **Back:** [Arrays Part 3](01c-arrays-strings.md)

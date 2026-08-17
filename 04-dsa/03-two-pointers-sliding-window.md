@@ -1,97 +1,244 @@
-# 👉👈 Two Pointers & Sliding Window — 40 Problems
+# ↔️ Two Pointers & Sliding Window
 
-> Two techniques that turn O(n²) into O(n). The distinction: **two pointers** usually converge from opposite ends on sorted data; **sliding window** maintains a contiguous range with an invariant.
+> Two techniques that share one idea: **stop re-examining what you've already examined.** Both turn a nested loop into a single pass by moving indices forward and never backward.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
-## 🧠 The Templates
+## 🧠 Which Technique, and When
 
-### Two pointers — opposite ends
-```cpp
-int l = 0, r = n - 1;
-while (l < r) {
-    if (condition(a[l], a[r])) return {l, r};
-    if (needBigger)  ++l;                          // sorted: move left up
-    else             --r;                          // sorted: move right down
-}
+```mermaid
+flowchart TD
+    Q{"What shape is<br/>the problem?"}
+    Q -->|"sorted array,<br/>find a pair/triple"| A["⭐ OPPOSITE-END<br/>two pointers<br/>l=0, r=n−1"]
+    Q -->|"contiguous subarray/substring<br/>with a constraint"| B["⭐ SLIDING WINDOW<br/>expand right, shrink left"]
+    Q -->|"in-place filter,<br/>partition, dedupe"| C["⭐ SLOW/FAST<br/>same-direction pointers"]
+    Q -->|"cycle detection,<br/>find the middle"| D["⭐ FAST/SLOW<br/>tortoise &amp; hare"]
+    Q -->|"merge two sorted<br/>sequences"| E["⭐ PARALLEL pointers<br/>one per sequence"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000
+    style D fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style E fill:#b2dfdb,stroke:#00695c,color:#000
 ```
-**Requires sorted input.** Each comparison eliminates an entire row or column of the O(n²) pair space.
 
-### Sliding window — the universal template
+## ⭐ The Universal Sliding Window Template
+
 ```cpp
-int left = 0;
-Counter window;
-for (int right = 0; right < n; ++right) {
-    window.add(a[right]);                          // ── 1. EXPAND
+int slidingWindow(vector<int>& a) {
+    int left = 0, best = 0;
+    /* window state: a count map, a running sum, a distinct counter... */
 
-    while (windowIsInvalid()) {                    // ── 2. SHRINK
-        window.remove(a[left]);
-        ++left;
+    for (int right = 0; right < (int)a.size(); ++right) {
+        // ① EXPAND — add a[right] to the window state
+        add(a[right]);
+
+        // ② SHRINK — while the window is INVALID, remove from the left
+        while (!valid()) {
+            remove(a[left]);
+            ++left;
+        }
+
+        // ③ RECORD — the window is now valid
+        best = max(best, right - left + 1);
     }
-
-    best = max(best, right - left + 1);            // ── 3. RECORD
+    return best;
 }
 ```
 
 ```
-   WHICH VARIANT?
+   ⭐⭐ THE THREE VARIANTS, AND WHERE `best` GOES
 
-   "LONGEST subarray with property P"
-     → shrink while INVALID, record after the while loop
-   
-   "SHORTEST subarray with property P"
-     → shrink while VALID, record INSIDE the while loop
-   
-   "COUNT subarrays with property P"
-     → for each right, (right - left + 1) subarrays end at right
-   
-   "at most K" vs "exactly K"
-     → exactly(K) = atMost(K) - atMost(K-1)   ⭐ very useful reduction
+   LONGEST valid window
+     shrink WHILE invalid → record AFTER the shrink loop
+     (the window is guaranteed valid at that point)
+
+   SHORTEST valid window
+     shrink WHILE valid → record INSIDE the shrink loop
+     (record just before it becomes invalid)
+
+   FIXED-SIZE window
+     no while loop at all — evict exactly one element
+     when the size exceeds k
+
+   ⚠️ Getting this wrong is the #1 sliding-window bug.
 ```
-
-⚠️ **Sliding window only works when the property is monotonic** — growing the window can only push it in one direction. That's why "subarray sum = k" with **negative** numbers needs prefix sums instead.
 
 ---
 
-## A. Two Pointers — Opposite Ends
+## 📑 Contents
 
-### 1. Two Sum II (sorted input) 🟡
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-two-sum-ii-sorted) | Two Sum II (sorted) | 🟢 | 🔵 **Full** | O(n) opposite ends |
+| [2](#2-3sum) | 3Sum | 🟡 | 🔵 **Full** | O(n²) sort + two pointers |
+| [3](#3-3sum-closest--4sum) | 3Sum Closest / 4Sum | 🟡 | ⚪ Variation | same skeleton |
+| [4](#4-container-with-most-water) | Container With Most Water | 🟡 | 🔵 **Full** | O(n) greedy shrink |
+| [5](#5-trapping-rain-water) | Trapping Rain Water | 🔴 | 🔵 **Full** | O(n)/O(1) two pointers |
+| [6](#6-sort-array-by-parity--partition) | Sort Array by Parity | 🟢 | ⚪ Variation | slow/fast |
+| [7](#7-longest-substring-with-at-most-k-distinct) | Longest Substring ≤ K Distinct | 🟡 | 🔵 **Full** | O(n) window + count map |
+| [8](#8-fruit-into-baskets) | Fruit Into Baskets | 🟡 | ⚪ Variation | K = 2 |
+| [9](#9-minimum-size-subarray-sum) | Minimum Size Subarray Sum | 🟡 | 🔵 **Full** | O(n) shortest-window variant |
+| [10](#10-minimum-window-substring) | Minimum Window Substring | 🔴 | 🔵 **Full** | O(n) with a `missing` counter |
+| [11](#11-permutation-in-string) | Permutation in String | 🟡 | ⚪ Variation | fixed-size window |
+| [12](#12-sliding-window-maximum) | Sliding Window Maximum | 🔴 | 🔵 **Full** | O(n) monotonic deque |
+| [13](#13-max-consecutive-ones-iii) | Max Consecutive Ones III | 🟡 | ⚪ Variation | window with ≤ k zeros |
+| [14](#14-subarrays-with-k-different-integers) | Subarrays with K Different | 🔴 | 🔵 **Full** | ⭐ atMost(K) − atMost(K−1) |
+| [15](#15-linked-list-cycle-floyds) | Linked List Cycle (Floyd's) | 🟡 | 🔵 **Full** | O(1) space cycle + entry |
+| [16](#16-find-the-duplicate-number) | Find the Duplicate Number | 🟡 | ⚪ Variation | Floyd's on an array |
+
+---
+
+# 1. Two Sum II (Sorted)
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The opposite-end skeleton**
+
+> Sorted array, find two numbers summing to `target`. **O(1) space.**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL PAIRS<br/><b>O(n²)</b>"] -->|"array is SORTED —<br/>use binary search"| B["⚡ FIX i + BINARY SEARCH<br/><b>O(n log n)</b> / O(1)"]
+    B -->|"the sorted order gives<br/>DIRECTIONAL feedback"| C["🚀 TWO POINTERS<br/><b>O(n)</b> / <b>O(1)</b>"]
+    A -->|"hash the<br/>complement"| D["⚡ HASH MAP<br/><b>O(n)</b> / <b>O(n)</b><br/>⚠️ wastes the sortedness"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,color:#000
+```
+
+## 💬 Why sortedness makes one comparison enough
+
+```mermaid
+flowchart TD
+    A["l = 0 (smallest)<br/>r = n−1 (largest)"] --> B{"a[l] + a[r]<br/>vs target"}
+    B -->|"TOO SMALL"| C["⭐ ++l<br/>Only a LARGER left value<br/>can help — a[r] is already<br/>the biggest available"]
+    B -->|"TOO BIG"| D["⭐ −−r<br/>Only a SMALLER right value<br/>can help"]
+    B -->|"EQUAL"| E(["✅ found"])
+    C --> B
+    D --> B
+
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style D fill:#bbdefb,stroke:#1565c0,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ WHY NO VALID PAIR IS EVER SKIPPED
+
+   Suppose sum < target, so we do ++l.
+   Could the discarded a[l] have been part of the answer?
+   Its ONLY remaining partners are a[l+1..r], all of which are
+   ≤ a[r]. Since a[l] + a[r] was ALREADY too small, every one
+   of those pairs is too small too. So a[l] is provably useless.
+
+   ⭐ Each move eliminates an entire row/column of the pair
+     space — the same reasoning as the staircase search in
+     Search a 2D Matrix II.
+```
+
+```
+   TRACE  a = [2, 7, 11, 15], target = 9
+
+    2   7   11   15
+    ▲            ▲
+    l            r     2+15 = 17 > 9  → −−r
+
+    2   7   11
+    ▲       ▲
+    l       r          2+11 = 13 > 9  → −−r
+
+    2   7
+    ▲   ▲
+    l   r              2+7 = 9  ⭐ FOUND
+```
+
 ```cpp
-vector<int> twoSum(vector<int>& a, int t) {
+vector<int> twoSum(vector<int>& a, int target) {
     int l = 0, r = a.size() - 1;
+
     while (l < r) {
-        int s = a[l] + a[r];
-        if (s == t) return {l + 1, r + 1};
-        if (s < t) ++l; else --r;
+        int sum = a[l] + a[r];
+        if      (sum == target) return {l + 1, r + 1};   // ⚠️ 1-indexed
+        else if (sum < target)  ++l;
+        else                    --r;
     }
     return {};
 }
 ```
-**Complexity:** O(n) / O(1) — better than the hash map version for sorted input.
+
+## 📌 Pattern Card
+```
+SIGNAL   SORTED array + find a pair with a target relation
+KEY      l/r from opposite ends; the comparison tells you which to move
+RELATED  3Sum · Container With Most Water · Valid Palindrome
+```
 
 ---
 
-### 2. 3Sum 🟡
+# 2. 3Sum
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Fix one, two-point the rest**
+
+> All **unique** triplets summing to zero.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 THREE LOOPS<br/>+ dedupe with a set<br/><b>O(n³)</b>"] -->|"hash the<br/>third value"| B["⚡ TWO LOOPS + HASH<br/><b>O(n²)</b> / <b>O(n)</b><br/>⚠️ dedup is painful"]
+    A -->|"SORT first"| C["🚀 SORT + FIX i<br/>+ two pointers<br/><b>O(n²)</b> / <b>O(1)</b><br/>✅ dedup is easy"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 The reduction
+
+```mermaid
+flowchart TD
+    A["SORT the array<br/>⭐ O(n log n), then free forever"] --> B["For each index i:"]
+    B --> C["⭐ The problem becomes<br/>'find two numbers in a[i+1..n−1]<br/>summing to −a[i]'"]
+    C --> D["That's Two Sum II — O(n)"]
+    D --> E["n iterations × O(n) = <b>O(n²)</b>"]
+
+    F["⭐ Sorting also makes duplicate<br/>skipping trivial: equal values<br/>are ADJACENT"] -.-> A
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
 ```cpp
 vector<vector<int>> threeSum(vector<int>& a) {
     sort(a.begin(), a.end());
-    int n = a.size();
     vector<vector<int>> out;
+    int n = a.size();
+
     for (int i = 0; i < n - 2; ++i) {
-        if (a[i] > 0) break;                       // ⭐ no triplet can sum to 0
-        if (i > 0 && a[i] == a[i-1]) continue;     // skip duplicate anchors
+        if (a[i] > 0) break;                    // ⭐ sorted: no way to reach 0
+        if (i > 0 && a[i] == a[i - 1]) continue;   // ⭐ skip duplicate anchors
 
         int l = i + 1, r = n - 1;
         while (l < r) {
-            int s = a[i] + a[l] + a[r];
-            if (s < 0) ++l;
-            else if (s > 0) --r;
+            int sum = a[i] + a[l] + a[r];
+
+            if (sum < 0)      ++l;
+            else if (sum > 0) --r;
             else {
                 out.push_back({a[i], a[l], a[r]});
-                while (l < r && a[l] == a[l+1]) ++l;   // skip duplicates
-                while (l < r && a[r] == a[r-1]) --r;
+
+                // ⭐⭐ skip duplicates on BOTH sides after recording
+                while (l < r && a[l] == a[l + 1]) ++l;
+                while (l < r && a[r] == a[r - 1]) --r;
                 ++l; --r;
             }
         }
@@ -99,65 +246,79 @@ vector<vector<int>> threeSum(vector<int>& a) {
     return out;
 }
 ```
-**Complexity:** O(n²) / O(1).
-**Key insight:** Sort, fix one element, two-pointer the rest. The three duplicate-skipping steps are what most people get wrong.
+
+```
+   ⭐⭐ THE THREE DEDUPE POINTS — ALL ARE NECESSARY
+
+   ① i > 0 && a[i] == a[i−1]
+      Skips a repeated ANCHOR. Without it, [-1,-1,0,1] emits
+      the same triplet twice.
+
+   ② after recording, advance l past equal values
+   ③ after recording, retreat r past equal values
+      Without these, [-2,0,0,2,2] emits [-2,0,2] twice.
+
+   ⚠️ Note ① uses `i > 0`, not `i >= 0` — the FIRST anchor
+     must always be tried.
+```
+
+```
+   ⭐ WHY `if (a[i] > 0) break;` IS VALID
+     The array is sorted, so a[l] and a[r] are both ≥ a[i] > 0.
+     Three positive numbers can never sum to zero. Everything
+     after this point is provably useless.
+```
+
+## 📌 Pattern Card
+```
+SIGNAL   k-sum with k ≥ 3, unique results required
+KEY      SORT → fix (k−2) indices → two pointers for the last two
+         ⭐ skip duplicates at EVERY level
+RELATED  3Sum Closest · 4Sum · 3Sum Smaller · k-Sum generalization
+```
 
 ---
 
-### 3. 3Sum Closest 🟡
+# 3. 3Sum Closest / 4Sum
+🟡 ⚪ **Variations of #2** — identical skeleton, different bookkeeping.
+
+**3Sum Closest** — track the best difference instead of requiring exactly zero:
 ```cpp
-int threeSumClosest(vector<int>& a, int t) {
+int threeSumClosest(vector<int>& a, int target) {
     sort(a.begin(), a.end());
-    int n = a.size(), best = a[0] + a[1] + a[2];
-    for (int i = 0; i < n - 2; ++i) {
-        int l = i + 1, r = n - 1;
+    int best = a[0] + a[1] + a[2];              // ⭐ seed with a REAL triplet,
+                                                //    never INT_MAX (overflow)
+    for (int i = 0; i < (int)a.size() - 2; ++i) {
+        int l = i + 1, r = a.size() - 1;
         while (l < r) {
-            int s = a[i] + a[l] + a[r];
-            if (abs(s - t) < abs(best - t)) best = s;
-            if (s == t) return t;
-            if (s < t) ++l; else --r;
+            int sum = a[i] + a[l] + a[r];
+            if (abs(sum - target) < abs(best - target)) best = sum;
+
+            if (sum == target) return sum;      // ⭐ can't do better
+            sum < target ? ++l : --r;
         }
     }
     return best;
 }
 ```
 
----
-
-### 4. 3Sum Smaller 🟡
+**4Sum** — one more nested loop, one more dedupe level:
 ```cpp
-int threeSumSmaller(vector<int>& a, int t) {
+vector<vector<int>> fourSum(vector<int>& a, int target) {
     sort(a.begin(), a.end());
-    int n = a.size(), cnt = 0;
-    for (int i = 0; i < n - 2; ++i) {
-        int l = i + 1, r = n - 1;
-        while (l < r) {
-            if (a[i] + a[l] + a[r] < t) { cnt += r - l; ++l; }   // ⭐ all r' in (l,r] work
-            else --r;
-        }
-    }
-    return cnt;
-}
-```
-**Key insight:** If `a[i]+a[l]+a[r] < t`, then every index between `l+1` and `r` also works with `l` — that's `r - l` triplets counted at once.
-
----
-
-### 5. 4Sum 🟡
-```cpp
-vector<vector<int>> fourSum(vector<int>& a, int t) {
-    sort(a.begin(), a.end());
-    int n = a.size();
     vector<vector<int>> out;
+    int n = a.size();
+
     for (int i = 0; i < n - 3; ++i) {
-        if (i > 0 && a[i] == a[i-1]) continue;
+        if (i > 0 && a[i] == a[i-1]) continue;              // ⭐ dedupe level 1
         for (int j = i + 1; j < n - 2; ++j) {
-            if (j > i + 1 && a[j] == a[j-1]) continue;
+            if (j > i + 1 && a[j] == a[j-1]) continue;      // ⭐ dedupe level 2
+
             int l = j + 1, r = n - 1;
             while (l < r) {
-                long long s = (long long)a[i] + a[j] + a[l] + a[r];   // ⭐ overflow
-                if (s < t) ++l;
-                else if (s > t) --r;
+                long long sum = (long long)a[i] + a[j] + a[l] + a[r];  // ⚠️ overflow
+                if (sum < target) ++l;
+                else if (sum > target) --r;
                 else {
                     out.push_back({a[i], a[j], a[l], a[r]});
                     while (l < r && a[l] == a[l+1]) ++l;
@@ -170,815 +331,962 @@ vector<vector<int>> fourSum(vector<int>& a, int t) {
     return out;
 }
 ```
-**Complexity:** O(n³). Generalizes to kSum with recursion + two pointers at the base.
+⚠️ **`long long` is mandatory in 4Sum** — four `int`s near `INT_MAX` overflow.
+
+⭐ **The general k-Sum:** recurse, reducing k by one each level, until k == 2 where you use two pointers. That gives **O(n^(k−1))**.
 
 ---
 
-### 6. Container With Most Water 🟡
+# 4. Container With Most Water
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Greedy pointer movement with a proof**
+
+> Two lines and the x-axis form a container. Maximize the water held.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL PAIRS<br/><b>O(n²)</b>"] -->|"the shorter line<br/>is always the bottleneck"| B["🚀 TWO POINTERS<br/>always move the SHORTER<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 Why moving the shorter line is provably safe
+
+```mermaid
+flowchart TD
+    A["area = min(h[l], h[r]) × (r − l)"] --> B["⭐ Moving EITHER pointer<br/>always DECREASES the width"]
+    B --> C{"which pointer<br/>should move?"}
+    C -->|"move the TALLER one"| D["❌ new height ≤ min(h[l],h[r])<br/>because the shorter still caps it<br/>→ width down, height can't rise<br/>→ area can ONLY shrink"]
+    C -->|"⭐ move the SHORTER one"| E["✅ height MIGHT increase,<br/>which is the only way to<br/>offset the lost width"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ THE FORMAL ARGUMENT
+
+   Say h[l] < h[r]. Consider EVERY pair (l, x) for x < r.
+   All have width smaller than (r − l), and height
+   at most h[l] — which is what we already measured.
+
+   ⭐ So every remaining pair involving l is ≤ what we just
+     computed. Discarding l loses nothing. ∎
+```
+
+```
+   TRACE  h = [1, 8, 6, 2, 5, 4, 8, 3, 7]
+
+   ┌─────┬─────┬────────────────┬──────────────────────┐
+   │  l  │  r  │  area          │ action               │
+   ├─────┼─────┼────────────────┼──────────────────────┤
+   │ 0(1)│ 8(7)│ min(1,7)×8 = 8 │ h[l] smaller → ++l   │
+   │ 1(8)│ 8(7)│ min(8,7)×7 =⭐49│ h[r] smaller → −−r   │
+   │ 1(8)│ 7(3)│ min(8,3)×6 = 18│ h[r] smaller → −−r   │
+   │ 1(8)│ 6(8)│ min(8,8)×5 = 40│ tie → move either    │
+   │ ... │     │                │                      │
+   └─────┴─────┴────────────────┴──────────────────────┘
+   ⭐ ANSWER: 49
+```
+
 ```cpp
 int maxArea(vector<int>& h) {
     int l = 0, r = h.size() - 1, best = 0;
+
     while (l < r) {
         best = max(best, min(h[l], h[r]) * (r - l));
-        if (h[l] < h[r]) ++l; else --r;            // ⭐ move the SHORTER side
+        h[l] < h[r] ? ++l : --r;                // ⭐ always move the SHORTER
     }
     return best;
 }
 ```
-**Key insight:** Moving the taller side can never help — the area is capped by the shorter side, and width only decreases. So moving the shorter side is the only move that could improve things. That's the exchange argument proving correctness.
+
+⚠️ **Do not confuse this with [Trapping Rain Water](#5-trapping-rain-water).** Here the bars have no width and the *interior* is irrelevant — only the two chosen walls matter.
 
 ---
 
-### 7. Trapping Rain Water 🔴
-> Given an elevation map, compute how much water it traps after raining.
+# 5. Trapping Rain Water
 
-#### 💬 Think of it like this
-Forget the whole array for a moment and think about **one single position**. How much water sits on top of it?
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Four approaches worth knowing**
 
-Water at position `i` is bounded by the tallest wall to its left and the tallest wall to its right. Whichever of those is *shorter* determines the water level — water spills over the lower side. So:
+> How much water is trapped between bars after rain?
 
 ```
-   water[i] = min(tallest on left, tallest on right) − height[i]
+   ▓ = bar    ░ = trapped water
+
+              █
+      █ ░ ░ ░ █ █ ░ █
+    █ █ ░ █ █ █ █ █ █ █
+   [0,1,0,2,1,0,1,3,2,1,2,1]  →  6 units
 ```
 
-That's the whole problem. The only question is how to know both maxima efficiently.
+## 🗺️ Approach Ladder
 
-The naive way computes both for every position: O(n²). Precomputing two arrays makes it O(n) time but O(n) space.
+```mermaid
+flowchart LR
+    A["🐌 PER COLUMN<br/>scan left &amp; right<br/>for the max each time<br/><b>O(n²)</b>"] -->|"precompute<br/>the maxima"| B["⚡ PREFIX MAX ARRAYS<br/><b>O(n)</b> / <b>O(n)</b>"]
+    B -->|"only ONE side<br/>ever matters"| C["🚀 TWO POINTERS<br/><b>O(n)</b> / <b>O(1)</b>"]
+    A -->|"resolve boundaries<br/>as you go"| D["⚡ MONOTONIC STACK<br/><b>O(n)</b> / O(n)<br/>fills horizontally"]
 
-**The two-pointer insight is subtler and gets you to O(1) space.** Walk in from both ends. At each step, compare the two current heights — and here's the trick: *you only need to know one of the two maxima with certainty.*
-
-If `h[left] < h[right]`, then whatever the true right-maximum is, it's **at least** `h[right]`, which is already taller than `h[left]`. So the left side is definitely the binding constraint, and you can compute the water at `left` using only `leftMax` — without ever knowing the exact right maximum.
-
-#### 📊 Watching it work on `[0,1,0,2,1,0,1,3]`
-
-```
-   height:  0  1  0  2  1  0  1  3
-            ▁  ▃  ▁  ▆  ▃  ▁  ▃  █
-
-   Visualized with water (~):
-
-            ·  ·  ·  ·  ·  ·  ·  █
-            ·  ·  ·  ▆  ~  ~  ~  █     ← water sits here
-            ·  ▃  ~  ▆  ▃  ~  ▃  █
-            ▁  ▃  ▁  ▆  ▃  ▁  ▃  █
-
-   POSITION-BY-POSITION
-   ┌───────┬────────┬─────────┬──────────┬───────────────────┐
-   │ index │ height │ leftMax │ rightMax │ water = min−h     │
-   ├───────┼────────┼─────────┼──────────┼───────────────────┤
-   │   0   │   0    │    0    │    3     │ min(0,3)−0 = 0    │
-   │   1   │   1    │    1    │    3     │ min(1,3)−1 = 0    │
-   │   2   │   0    │    1    │    3     │ min(1,3)−0 = ⭐1   │
-   │   3   │   2    │    2    │    3     │ min(2,3)−2 = 0    │
-   │   4   │   1    │    2    │    3     │ min(2,3)−1 = ⭐1   │
-   │   5   │   0    │    2    │    3     │ min(2,3)−0 = ⭐2   │
-   │   6   │   1    │    2    │    3     │ min(2,3)−1 = ⭐1   │
-   │   7   │   3    │    3    │    3     │ min(3,3)−3 = 0    │
-   └───────┴────────┴─────────┴──────────┴───────────────────┘
-                                            TOTAL = 5
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#b2dfdb,stroke:#00695c,stroke-width:2px,color:#000
 ```
 
-#### Why the pointer comparison is safe
+## 💬 The governing formula
+
+```mermaid
+flowchart TD
+    A["⭐ water above column i<br/>=<br/>min(maxLeft[i], maxRight[i]) − height[i]"] --> B["The water level at i is set<br/>by the SHORTER of the two<br/>tallest walls on either side"]
+    B --> C["⚠️ Clamp at 0 —<br/>a tall bar traps nothing"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style B fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#ffe0b2,stroke:#ef6c00,color:#000
+```
 
 ```
-   At any moment we know leftMax (everything we've passed on
-   the left) and rightMax (everything passed on the right).
+   COLUMN-BY-COLUMN for [0,1,0,2,1,0,1,3,2,1,2,1]
 
-   ┌─────────────────────────────────────────────────────────────┐
-   │ IF h[left] < h[right]:                                      │
-   │                                                             │
-   │   The true right maximum is ≥ h[right] > h[left] ≥ leftMax  │
-   │                                       ▲                     │
-   │   ⭐ So min(leftMax, trueRightMax) = leftMax, GUARANTEED —   │
-   │     regardless of what the exact right maximum turns out    │
-   │     to be. We can safely compute water at `left` now.       │
-   │                                                             │
-   │ Symmetrically for the other side.                           │
-   └─────────────────────────────────────────────────────────────┘
+   i:          0  1  2  3  4  5  6  7  8  9 10 11
+   height:     0  1  0  2  1  0  1  3  2  1  2  1
+   maxLeft:    0  1  1  2  2  2  2  3  3  3  3  3
+   maxRight:   3  3  3  3  3  3  3  3  2  2  2  1
+   min:        0  1  1  2  2  2  2  3  2  2  2  1
+   − height:   0  0 ⭐1  0 ⭐1 ⭐2 ⭐1  0  0 ⭐1  0  0
+                                                    ⭐ TOTAL = 6 ✅
+```
 
-   ⭐ THIS IS THE KEY INSIGHT: you never need both exact maxima
-     at the same time — only the one that's provably smaller.
+## 2️⃣ Prefix Max Arrays — O(n) space
+```cpp
+int trap(vector<int>& h) {
+    int n = h.size();
+    if (n < 3) return 0;
+
+    vector<int> L(n), R(n);
+    L[0] = h[0];
+    for (int i = 1; i < n; ++i)     L[i] = max(L[i-1], h[i]);
+    R[n-1] = h[n-1];
+    for (int i = n-2; i >= 0; --i)  R[i] = max(R[i+1], h[i]);
+
+    int total = 0;
+    for (int i = 0; i < n; ++i) total += min(L[i], R[i]) - h[i];
+    return total;
+}
+```
+✅ Clear and easy to defend. ⚠️ But O(n) space invites the follow-up.
+
+## 3️⃣ Two Pointers — ⭐ OPTIMAL, O(1) space
+
+#### 💬 The insight
+You don't need *both* exact maxima. If `leftMax < rightMax`, then the water at `l` is decided by `leftMax` alone — because whatever the true right maximum is, it's at least `rightMax`, which is already bigger.
+
+```mermaid
+flowchart TD
+    A["l = 0, r = n−1<br/>leftMax = 0, rightMax = 0"] --> B{"h[l] &lt; h[r] ?"}
+    B -->|"YES"| C["⭐ The right side is guaranteed<br/>to have something ≥ h[r] &gt; h[l],<br/>so leftMax ALONE decides<br/>the water at l"]
+    C --> D["h[l] ≥ leftMax ?<br/>→ update leftMax<br/>else → water += leftMax − h[l]"]
+    D --> E["++l"]
+    B -->|"NO"| F["⭐ mirror: rightMax decides<br/>the water at r"]
+    F --> G["−−r"]
+    E --> B
+    G --> B
+
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style F fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```cpp
 int trap(vector<int>& h) {
-    int l = 0, r = h.size() - 1, lmax = 0, rmax = 0, water = 0;
+    int l = 0, r = h.size() - 1;
+    int leftMax = 0, rightMax = 0, total = 0;
+
     while (l < r) {
         if (h[l] < h[r]) {
-            lmax = max(lmax, h[l]);
-            water += lmax - h[l];                  // ⭐ lmax is the true bound here
+            // ⭐ We KNOW a wall ≥ h[r] > h[l] exists to the right,
+            //    so leftMax alone determines the water level here.
+            h[l] >= leftMax ? leftMax = h[l] : total += leftMax - h[l];
             ++l;
         } else {
-            rmax = max(rmax, h[r]);
-            water += rmax - h[r];
+            h[r] >= rightMax ? rightMax = h[r] : total += rightMax - h[r];
             --r;
         }
     }
-    return water;
-}
-```
-**Complexity:** O(n) / O(1).
-**Key insight:** Water at position `i` is `min(maxLeft, maxRight) - h[i]`. When `h[l] < h[r]`, we know some bar on the right is at least `h[r] > h[l]`, so `lmax` is definitively the binding constraint — no need to know `rmax` exactly.
-
----
-
-### 8. Valid Palindrome 🟢
-```cpp
-bool isPalindrome(string s) {
-    int i = 0, j = s.size() - 1;
-    while (i < j) {
-        while (i < j && !isalnum(s[i])) ++i;
-        while (i < j && !isalnum(s[j])) --j;
-        if (tolower(s[i++]) != tolower(s[j--])) return false;
-    }
-    return true;
+    return total;
 }
 ```
 
----
+## 4️⃣ Monotonic Stack — fills **horizontally**
 
-### 9. Reverse String / Reverse Vowels 🟢
-```cpp
-string reverseVowels(string s) {
-    auto isV = [](char c) { return string("aeiouAEIOU").find(c) != string::npos; };
-    int i = 0, j = s.size() - 1;
-    while (i < j) {
-        while (i < j && !isV(s[i])) ++i;
-        while (i < j && !isV(s[j])) --j;
-        swap(s[i++], s[j--]);
-    }
-    return s;
-}
-```
+```mermaid
+flowchart TD
+    A["⭐ A different mental model:<br/>fill LAYER BY LAYER, not column<br/>by column"] --> B["Stack holds indices of bars in<br/>DECREASING height"]
+    B --> C{"h[i] &gt; h[stack.top()] ?"}
+    C -->|"yes"| D["⭐ We just found the RIGHT wall<br/>for the bar at the top"]
+    D --> E["pop it — that's the BOTTOM<br/>of a puddle"]
+    E --> F["left wall = the new stack top<br/>width = i − newTop − 1<br/>depth = min(h[i], h[newTop]) − h[bottom]"]
+    C -->|"no"| G["push i, keep waiting<br/>for a taller bar"]
 
----
-
-### 10. Squares of a Sorted Array 🟢
-```cpp
-vector<int> sortedSquares(vector<int>& a) {
-    int n = a.size(), l = 0, r = n - 1;
-    vector<int> out(n);
-    for (int k = n - 1; k >= 0; --k) {             // ⭐ fill from the BACK
-        int ls = a[l] * a[l], rs = a[r] * a[r];
-        if (ls > rs) { out[k] = ls; ++l; } else { out[k] = rs; --r; }
-    }
-    return out;
-}
-```
-**Key insight:** The largest square is at one end or the other. Filling backwards makes it a single merge pass, O(n) instead of O(n log n).
-
----
-
-### 11. Boats to Save People 🟡
-```cpp
-int numRescueBoats(vector<int>& p, int limit) {
-    sort(p.begin(), p.end());
-    int l = 0, r = p.size() - 1, boats = 0;
-    while (l <= r) {
-        if (p[l] + p[r] <= limit) ++l;             // lightest pairs with heaviest
-        --r;
-        ++boats;
-    }
-    return boats;
-}
-```
-**Key insight:** Greedy — the heaviest person must go, so pair them with the lightest who fits.
-
----
-
-### 12. Partition Labels 🟡
-```cpp
-vector<int> partitionLabels(string s) {
-    int last[26] = {};
-    for (int i = 0; i < (int)s.size(); ++i) last[s[i] - 'a'] = i;
-
-    vector<int> out;
-    int start = 0, end = 0;
-    for (int i = 0; i < (int)s.size(); ++i) {
-        end = max(end, last[s[i] - 'a']);          // extend to cover this char
-        if (i == end) { out.push_back(end - start + 1); start = i + 1; }
-    }
-    return out;
-}
-```
-
----
-
-## B. Two Pointers — Same Direction
-
-### 13. Remove Duplicates from Sorted Array 🟢
-```cpp
-int removeDuplicates(vector<int>& a) {
-    int k = 0;
-    for (int x : a) if (k == 0 || x != a[k-1]) a[k++] = x;
-    return k;
-}
-```
-
----
-
-### 14. Move Zeroes 🟢
-```cpp
-void moveZeroes(vector<int>& a) {
-    int k = 0;
-    for (int i = 0; i < (int)a.size(); ++i) if (a[i]) swap(a[k++], a[i]);
-}
-```
-
----
-
-### 15. Sort Colors 🟡
-```cpp
-void sortColors(vector<int>& a) {
-    int lo = 0, mid = 0, hi = a.size() - 1;
-    while (mid <= hi) {
-        if (a[mid] == 0) swap(a[lo++], a[mid++]);
-        else if (a[mid] == 2) swap(a[mid], a[hi--]);
-        else ++mid;
-    }
-}
-```
-
----
-
-### 16. Backspace String Compare 🟢
-```cpp
-bool backspaceCompare(string s, string t) {
-    int i = s.size() - 1, j = t.size() - 1;
-    while (true) {
-        int skip = 0;
-        while (i >= 0 && (s[i] == '#' || skip)) { skip += s[i] == '#' ? 1 : -1; --i; }
-        skip = 0;
-        while (j >= 0 && (t[j] == '#' || skip)) { skip += t[j] == '#' ? 1 : -1; --j; }
-
-        if (i < 0 || j < 0) return i < 0 && j < 0;
-        if (s[i--] != t[j--]) return false;
-    }
-}
-```
-**Key insight:** Scan from the **right** — backspaces affect what came before, so right-to-left resolves them in one pass with O(1) space.
-
----
-
-### 17. Is Subsequence 🟢
-```cpp
-bool isSubsequence(string s, string t) {
-    int i = 0;
-    for (char c : t) if (i < (int)s.size() && s[i] == c) ++i;
-    return i == (int)s.size();
-}
-```
-🎤 **Follow-up (many queries):** precompute `next[i][c]` = the next occurrence of character `c` at or after index `i` in `t`, giving O(|s|) per query.
-
----
-
-### 18. Merge Sorted Array 🟢
-```cpp
-void merge(vector<int>& a, int m, vector<int>& b, int n) {
-    int i = m - 1, j = n - 1, k = m + n - 1;
-    while (j >= 0) a[k--] = (i >= 0 && a[i] > b[j]) ? a[i--] : b[j--];
-}
-```
-
----
-
-### 19. Interval List Intersections 🟡
-```cpp
-vector<vector<int>> intervalIntersection(vector<vector<int>>& A, vector<vector<int>>& B) {
-    vector<vector<int>> out;
-    int i = 0, j = 0;
-    while (i < (int)A.size() && j < (int)B.size()) {
-        int lo = max(A[i][0], B[j][0]);
-        int hi = min(A[i][1], B[j][1]);
-        if (lo <= hi) out.push_back({lo, hi});
-        if (A[i][1] < B[j][1]) ++i; else ++j;      // advance the one that ends first
-    }
-    return out;
-}
-```
-
----
-
-## C. Sliding Window — Variable Size
-
-### 20. Longest Substring Without Repeating Characters 🟡
-```cpp
-int lengthOfLongestSubstring(string s) {
-    vector<int> last(128, -1);
-    int left = 0, best = 0;
-    for (int r = 0; r < (int)s.size(); ++r) {
-        left = max(left, last[s[r]] + 1);
-        last[s[r]] = r;
-        best = max(best, r - left + 1);
-    }
-    return best;
-}
-```
-
----
-
-### 21. Longest Repeating Character Replacement 🟡
-> Change at most `k` characters to make the longest uniform substring.
-
-```cpp
-int characterReplacement(string s, int k) {
-    int cnt[26] = {}, left = 0, maxCount = 0, best = 0;
-    for (int r = 0; r < (int)s.size(); ++r) {
-        maxCount = max(maxCount, ++cnt[s[r] - 'A']);
-        // window is invalid if replacements needed > k
-        while (r - left + 1 - maxCount > k) --cnt[s[left++] - 'A'];
-        best = max(best, r - left + 1);
-    }
-    return best;
-}
-```
-**Key insight:** `maxCount` is never decremented, which looks like a bug but isn't. The window only ever grows when a *better* `maxCount` appears, so a stale value can't produce a larger answer than the true one. The result is still correct and the code stays O(n).
-
----
-
-### 22. Minimum Window Substring 🔴
-> Find the shortest substring of `s` containing every character of `t` (including duplicates).
-
-#### 💬 Think of it like this
-Picture a stretchy window over the string with a left and right edge.
-
-**Expand right** until the window contains everything you need. **Then shrink from the left** as far as you can while still being valid, recording the size each time. When it becomes invalid, go back to expanding.
-
-That's the "shortest" variant of the sliding window template — you record *inside* the shrink loop, not after it, because you want the smallest valid window at each stopping point.
-
-The clever part is checking validity in O(1) rather than comparing two frequency maps every step. Keep a counter called `missing` — how many required characters you still need. Increment and decrement it only when crossing the boundary between "have enough" and "don't have enough."
-
-#### 📊 Tracing `s = "ADOBECODEBANC"`, `t = "ABC"`
-
-```
-   need = {A:1, B:1, C:1}, missing = 3
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ EXPAND until valid                                           │
-   │                                                              │
-   │  A D O B E C O D E B A N C                                   │
-   │  └─────────┘                                                 │
-   │  A(missing 2) D O B(missing 1) E C(missing 0) ⭐ VALID        │
-   │  window "ADOBEC", length 6  → best so far                    │
-   ├──────────────────────────────────────────────────────────────┤
-   │ SHRINK from the left while still valid                       │
-   │                                                              │
-   │  A D O B E C O D E B A N C                                   │
-   │    └───────┘                                                 │
-   │  drop A → missing becomes 1 → ⚠️ INVALID, stop shrinking      │
-   │  best is still "ADOBEC" (6)                                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ EXPAND again until valid                                     │
-   │                                                              │
-   │  A D O B E C O D E B A N C                                   │
-   │    └───────────────────┘                                     │
-   │  ... reach the second A → valid again                        │
-   │  window "DOBECODEBA", length 10 → worse, don't record        │
-   ├──────────────────────────────────────────────────────────────┤
-   │ SHRINK                                                       │
-   │  A D O B E C O D E B A N C                                   │
-   │            └───────────┘                                     │
-   │  shrink to "CODEBA", length 6 → tie                          │
-   │  shrink further → drops C → invalid                          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ EXPAND to the final C                                        │
-   │  A D O B E C O D E B A N C                                   │
-   │                    └─────┘                                   │
-   │  window "BANC", length 4  ⭐ NEW BEST                         │
-   └──────────────────────────────────────────────────────────────┘
-
-   ANSWER = "BANC"
-```
-
-#### The `missing` counter trick
-
-```
-   need[c] starts as the required count for each character in t,
-   and 0 for everything else.
-
-   ⭐ ON EXPAND:  need[c]--  ... and IF it was still POSITIVE
-                  before decrementing, that character was one we
-                  genuinely still needed → missing--
-
-     This means surplus characters push need[c] NEGATIVE, and
-     correctly do NOT decrease `missing`.
-
-   ⭐ ON SHRINK:  need[c]++  ... and IF it becomes POSITIVE,
-                  we've just given up a character we needed
-                  → missing++
-
-     Surplus characters going from -2 to -1 stay non-positive,
-     so `missing` is untouched and the window stays valid.
-
-   ⭐ Result: validity is a single integer comparison
-     (missing == 0) instead of comparing 128 counters.
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ```cpp
-string minWindow(string s, string t) {
-    if (s.size() < t.size()) return "";
-    int need[128] = {};
-    for (char c : t) need[c]++;
+int trap(vector<int>& h) {
+    stack<int> st;                              // indices, decreasing height
+    int total = 0;
 
-    int missing = t.size(), left = 0, bl = 0, blen = INT_MAX;
-    for (int r = 0; r < (int)s.size(); ++r) {
-        if (need[s[r]]-- > 0) --missing;           // ⭐ only counts chars we need
+    for (int i = 0; i < (int)h.size(); ++i) {
+        while (!st.empty() && h[i] > h[st.top()]) {
+            int bottom = st.top(); st.pop();
+            if (st.empty()) break;              // ⚠️ no left wall → no puddle
 
-        while (missing == 0) {                     // valid → try to shrink
-            if (r - left + 1 < blen) { blen = r - left + 1; bl = left; }
-            if (++need[s[left++]] > 0) ++missing;
+            int width = i - st.top() - 1;
+            int depth = min(h[i], h[st.top()]) - h[bottom];
+            total += width * depth;             // ⭐ one horizontal layer
         }
+        st.push(i);
     }
-    return blen == INT_MAX ? "" : s.substr(bl, blen);
+    return total;
 }
 ```
-**Complexity:** O(|s| + |t|).
-**Key insight:** `need[c]` can go negative (surplus characters). `missing` only changes when crossing zero, so the check is O(1) rather than comparing full frequency maps.
+
+## 📊 Which to present
+
+| Approach | Time | Space | When to use it |
+|---|---|---|---|
+| Brute force | O(n²) | O(1) | ❌ mention and discard |
+| Prefix arrays | O(n) | O(n) | ✅ state this first — it's clearest |
+| **Two pointers** | O(n) | **O(1)** | 🏆 **then optimize to this** |
+| Monotonic stack | O(n) | O(n) | ⭐ shows range, links to Largest Rectangle |
+
+## 📌 Pattern Card
+```
+SIGNAL   "water/area bounded by both sides"
+KEY      water[i] = min(maxLeft, maxRight) − height[i]
+         ⭐ two pointers: the smaller side is always resolvable
+RELATED  Container With Most Water · Largest Rectangle · Trapping Rain Water II (heap)
+```
 
 ---
 
-### 23. Permutation in String 🟡
+# 6. Sort Array by Parity / Partition
+🟢 ⚪ **Variation of the slow/fast pattern** — see [Sort Colors](01b-arrays-strings.md#22-sort-colors-dutch-national-flag) for the three-way version.
+
 ```cpp
-bool checkInclusion(string p, string s) {
-    if (p.size() > s.size()) return false;
-    int need[26] = {}, win[26] = {};
-    for (char c : p) need[c - 'a']++;
-
-    for (int i = 0; i < (int)s.size(); ++i) {
-        win[s[i] - 'a']++;
-        if (i >= (int)p.size()) win[s[i - p.size()] - 'a']--;
-        if (i >= (int)p.size() - 1 && equal(need, need + 26, win)) return true;
+// Evens first (order not required) — opposite-end swap
+vector<int> sortArrayByParity(vector<int>& a) {
+    int l = 0, r = a.size() - 1;
+    while (l < r) {
+        if (a[l] % 2 > a[r] % 2) swap(a[l], a[r]);   // ⭐ odd left, even right
+        if (a[l] % 2 == 0) ++l;
+        if (a[r] % 2 == 1) --r;
     }
-    return false;
+    return a;
+}
+
+// Lomuto partition — the core of quicksort/quickselect
+int partition(vector<int>& a, int lo, int hi) {
+    int pivot = a[hi], i = lo;
+    for (int j = lo; j < hi; ++j)
+        if (a[j] < pivot) swap(a[i++], a[j]);   // ⭐ i = boundary of "< pivot"
+    swap(a[i], a[hi]);
+    return i;
 }
 ```
 
 ---
 
-### 24. Find All Anagrams in a String 🟡
-```cpp
-vector<int> findAnagrams(string s, string p) {
-    vector<int> out;
-    if (s.size() < p.size()) return out;
-    int need[26] = {}, win[26] = {};
-    for (char c : p) need[c - 'a']++;
-    for (int i = 0; i < (int)s.size(); ++i) {
-        win[s[i] - 'a']++;
-        if (i >= (int)p.size()) win[s[i - p.size()] - 'a']--;
-        if (i >= (int)p.size() - 1 && equal(need, need + 26, win))
-            out.push_back(i - p.size() + 1);
-    }
-    return out;
-}
+# 7. Longest Substring with At Most K Distinct
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The longest-window template**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL SUBSTRINGS<br/>+ count distinct in each<br/><b>O(n³)</b>"] --> B["⚡ ALL STARTS<br/>+ extend with a set<br/><b>O(n²)</b>"]
+    B --> C["🚀 SLIDING WINDOW<br/>+ count map<br/><b>O(n)</b> / O(k)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
+```mermaid
+flowchart TD
+    A["EXPAND right, count[c]++"] --> B{"map.size() &gt; k ?<br/>(too many distinct)"}
+    B -->|"YES → invalid"| C["shrink left:<br/>count[s[left]]−−"]
+    C --> D["⚠️ ERASE the key when its<br/>count hits 0 — otherwise<br/>map.size() is wrong"]
+    D --> B
+    B -->|"NO → valid"| E["⭐ record right − left + 1"]
+    E --> A
 
-### 25. Longest Substring with At Most K Distinct Characters 🟡
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  s = "eceba", k = 2
+
+   ┌───────┬──────┬──────┬──────────────┬──────────────────┐
+   │ right │ char │ left │ window       │ distinct count   │
+   ├───────┼──────┼──────┼──────────────┼──────────────────┤
+   │   0   │  e   │  0   │ "e"          │ 1 ✅ len 1       │
+   │   1   │  c   │  0   │ "ec"         │ 2 ✅ len 2       │
+   │   2   │  e   │  0   │ "ece"        │ 2 ✅ ⭐ len 3    │
+   │   3   │  b   │  0   │ "eceb"       │ 3 ❌ → shrink    │
+   │       │      │  2   │ "eb"         │ 2 ✅ len 2       │
+   │   4   │  a   │  2   │ "eba"        │ 3 ❌ → shrink    │
+   │       │      │  3   │ "ba"         │ 2 ✅ len 2       │
+   └───────┴──────┴──────┴──────────────┴──────────────────┘
+   ⭐ ANSWER: 3 ("ece")
+```
+
 ```cpp
 int lengthOfLongestSubstringKDistinct(string s, int k) {
+    if (k == 0) return 0;                       // ⚠️ edge case
+
     unordered_map<char,int> cnt;
     int left = 0, best = 0;
-    for (int r = 0; r < (int)s.size(); ++r) {
-        cnt[s[r]]++;
-        while ((int)cnt.size() > k) {
-            if (--cnt[s[left]] == 0) cnt.erase(s[left]);   // ⭐ erase at zero
+
+    for (int right = 0; right < (int)s.size(); ++right) {
+        cnt[s[right]]++;                        // ① EXPAND
+
+        while ((int)cnt.size() > k) {           // ② SHRINK while invalid
+            if (--cnt[s[left]] == 0) cnt.erase(s[left]);   // ⭐⭐ MUST erase
             ++left;
         }
-        best = max(best, r - left + 1);
+
+        best = max(best, right - left + 1);     // ③ RECORD (window is valid)
     }
     return best;
 }
 ```
-⚠️ You must **erase** the key at zero, or `cnt.size()` overcounts distinct characters.
+
+⚠️ **`cnt.erase()` when the count hits zero is essential.** `map.size()` counts *keys*, not nonzero values — leaving a zero entry makes the window look permanently invalid.
+
+## 📌 Pattern Card
+```
+SIGNAL   LONGEST window satisfying a constraint
+KEY      expand always · shrink WHILE invalid · record AFTER the loop
+RELATED  Fruit Into Baskets (k=2) · Longest w/o Repeating (k=len)
+         Max Consecutive Ones III · Longest Repeating Char Replacement
+```
 
 ---
 
-### 26. Fruit Into Baskets (at most 2 distinct) 🟡
+# 8. Fruit Into Baskets
+🟡 ⚪ **Variation of #7** with `k = 2`. Literally the same code.
+
 ```cpp
-int totalFruit(vector<int>& f) {
+int totalFruit(vector<int>& fruits) {
     unordered_map<int,int> cnt;
     int left = 0, best = 0;
-    for (int r = 0; r < (int)f.size(); ++r) {
-        cnt[f[r]]++;
-        while ((int)cnt.size() > 2) if (--cnt[f[left++]] == 0) cnt.erase(f[left-1]);
-        best = max(best, r - left + 1);
+    for (int right = 0; right < (int)fruits.size(); ++right) {
+        cnt[fruits[right]]++;
+        while (cnt.size() > 2) {                // ⭐ k = 2
+            if (--cnt[fruits[left]] == 0) cnt.erase(fruits[left]);
+            ++left;
+        }
+        best = max(best, right - left + 1);
     }
     return best;
 }
 ```
+⭐ **Recognizing the disguise is the skill.** "Two baskets, each holding one fruit type" is exactly "at most 2 distinct values."
 
 ---
 
-### 27. Minimum Size Subarray Sum 🟡
-> Shortest subarray with sum ≥ target. All positive.
+# 9. Minimum Size Subarray Sum
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The shortest-window variant**
+
+> Smallest subarray with sum ≥ `target`. **All values positive.**
+
+## ⚠️ The structural difference from #7
+
+```mermaid
+flowchart TD
+    subgraph "LONGEST window"
+        L1["shrink WHILE INVALID"] --> L2["record AFTER the loop"]
+    end
+    subgraph "⭐ SHORTEST window"
+        S1["shrink WHILE VALID"] --> S2["⭐ record INSIDE the loop —<br/>just before it breaks"]
+    end
+
+    style L1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style L2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  a = [2,3,1,2,4,3], target = 7
+
+   ┌───────┬─────┬──────┬──────┬──────────────────────────┐
+   │ right │ sum │ left │ len  │ action                   │
+   ├───────┼─────┼──────┼──────┼──────────────────────────┤
+   │   0   │  2  │  0   │  —   │ < 7                      │
+   │   1   │  5  │  0   │  —   │ < 7                      │
+   │   2   │  6  │  0   │  —   │ < 7                      │
+   │   3   │  8  │  0   │  4   │ ⭐ ≥7 → record, shrink   │
+   │       │  6  │  1   │      │ < 7 → stop shrinking     │
+   │   4   │ 10  │  1   │  4   │ ≥7 → record, shrink      │
+   │       │  7  │  2   │  3   │ ⭐ ≥7 → record, shrink   │
+   │       │  6  │  3   │      │ < 7 → stop               │
+   │   5   │  9  │  3   │  3   │ ≥7 → shrink              │
+   │       │  7  │  4   │  2   │ ⭐ ≥7 → record! shrink   │
+   │       │  3  │  5   │      │ < 7 → stop               │
+   └───────┴─────┴──────┴──────┴──────────────────────────┘
+   ⭐ ANSWER: 2  ([4,3])
+```
 
 ```cpp
 int minSubArrayLen(int target, vector<int>& a) {
     int left = 0, best = INT_MAX;
     long long sum = 0;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        sum += a[r];
-        while (sum >= target) {                    // ⭐ shrink while VALID
-            best = min(best, r - left + 1);
+
+    for (int right = 0; right < (int)a.size(); ++right) {
+        sum += a[right];                        // ① EXPAND
+
+        while (sum >= target) {                 // ② ⭐ shrink WHILE VALID
+            best = min(best, right - left + 1); // ③ ⭐ record INSIDE
             sum -= a[left++];
         }
     }
     return best == INT_MAX ? 0 : best;
 }
 ```
-**Key insight:** This is the "shortest" variant — record **inside** the shrink loop, not after it.
+
+⚠️ **All values must be positive** for the window to work. With negatives, use prefix sums plus a monotonic deque — the same reason [Subarray Sum Equals K](02-hashing.md#2-subarray-sum-equals-k) needs a hash map.
+
+🎤 **Follow-up: O(n log n)?** Binary search on the prefix-sum array — for each `right`, binary search for the largest `left` with `prefix[right] − prefix[left] ≥ target`. Slower, but a good demonstration that you see prefix sums as a sorted structure.
 
 ---
 
-### 28. Max Consecutive Ones III 🟡
+# 10. Minimum Window Substring
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **The `missing` counter**
+
+> Smallest substring of `s` containing **all** characters of `t`, including duplicates.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL SUBSTRINGS<br/>+ check each<br/><b>O(n³)</b>"] --> B["⚡ WINDOW + TWO MAPS<br/>compare maps each step<br/><b>O(n·k)</b>"]
+    B -->|"one integer replaces<br/>the whole comparison"| C["🚀 WINDOW + `missing`<br/><b>O(n)</b> / O(k)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 The trick: one counter, not two maps
+
+```mermaid
+flowchart TD
+    A["⭐ `need[c]` can go NEGATIVE —<br/>that means a SURPLUS of c"] --> B["When adding c:<br/>if need[c] was &gt; 0, this character<br/>was genuinely REQUIRED<br/>→ missing−−"]
+    B --> C["When removing c:<br/>if need[c] becomes &gt; 0,<br/>we just broke validity<br/>→ missing++"]
+    C --> D["⭐ missing == 0<br/>⟺ the window contains all of t"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ WHY THE SIGN TEST WORKS
+
+   need[c] starts at "how many copies of c we require."
+
+   ADDING c:  need[c]-- happens either way, but we only
+     decrement `missing` if need[c] WAS > 0 — i.e. this copy
+     filled a real requirement, not a surplus.
+
+   REMOVING c: need[c]++ happens either way, but we only
+     increment `missing` if need[c] BECAME > 0 — i.e. we
+     removed a copy we actually needed, not a spare.
+
+   ⭐ One integer replaces an entire map-vs-map comparison.
+```
+
+```
+   TRACE  s = "ADOBECODEBANC", t = "ABC"
+
+   need = {A:1, B:1, C:1}, missing = 3
+
+   ┌────────────────────┬─────────┬────────────────────────┐
+   │ window             │ missing │ note                   │
+   ├────────────────────┼─────────┼────────────────────────┤
+   │ A                  │    2    │                        │
+   │ ADOBEC             │  ⭐ 0   │ VALID → len 6, shrink  │
+   │ DOBEC              │    1    │ lost A → invalid       │
+   │ DOBECODEBA         │  ⭐ 0   │ VALID → len 10         │
+   │ ODEBA... → BANC    │  ⭐ 0   │ ⭐ VALID → len 4 BEST  │
+   └────────────────────┴─────────┴────────────────────────┘
+   ⭐ ANSWER: "BANC"
+```
+
 ```cpp
-int longestOnes(vector<int>& a, int k) {
-    int left = 0, zeros = 0, best = 0;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        if (a[r] == 0) ++zeros;
-        while (zeros > k) if (a[left++] == 0) --zeros;
-        best = max(best, r - left + 1);
+string minWindow(string s, string t) {
+    if (t.empty() || s.size() < t.size()) return "";
+
+    vector<int> need(128, 0);
+    for (char c : t) need[c]++;
+
+    int missing = t.size(), left = 0, bestL = 0, bestLen = INT_MAX;
+
+    for (int right = 0; right < (int)s.size(); ++right) {
+        // ⭐ post-decrement: test the value BEFORE the change
+        if (need[s[right]]-- > 0) --missing;
+
+        while (missing == 0) {                  // ⭐ valid → shrink
+            if (right - left + 1 < bestLen) {
+                bestLen = right - left + 1;
+                bestL = left;
+            }
+            // ⭐ pre-increment: test the value AFTER the change
+            if (++need[s[left++]] > 0) ++missing;
+        }
     }
-    return best;
+    return bestLen == INT_MAX ? "" : s.substr(bestL, bestLen);
 }
+```
+
+⭐ **The `--` vs `++` placement is the entire algorithm.** Post-decrement on entry (was it needed?), pre-increment on exit (is it needed now?).
+
+## 📌 Pattern Card
+```
+SIGNAL   SHORTEST window containing a required multiset
+KEY      ⭐ a single `missing` counter · negative counts mean surplus
+         shrink WHILE valid, record INSIDE
+RELATED  Permutation in String · Find All Anagrams · Substring w/ Concatenation
 ```
 
 ---
 
-### 29. Subarrays with K Different Integers 🔴
+# 11. Permutation in String
+🟡 ⚪ **Variation of #10** — the window is **fixed size**, so there's no shrink loop.
+
 ```cpp
-int atMost(vector<int>& a, int k) {
-    unordered_map<int,int> cnt;
-    int left = 0, res = 0;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        if (cnt[a[r]]++ == 0) --k;
-        while (k < 0) if (--cnt[a[left++]] == 0) ++k;
-        res += r - left + 1;                       // ⭐ all subarrays ending at r
+bool checkInclusion(string p, string s) {
+    if (p.size() > s.size()) return false;
+
+    int need[26] = {}, win[26] = {};
+    for (char c : p) need[c - 'a']++;
+
+    int k = p.size();
+    for (int i = 0; i < (int)s.size(); ++i) {
+        win[s[i] - 'a']++;
+        if (i >= k) win[s[i - k] - 'a']--;       // ⭐ evict exactly one
+
+        if (i >= k - 1 && equal(need, need + 26, win)) return true;
     }
-    return res;
-}
-int subarraysWithKDistinct(vector<int>& a, int k) {
-    return atMost(a, k) - atMost(a, k - 1);        // ⭐⭐ the key reduction
+    return false;
 }
 ```
-**Key insight:** `exactly(K) = atMost(K) - atMost(K-1)`. "Exactly" isn't directly slideable because the window isn't monotonic, but "at most" is. Memorize this reduction — it appears constantly.
+⭐ **Fixed-size windows never need a `while` loop** — one element in, one element out, every step.
 
 ---
 
-### 30. Count Number of Nice Subarrays 🟡
-```cpp
-int atMost(vector<int>& a, int k) {
-    int left = 0, odd = 0, res = 0;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        odd += a[r] & 1;
-        while (odd > k) odd -= a[left++] & 1;
-        res += r - left + 1;
-    }
-    return res;
-}
-int numberOfSubarrays(vector<int>& a, int k) { return atMost(a, k) - atMost(a, k - 1); }
+# 12. Sliding Window Maximum
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Monotonic deque**
+
+> Maximum of every window of size `k`.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 RESCAN EACH WINDOW<br/><b>O(n·k)</b>"] --> B["⚡ MAX-HEAP<br/>with lazy deletion<br/><b>O(n log n)</b> / O(n)"]
+    B --> C["⚡ MULTISET<br/>insert/erase<br/><b>O(n log k)</b>"]
+    C -->|"⭐ discard elements<br/>that can NEVER win"| D["🚀 MONOTONIC DEQUE<br/><b>O(n)</b> / O(k)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
+## 💬 The key insight
 
-### 31. Subarray Product Less Than K 🟡
-```cpp
-int numSubarrayProductLessThanK(vector<int>& a, int k) {
-    if (k <= 1) return 0;
-    long long prod = 1;
-    int left = 0, res = 0;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        prod *= a[r];
-        while (prod >= k) prod /= a[left++];
-        res += r - left + 1;
-    }
-    return res;
-}
+```mermaid
+flowchart TD
+    A["⭐ If a[j] enters the window and<br/>a[i] &lt; a[j] with i &lt; j..."] --> B["a[i] can NEVER be the maximum again"]
+    B --> C["Because a[j] is both LARGER<br/>and stays in the window LONGER"]
+    C --> D["⭐ So delete a[i] permanently.<br/>It is dead weight."]
+    D --> E["What remains is a DECREASING<br/>sequence — the front is the max"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
+```
+   TRACE  a = [1,3,-1,-3,5,3,6,7], k = 3
+   (deque holds INDICES; values shown for clarity)
 
-### 32. Longest Subarray of 1's After Deleting One Element 🟡
-```cpp
-int longestSubarray(vector<int>& a) {
-    int left = 0, zeros = 0, best = 0;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        if (a[r] == 0) ++zeros;
-        while (zeros > 1) if (a[left++] == 0) --zeros;
-        best = max(best, r - left);                // ⭐ -1 for the deleted element
-    }
-    return best;
-}
+   ┌───┬────┬───────────────┬──────────────────────────────┬─────┐
+   │ i │ a  │ deque (vals)  │ action                       │ out │
+   ├───┼────┼───────────────┼──────────────────────────────┼─────┤
+   │ 0 │  1 │ [1]           │ push                         │     │
+   │ 1 │  3 │ [3]           │ ⭐ 3 > 1 → pop 1, push 3     │     │
+   │ 2 │ −1 │ [3,−1]        │ −1 < 3 → push                │  3  │
+   │ 3 │ −3 │ [3,−1,−3]     │ push                         │  3  │
+   │ 4 │  5 │ [5]           │ ⭐ 5 beats ALL → pop 3 times │  5  │
+   │ 5 │  3 │ [5,3]         │ push                         │  5  │
+   │ 6 │  6 │ [6]           │ ⭐ 6 beats all               │  6  │
+   │ 7 │  7 │ [7]           │ ⭐ 7 beats all               │  7  │
+   └───┴────┴───────────────┴──────────────────────────────┴─────┘
+   ANSWER: [3,3,5,5,6,7] ✅
 ```
 
----
-
-### 33. Minimum Operations to Reduce X to Zero 🟡
-```cpp
-int minOperations(vector<int>& a, int x) {
-    long long total = accumulate(a.begin(), a.end(), 0LL);
-    long long target = total - x;                  // ⭐ invert the problem
-    if (target < 0) return -1;
-    if (target == 0) return a.size();
-
-    long long sum = 0;
-    int left = 0, best = -1;
-    for (int r = 0; r < (int)a.size(); ++r) {
-        sum += a[r];
-        while (sum > target) sum -= a[left++];
-        if (sum == target) best = max(best, r - left + 1);
-    }
-    return best == -1 ? -1 : a.size() - best;
-}
-```
-**Key insight:** "Remove from both ends summing to x" is equivalent to "find the **longest middle subarray** summing to `total - x`." Inverting the problem turns it into a standard window.
-
----
-
-### 34. Maximum Points from Cards 🟡
-```cpp
-int maxScore(vector<int>& a, int k) {
-    int n = a.size();
-    int windowSize = n - k;                        // the part we DON'T take
-    long long total = accumulate(a.begin(), a.end(), 0LL);
-    if (windowSize == 0) return total;
-
-    long long sum = 0, minWindow = LLONG_MAX;
-    for (int i = 0; i < n; ++i) {
-        sum += a[i];
-        if (i >= windowSize) sum -= a[i - windowSize];
-        if (i >= windowSize - 1) minWindow = min(minWindow, sum);
-    }
-    return total - minWindow;
-}
-```
-**Key insight:** Same inversion — maximize the ends by minimizing the fixed-size middle window.
-
----
-
-## D. Sliding Window — Fixed Size
-
-### 35. Maximum Average Subarray I 🟢
-```cpp
-double findMaxAverage(vector<int>& a, int k) {
-    long long sum = 0;
-    for (int i = 0; i < k; ++i) sum += a[i];
-    long long best = sum;
-    for (int i = k; i < (int)a.size(); ++i) {
-        sum += a[i] - a[i - k];
-        best = max(best, sum);
-    }
-    return (double)best / k;
-}
-```
-
----
-
-### 36. Sliding Window Maximum 🔴
 ```cpp
 vector<int> maxSlidingWindow(vector<int>& a, int k) {
-    deque<int> dq;                                 // indices, values DECREASING
+    deque<int> dq;                              // ⭐ INDICES, values decreasing
     vector<int> out;
+
     for (int i = 0; i < (int)a.size(); ++i) {
-        if (!dq.empty() && dq.front() <= i - k) dq.pop_front();       // out of window
-        while (!dq.empty() && a[dq.back()] <= a[i]) dq.pop_back();   // ⭐ dominated
+        // ① evict indices that have fallen out of the window
+        if (!dq.empty() && dq.front() <= i - k) dq.pop_front();
+
+        // ② ⭐ evict everything smaller — they can never win again
+        while (!dq.empty() && a[dq.back()] <= a[i]) dq.pop_back();
+
         dq.push_back(i);
+
+        // ③ the front is the window maximum
         if (i >= k - 1) out.push_back(a[dq.front()]);
     }
     return out;
 }
 ```
-**Complexity:** O(n) — each index is pushed and popped once.
-**Key insight:** A **monotonic deque**. If `a[j] <= a[i]` and `j < i`, then `a[j]` can never be a maximum again — `a[i]` is both larger and stays in the window longer. So it's discarded permanently.
 
----
-
-### 37. Sliding Window Median 🔴
-```cpp
-vector<double> medianSlidingWindow(vector<int>& a, int k) {
-    multiset<int> win(a.begin(), a.begin() + k);
-    auto mid = next(win.begin(), k / 2);
-    vector<double> out;
-
-    for (int i = k; ; ++i) {
-        out.push_back(k % 2 ? (double)*mid : ((double)*mid + *prev(mid)) / 2.0);
-        if (i == (int)a.size()) break;
-
-        win.insert(a[i]);
-        if (a[i] < *mid) --mid;                    // ⭐ maintain the mid iterator
-        if (a[i - k] <= *mid) ++mid;
-        win.erase(win.lower_bound(a[i - k]));      // ⭐ erase ONE occurrence
-    }
-    return out;
-}
 ```
-⚠️ `win.erase(value)` removes **all** matching elements. Use `erase(iterator)` to remove exactly one.
+   ⭐ WHY O(n) DESPITE THE INNER WHILE LOOP
 
----
+   Every index is pushed EXACTLY ONCE and popped AT MOST ONCE.
+   Total deque operations ≤ 2n → amortized O(1) per step.
 
-### 38. Repeated DNA Sequences 🟡
-```cpp
-vector<string> findRepeatedDnaSequences(string s) {
-    if (s.size() < 10) return {};
-    unordered_map<int,int> seen;                   // rolling hash -> count
-    unordered_map<char,int> code{{'A',0},{'C',1},{'G',2},{'T',3}};
-
-    vector<string> out;
-    int h = 0, mask = (1 << 20) - 1;               // 10 chars × 2 bits
-    for (int i = 0; i < (int)s.size(); ++i) {
-        h = ((h << 2) | code[s[i]]) & mask;        // ⭐ rolling: shift in, mask out
-        if (i >= 9 && ++seen[h] == 2) out.push_back(s.substr(i - 9, 10));
-    }
-    return out;
-}
+   ⭐ This is the same amortization argument as the monotonic
+     stack in Largest Rectangle and Next Greater Element.
 ```
-**Key insight:** Two bits per base packs a 10-character window into a 20-bit integer — the rolling update is O(1) instead of O(10) hashing.
 
----
+⭐ **Store indices, not values.** You need the index to know when an element expires from the window.
 
-### 39. Minimum Window Subsequence 🔴
-```cpp
-string minWindow(string s, string t) {
-    int n = s.size(), m = t.size(), bl = -1, blen = INT_MAX;
-    int i = 0;
-    while (i < n) {
-        int j = 0, k = i;
-        while (k < n) {                            // forward: match t greedily
-            if (s[k] == t[j]) if (++j == m) break;
-            ++k;
-        }
-        if (k == n) break;                         // no more matches
-
-        int end = k;
-        --j;
-        while (j >= 0) {                           // ⭐ backward: shrink to minimal
-            if (s[k] == t[j]) --j;
-            --k;
-        }
-        ++k;
-        if (end - k + 1 < blen) { blen = end - k + 1; bl = k; }
-        i = k + 1;                                 // restart just after this window
-    }
-    return bl == -1 ? "" : s.substr(bl, blen);
-}
+## 📌 Pattern Card
 ```
-**Complexity:** O(n·m) worst case.
-**Key insight:** Unlike minimum window *substring*, order matters here, so a frequency window doesn't apply. The forward-then-backward two-phase scan finds the minimal window ending at each match.
+SIGNAL   min/max over every fixed-size window
+KEY      ⭐ monotonic deque; discard elements that can never win
+RELATED  Shortest Subarray with Sum ≥ K (deque + prefix sums)
+         Jump Game VI · Constrained Subsequence Sum
+```
 
 ---
 
-### 40. Longest Substring with At Least K Repeating Characters 🟡
-```cpp
-int longestSubstring(string s, int k) {
-    int best = 0;
-    // Try each possible count of distinct characters — makes the window monotonic
-    for (int unique = 1; unique <= 26; ++unique) {
-        int cnt[26] = {}, left = 0, distinct = 0, atLeastK = 0;
-        for (int r = 0; r < (int)s.size(); ++r) {
-            if (cnt[s[r]-'a']++ == 0) ++distinct;
-            if (cnt[s[r]-'a'] == k) ++atLeastK;
+# 13. Max Consecutive Ones III
+🟡 ⚪ **Variation of #7** — the constraint is "at most k zeros in the window."
 
-            while (distinct > unique) {
-                if (cnt[s[left]-'a'] == k) --atLeastK;
-                if (--cnt[s[left]-'a'] == 0) --distinct;
-                ++left;
-            }
-            if (distinct == unique && atLeastK == unique)
-                best = max(best, r - left + 1);
+```cpp
+int longestOnes(vector<int>& a, int k) {
+    int left = 0, zeros = 0, best = 0;
+    for (int right = 0; right < (int)a.size(); ++right) {
+        if (a[right] == 0) ++zeros;             // ① EXPAND
+        while (zeros > k) {                     // ② shrink while invalid
+            if (a[left] == 0) --zeros;
+            ++left;
         }
+        best = max(best, right - left + 1);     // ③ record
     }
     return best;
 }
 ```
-**Key insight:** Plain sliding window fails because the property isn't monotonic. Fixing the number of distinct characters restores monotonicity. The divide-and-conquer alternative — split on any character appearing fewer than k times — is also worth knowing.
+⭐ **"Flip at most k zeros" is just "window containing at most k zeros"** — the flipping is a narrative device, not an operation you perform.
 
 ---
 
-## 📋 Section Summary
+# 14. Subarrays with K Different Integers
 
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║          TWO POINTERS & SLIDING WINDOW — PATTERN RECALL           ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ TWO POINTERS (opposite ends) — requires SORTED input              ║
-║   pair/triplet sum · container water · trapping rain              ║
-║   ⭐ move the pointer that CAN'T improve if left alone             ║
-║                                                                   ║
-║ SLIDING WINDOW template: EXPAND → while-invalid SHRINK → RECORD   ║
-║   LONGEST  → record AFTER the while loop                          ║
-║   SHORTEST → record INSIDE the while loop                         ║
-║   COUNT    → res += (right - left + 1) per step                   ║
-║   EXACTLY K → atMost(K) − atMost(K−1)   ⭐⭐ memorize               ║
-║                                                                   ║
-║ ⚠️ WINDOW FAILS WITH NEGATIVES → use prefix sum + hashmap          ║
-║ ⚠️ Non-monotonic property → fix a parameter (e.g. distinct count)  ║
-║                              to restore monotonicity              ║
-║                                                                   ║
-║ MONOTONIC DEQUE → sliding window max/min in O(n)                  ║
-║ MULTISET → sliding window median (erase by ITERATOR not value)    ║
-║ INVERSION TRICK → "remove from ends" = "keep the middle window"   ║
-╚═══════════════════════════════════════════════════════════════════╝
+🔴 **Hard** · 🔵 Full ladder · ⭐ **atMost(K) − atMost(K−1)**
+
+> Count subarrays with **exactly** K distinct integers.
+
+## ⚠️ Why the standard window fails
+
+```mermaid
+flowchart TD
+    A["A sliding window naturally answers<br/>⭐ 'AT MOST K'"] --> B["Because the validity condition<br/>is MONOTONIC:<br/>shrinking can only reduce distinct"]
+    B --> C["⚠️ 'EXACTLY K' is NOT monotonic —<br/>shrinking a valid window can make<br/>it invalid AND growing can too"]
+    C --> D["⭐ THE TRICK:<br/>exactly(K) = atMost(K) − atMost(K−1)"]
+    D --> E["Two easy window runs<br/>replace one impossible one"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-**Next:** [Linked Lists →](04-linked-lists.md)
+```
+   ⭐⭐ WHY COUNTING WORKS THIS WAY
+
+   In a valid window [left..right], the number of subarrays
+   ENDING AT `right` that are also valid is exactly
+       right − left + 1
+   (choose any start from left to right).
+
+   ⭐ Summing that over all `right` counts every valid subarray
+     exactly once, with no double counting.
+
+   Then:
+     subarrays with ≤ K distinct
+   − subarrays with ≤ K−1 distinct
+   = subarrays with EXACTLY K distinct  ∎
+```
+
+```cpp
+int atMost(vector<int>& a, int k) {
+    unordered_map<int,int> cnt;
+    int left = 0, total = 0;
+
+    for (int right = 0; right < (int)a.size(); ++right) {
+        if (cnt[a[right]]++ == 0) --k;          // ⭐ a new distinct value
+
+        while (k < 0) {                         // too many distinct → shrink
+            if (--cnt[a[left]] == 0) ++k;
+            ++left;
+        }
+
+        total += right - left + 1;              // ⭐⭐ the counting line
+    }
+    return total;
+}
+
+int subarraysWithKDistinct(vector<int>& a, int k) {
+    return atMost(a, k) - atMost(a, k - 1);     // ⭐ the whole trick
+}
+```
+
+⭐ **This decomposition generalizes.** Any "exactly X" counting problem where "at most X" is windowable: *Count Nice Subarrays* (exactly k odds), *Binary Subarrays With Sum*, *Count Subarrays With Fixed Bounds*.
+
+## 📌 Pattern Card
+```
+SIGNAL   COUNT subarrays with EXACTLY some property
+KEY      ⭐ exactly(K) = atMost(K) − atMost(K−1)
+         ⭐ each valid window contributes (right − left + 1)
+RELATED  Count Nice Subarrays · Binary Subarrays With Sum
+```
+
+---
+
+# 15. Linked List Cycle (Floyd's)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Tortoise and hare, with the maths**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ HASH SET<br/>of visited nodes<br/><b>O(n)</b> / <b>O(n)</b>"] --> B["🚀 FLOYD'S<br/>slow/fast pointers<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 Part 1 — detecting the cycle
+
+```mermaid
+flowchart TD
+    A["slow moves 1 step<br/>fast moves 2 steps"] --> B{"do they meet?"}
+    B -->|"yes"| C(["⭐ cycle exists"])
+    B -->|"fast hits null"| D(["no cycle"])
+
+    N["⭐ WHY THEY MUST MEET:<br/>inside the loop, fast gains exactly<br/>ONE position on slow per step.<br/>The gap shrinks 1 per step and<br/>can never jump over zero."] -.-> B
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#bbdefb,stroke:#1565c0,color:#000
+    style N fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+```
+
+## ⭐ Part 2 — finding the cycle's entry point
+
+```
+   ⭐⭐ THE ALGEBRA — worth being able to derive
+
+        F           C = cycle length
+   ┌────────┐    ┌──────────────┐
+   head ──→ ENTRY ──→ ... ──→ MEET ──┐
+              ▲                       │
+              └───────────────────────┘
+        F = distance head → entry
+        a = distance entry → meeting point
+
+   When they meet:
+     slow travelled:  F + a
+     fast travelled:  F + a + nC       (n full extra loops)
+     fast = 2 × slow:
+        F + a + nC = 2(F + a)
+        nC = F + a
+        ⭐ F = nC − a
+
+   INTERPRETATION
+     Starting from `head` and walking F steps lands on ENTRY.
+     Starting from `meet` and walking F steps also lands on
+     ENTRY (because nC − a steps from meet wraps around n
+     times and lands exactly at entry).
+
+   ⭐⭐ THEREFORE: reset one pointer to head, advance both
+     ONE step at a time — they meet exactly at the entry. ∎
+```
+
+```cpp
+bool hasCycle(ListNode* head) {
+    ListNode *slow = head, *fast = head;
+    while (fast && fast->next) {
+        slow = slow->next;
+        fast = fast->next->next;
+        if (slow == fast) return true;
+    }
+    return false;
+}
+
+ListNode* detectCycle(ListNode* head) {
+    ListNode *slow = head, *fast = head;
+
+    while (fast && fast->next) {
+        slow = slow->next;
+        fast = fast->next->next;
+
+        if (slow == fast) {                     // ⭐ phase 2
+            ListNode* p = head;
+            while (p != slow) { p = p->next; slow = slow->next; }
+            return p;                           // ⭐ the entry node
+        }
+    }
+    return nullptr;
+}
+```
+
+⚠️ **Both pointers start at `head`**, and the meeting check happens *after* moving. Starting `fast` at `head->next` breaks the algebra above.
+
+## 📌 Pattern Card
+```
+SIGNAL   cycle detection · middle of a list · O(1) space required
+KEY      slow=1x, fast=2x · reset to head, walk 1x → cycle entry
+RELATED  Find the Duplicate Number · Happy Number · Middle of Linked List
+```
+
+---
+
+# 16. Find the Duplicate Number
+🟡 ⚪ **Variation of #15** — Floyd's applied to an **array**, which is the clever part.
+
+```mermaid
+flowchart TD
+    A["n+1 numbers, each in [1, n]<br/>⚠️ read-only, O(1) space"] --> B["⭐ Treat the array as a<br/>FUNCTION: i → a[i]"]
+    B --> C["Following indices creates a<br/>linked list, since every value<br/>is a valid index"]
+    C --> D["⭐ A duplicate value means TWO<br/>indices point to the same place<br/>→ that's a CYCLE ENTRY"]
+    D --> E["Run Floyd's → the entry node<br/>IS the duplicate"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+int findDuplicate(vector<int>& a) {
+    int slow = a[0], fast = a[0];
+
+    do {                                        // ⭐ do-while: they start equal
+        slow = a[slow];
+        fast = a[a[fast]];
+    } while (slow != fast);
+
+    slow = a[0];                                // ⭐ phase 2 — same as #15
+    while (slow != fast) { slow = a[slow]; fast = a[fast]; }
+    return slow;
+}
+```
+
+⭐ **Why `do-while`:** both start at `a[0]`, so a `while` loop would exit immediately. This is the classic bug in the array version.
+
+⭐ **The alternative:** binary search on the *value* range using the pigeonhole principle — count how many values are ≤ mid. O(n log n), but it doesn't modify the array either and is easier to explain.
+
+---
+
+## 📋 Two Pointers & Sliding Window Recall
+
+```mermaid
+mindmap
+  root(("Two Pointers<br/>&amp; Windows"))
+    Opposite Ends
+      requires SORTED input
+      comparison says which to move
+      each move kills a whole row
+      3Sum: fix one, two-point rest
+    Window Variants
+      LONGEST: shrink while INVALID
+      SHORTEST: shrink while VALID
+      FIXED: no while loop
+      ⭐ where you record differs
+    Counters
+      `missing` beats map-vs-map
+      erase zero-count keys!
+      `matched` for fixed windows
+    Counting
+      ⭐ exactly K = atMost K − atMost K−1
+      window contributes right−left+1
+    Monotonic Deque
+      discard what can never win
+      store INDICES for expiry
+      amortized O(1) per element
+    Fast/Slow
+      cycle detection
+      ⭐ F = nC − a → reset to head
+      array-as-function trick
+```
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║          TWO POINTERS & SLIDING WINDOW — PATTERN RECALL              ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "sorted + find a pair"          → l/r opposite ends                  ║
+║ "k-sum, unique triplets"        → sort, fix k−2, two-point the rest  ║
+║ "max area between two lines"    → ⭐ always move the SHORTER wall     ║
+║ "water trapped"                 → min(maxL,maxR) − h[i]              ║
+║ "longest window, constraint"    → shrink while INVALID, record after ║
+║ "shortest window, constraint"   → ⭐ shrink while VALID, record inside║
+║ "window contains all of t"      → ⭐ single `missing` counter         ║
+║ "max of every k-window"         → ⭐ monotonic DEQUE                  ║
+║ "count subarrays exactly K"     → ⭐ atMost(K) − atMost(K−1)          ║
+║ "cycle / duplicate, O(1) space" → ⭐ Floyd's, then reset to head      ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   3Sum: three separate dedupe points, all required                   ║
+║   K-distinct: ERASE zero-count keys or map.size() lies               ║
+║   min subarray sum: only valid for POSITIVE values                   ║
+║   deque: store INDICES, not values — you need expiry                 ║
+║   Find Duplicate: do-while, not while — both start at a[0]           ║
+║   4Sum: use long long, four ints overflow                            ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+**Next:** [Linked Lists →](04-linked-lists.md) · **Back:** [Hashing](02-hashing.md)

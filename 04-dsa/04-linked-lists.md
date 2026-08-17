@@ -1,263 +1,530 @@
-# 🔗 Linked Lists — 25 Problems
+# 🔗 Linked Lists
 
-> Linked list problems are almost entirely about **pointer discipline**. Three techniques cover nearly all of them: dummy heads, fast/slow pointers, and in-place reversal.
+> Linked lists test one thing: **can you manipulate pointers without losing your grip on the list?** Almost every bug is a lost reference or an unhandled head/tail case.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
-## 🧠 The Three Techniques
+## 🧠 The Four Techniques That Solve Almost Everything
+
+```mermaid
+flowchart TD
+    Q{"What is the<br/>problem asking?"}
+    Q -->|"reverse / re-link"| A["⭐ THREE POINTERS<br/>prev · curr · next"]
+    Q -->|"find middle · detect cycle ·<br/>nth from the end"| B["⭐ FAST/SLOW<br/>tortoise &amp; hare"]
+    Q -->|"the HEAD might change"| C["⭐ DUMMY NODE<br/>eliminates every<br/>head special case"]
+    Q -->|"merge · compare<br/>two lists"| D["⭐ PARALLEL POINTERS<br/>one per list"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+    style D fill:#bbdefb,stroke:#1565c0,color:#000
+```
+
+## ⭐ The Dummy Node — Use It Reflexively
+
+```mermaid
+flowchart LR
+    subgraph "WITHOUT a dummy ❌"
+        A1["if (!head) return ...<br/>if (head->val == target) head = head->next<br/>⚠️ separate logic for<br/>the first node, every time"]
+    end
+    subgraph "WITH a dummy ✅"
+        A2["ListNode dummy(0, head);<br/>⭐ EVERY node now has a<br/>predecessor — one uniform loop<br/>return dummy.next;"]
+    end
+
+    style A1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style A2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```cpp
 struct ListNode {
     int val;
     ListNode* next;
-    ListNode(int x = 0, ListNode* n = nullptr) : val(x), next(n) {}
+    ListNode(int v = 0, ListNode* n = nullptr) : val(v), next(n) {}
 };
 ```
 
-### 1. Dummy head — eliminates head-edge-case branching
-```cpp
-ListNode dummy(0, head);
-ListNode* prev = &dummy;
-// ... manipulate freely, head changes need no special handling ...
-return dummy.next;                                 // ⭐ NOT `head` — it may have moved
-```
+---
 
-### 2. Fast & slow pointers
-```cpp
-ListNode *slow = head, *fast = head;
-while (fast && fast->next) { slow = slow->next; fast = fast->next->next; }
-// slow is now at the middle (second middle for even length)
-```
+## 📑 Contents
 
-### 3. Iterative reversal
-```cpp
-ListNode *prev = nullptr, *cur = head;
-while (cur) {
-    ListNode* nxt = cur->next;   // SAVE
-    cur->next = prev;            // REVERSE
-    prev = cur; cur = nxt;       // ADVANCE
-}
-return prev;
-```
-
-```
-   ⚠️ The four bugs that cause 90% of linked list failures:
-   1. Forgetting to save `next` before overwriting it → lose the rest of the list
-   2. Returning `head` instead of `dummy.next` when the head changed
-   3. Not checking `fast && fast->next` → null dereference
-   4. Off-by-one in "k-th from end" (use a gap of exactly k)
-```
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-reverse-linked-list) | Reverse Linked List | 🟢 | 🔵 **Full** | O(n)/O(1) three pointers |
+| [2](#2-reverse-linked-list-ii-sublist) | Reverse Linked List II | 🟡 | ⚪ Variation | dummy + splice back |
+| [3](#3-reverse-nodes-in-k-group) | Reverse Nodes in k-Group | 🔴 | ⚪ Variation | reverse in blocks |
+| [4](#4-merge-two-sorted-lists) | Merge Two Sorted Lists | 🟢 | 🔵 **Full** | O(n+m) dummy + weave |
+| [5](#5-merge-k-sorted-lists) | Merge k Sorted Lists | 🔴 | 🔵 **Full** | O(N log k) heap or divide |
+| [6](#6-remove-nth-node-from-end) | Remove Nth From End | 🟡 | 🔵 **Full** | one-pass gap technique |
+| [7](#7-middle-of-the-linked-list) | Middle of the Linked List | 🟢 | ⚪ Variation | fast/slow |
+| [8](#8-linked-list-cycle--entry) | Linked List Cycle + Entry | 🟡 | ⚪ Variation | Floyd's — see [here](03-two-pointers-sliding-window.md#15-linked-list-cycle-floyds) |
+| [9](#9-palindrome-linked-list) | Palindrome Linked List | 🟢 | 🔵 **Full** | O(1) space: find mid + reverse |
+| [10](#10-reorder-list) | Reorder List | 🟡 | ⚪ Variation | split + reverse + weave |
+| [11](#11-intersection-of-two-linked-lists) | Intersection of Two Lists | 🟢 | 🔵 **Full** | ⭐ pointer-swap trick |
+| [12](#12-add-two-numbers) | Add Two Numbers | 🟡 | 🔵 **Full** | carry propagation |
+| [13](#13-add-two-numbers-ii-forward-order) | Add Two Numbers II | 🟡 | ⚪ Variation | stacks or reverse |
+| [14](#14-remove-duplicates-from-sorted-list-iii) | Remove Duplicates I / II | 🟡 | 🔵 **Full** | dummy + skip-all |
+| [15](#15-odd-even-linked-list) | Odd Even Linked List | 🟡 | ⚪ Variation | two chains, then join |
+| [16](#16-rotate-list) | Rotate List | 🟡 | ⚪ Variation | make a ring, then cut |
+| [17](#17-partition-list) | Partition List | 🟡 | ⚪ Variation | two dummies |
+| [18](#18-sort-list) | Sort List | 🟡 | 🔵 **Full** | O(n log n) merge sort |
+| [19](#19-flatten-a-multilevel-doubly-linked-list) | Flatten Multilevel List | 🟡 | 🔵 **Full** | stack or in-place splice |
+| [20](#20-lru-cache-design) | LRU Cache | 🟡 | ⚪ Variation | see [Hashing #3](02-hashing.md#3-lru-cache) |
 
 ---
 
-## A. Basics & Reversal
+# 1. Reverse Linked List
 
-### 1. Reverse Linked List 🟢
-> Reverse a singly linked list.
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The most important linked-list primitive**
 
-#### 💬 Think of it like this
-Walk down the list flipping each arrow to point backwards.
+> Reverse `1 → 2 → 3 → 4 → 5` into `5 → 4 → 3 → 2 → 1`.
 
-The problem is that the moment you flip an arrow, you've destroyed your only route to the rest of the list. So the dance is always three steps, in this exact order:
+## 🗺️ Approach Ladder
 
-1. **Save** where you were about to go
-2. **Flip** the current arrow backwards
-3. **Advance** both pointers forward
+```mermaid
+flowchart LR
+    A["🐌 COPY TO ARRAY<br/>reverse, rebuild<br/><b>O(n)</b> / <b>O(n)</b>"] --> B["⚡ RECURSION<br/><b>O(n)</b> / <b>O(n)</b> stack<br/>⚠️ stack overflow risk"]
+    B --> C["🚀 THREE POINTERS<br/><b>O(n)</b> / <b>O(1)</b>"]
 
-You need three pointers: `prev` (where the arrow should now point), `cur` (the node you're flipping), and `nxt` (the saved escape route).
-
-#### 📊 Watching the arrows flip
-
-```
-   START      null    1 → 2 → 3 → null
-                      ▲
-                     cur
-              prev = null
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ STEP 1                                                       │
-   │   save:    nxt = 2                                           │
-   │   flip:    null ← 1    2 → 3 → null                          │
-   │   advance:      prev↑  cur↑                                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ STEP 2                                                       │
-   │   save:    nxt = 3                                           │
-   │   flip:    null ← 1 ← 2    3 → null                          │
-   │   advance:          prev↑  cur↑                              │
-   ├──────────────────────────────────────────────────────────────┤
-   │ STEP 3                                                       │
-   │   save:    nxt = null                                        │
-   │   flip:    null ← 1 ← 2 ← 3    null                          │
-   │   advance:              prev↑  cur↑                          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ cur is null → loop ends.                                     │
-   │ ⭐ RETURN prev — it's the new head (the old tail).            │
-   └──────────────────────────────────────────────────────────────┘
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-⚠️ **The two mistakes:** forgetting to save `next` before flipping (you lose the rest of the list instantly), and returning `head` instead of `prev` (`head` is now the *tail*).
+## 💬 Why three pointers, not two
 
-⭐ **Memorize this three-line pattern.** It appears inside reverse-in-k-groups, palindrome check, reorder list, and several others — usually as one phase of a larger algorithm.
+```mermaid
+flowchart TD
+    A["We want to do:<br/>curr->next = prev"] --> B["⚠️ But that OVERWRITES the<br/>only link to the rest of the list"]
+    B --> C["⭐ So SAVE it first:<br/>nxt = curr->next"]
+    C --> D["Now the four-step dance is safe"]
+    D --> E["① nxt = curr->next   (save)<br/>② curr->next = prev  (reverse)<br/>③ prev = curr        (advance)<br/>④ curr = nxt         (advance)"]
+
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   THE DANCE, STEP BY STEP
+
+   START
+     prev=∅   curr=1 → 2 → 3 → ∅
+
+   ① save nxt = 2
+     prev=∅   curr=1 → 2 → 3 → ∅
+                       ▲
+                      nxt
+
+   ② curr->next = prev
+     ∅ ← 1     2 → 3 → ∅        ⭐ link flipped
+       prev? no — prev is still ∅
+              curr=1
+
+   ③④ advance both
+     ∅ ← 1     curr=2 → 3 → ∅
+         prev
+
+   REPEAT →  ∅ ← 1 ← 2     curr=3
+   REPEAT →  ∅ ← 1 ← 2 ← 3     curr=∅  → STOP
+
+   ⭐ prev is the new head. curr is always null at the end.
+```
 
 ```cpp
-// Iterative — O(n) time, O(1) space  ⭐ preferred
 ListNode* reverseList(ListNode* head) {
-    ListNode *prev = nullptr, *cur = head;
-    while (cur) {
-        ListNode* nxt = cur->next;
-        cur->next = prev;
-        prev = cur; cur = nxt;
-    }
-    return prev;
-}
+    ListNode* prev = nullptr;
+    ListNode* curr = head;
 
-// Recursive — O(n) time, O(n) stack
-ListNode* reverseRec(ListNode* head) {
-    if (!head || !head->next) return head;
-    ListNode* newHead = reverseRec(head->next);
-    head->next->next = head;                       // ⭐ the node ahead points back
-    head->next = nullptr;
-    return newHead;
+    while (curr) {
+        ListNode* nxt = curr->next;   // ① ⭐ SAVE before destroying
+        curr->next = prev;            // ② reverse the link
+        prev = curr;                  // ③ advance prev
+        curr = nxt;                   // ④ advance curr
+    }
+    return prev;                      // ⭐ prev, NOT curr — curr is null
 }
+```
+
+⚠️ **Returning `curr` instead of `prev`** is the single most common bug. `curr` is always `nullptr` when the loop exits.
+
+## 🔁 The recursive version — worth understanding
+
+```cpp
+ListNode* reverseList(ListNode* head) {
+    if (!head || !head->next) return head;      // ⭐ base: 0 or 1 node
+
+    ListNode* newHead = reverseList(head->next);   // reverse the rest first
+
+    head->next->next = head;    // ⭐ the next node points BACK at us
+    head->next = nullptr;       // ⚠️ break the old forward link, or you
+                                //    create a 2-cycle
+    return newHead;             // ⭐ unchanged all the way up the stack
+}
+```
+
+```
+   ⭐ THE KEY LINE: head->next->next = head
+
+   If head is 1 and head->next is 2, then after the recursive
+   call the sublist is  ∅ ← 2 ← 3.
+   `head->next` still points at 2, so `head->next->next = head`
+   makes 2 point back to 1.
+
+   ⚠️ Then head->next = nullptr, or 1 ⇄ 2 becomes an infinite loop.
+```
+
+## ⚠️ Edge Cases
+
+| Input | Output | Note |
+|---|---|---|
+| `nullptr` | `nullptr` | loop never runs, returns `prev = nullptr` ✅ |
+| `[1]` | `[1]` | one iteration, `prev` becomes node 1 ✅ |
+| `[1,2]` | `[2,1]` | the minimal real case |
+
+## 📌 Pattern Card
+```
+SIGNAL   reverse · re-link · flip direction
+KEY      prev/curr/nxt — ALWAYS save nxt first
+         ⭐ return prev
+RELATED  Reverse II · k-Group · Palindrome List · Reorder List
 ```
 
 ---
 
-### 2. Reverse Linked List II (positions m..n) 🟡
-```cpp
-ListNode* reverseBetween(ListNode* head, int m, int n) {
-    ListNode dummy(0, head);
-    ListNode* prev = &dummy;
-    for (int i = 1; i < m; ++i) prev = prev->next;  // node before position m
+# 2. Reverse Linked List II (Sublist)
+🟡 ⚪ **Variation of #1** — reverse positions `left..right` only.
 
-    ListNode* cur = prev->next;
-    for (int i = 0; i < n - m; ++i) {               // ⭐ head-insertion technique
-        ListNode* move = cur->next;
-        cur->next = move->next;
-        move->next = prev->next;
-        prev->next = move;
+```mermaid
+flowchart TD
+    A["⭐ dummy node —<br/>left could be 1"] --> B["walk to the node BEFORE left<br/>call it `pre`"]
+    B --> C["⭐ HEAD-INSERTION:<br/>repeatedly move the node after<br/>`curr` to just after `pre`"]
+    C --> D["After (right − left) moves,<br/>the sublist is reversed<br/>and already spliced in"]
+
+    style A fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   HEAD-INSERTION on 1 → 2 → 3 → 4 → 5, left=2, right=4
+
+   pre=1, curr=2
+   move 3 after pre:   1 → 3 → 2 → 4 → 5
+   move 4 after pre:   1 → 4 → 3 → 2 → 5   ⭐ done, already spliced
+```
+
+```cpp
+ListNode* reverseBetween(ListNode* head, int left, int right) {
+    ListNode dummy(0, head);
+    ListNode* pre = &dummy;
+
+    for (int i = 1; i < left; ++i) pre = pre->next;   // ⭐ node before `left`
+
+    ListNode* curr = pre->next;
+    for (int i = 0; i < right - left; ++i) {
+        ListNode* move = curr->next;                 // the node to relocate
+        curr->next = move->next;                     // unlink it
+        move->next = pre->next;                      // ⭐ insert after pre
+        pre->next  = move;
     }
     return dummy.next;
 }
 ```
-```
-   Each iteration lifts the node after `cur` and inserts it right after `prev`:
-   prev → [1] → [2] → [3] → ...
-   prev → [2] → [1] → [3] → ...
-   prev → [3] → [2] → [1] → ...
-```
+⭐ **`curr` never moves** — it slides backward relative to the others as nodes are pulled in front of it.
 
 ---
 
-### 3. Reverse Nodes in k-Group 🔴
+# 3. Reverse Nodes in k-Group
+🔴 ⚪ **Variation of #1** — reverse each block of k, leave a short tail alone.
+
 ```cpp
 ListNode* reverseKGroup(ListNode* head, int k) {
-    // 1. Check that k nodes exist
-    ListNode* node = head;
-    for (int i = 0; i < k; ++i) { if (!node) return head; node = node->next; }
-
-    // 2. Reverse this group; `node` is the head of the remainder
-    ListNode *prev = nullptr, *cur = head;
+    // ⭐ First CHECK that k nodes remain — don't reverse a partial group
+    ListNode* check = head;
     for (int i = 0; i < k; ++i) {
-        ListNode* nxt = cur->next;
-        cur->next = prev;
-        prev = cur; cur = nxt;
+        if (!check) return head;                // fewer than k → leave as-is
+        check = check->next;
     }
-    // 3. Recurse on the rest and attach
-    head->next = reverseKGroup(node, k);           // `head` is now the group's TAIL
-    return prev;                                   // `prev` is the new group head
+
+    // reverse exactly k nodes
+    ListNode* prev = nullptr;
+    ListNode* curr = head;
+    for (int i = 0; i < k; ++i) {
+        ListNode* nxt = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = nxt;
+    }
+
+    // ⭐ `head` is now the TAIL of this group — attach the recursed remainder
+    head->next = reverseKGroup(curr, k);
+    return prev;                                // new head of this group
 }
 ```
-🎤 **Follow-up (O(1) space):** iterative version with a dummy head and a group-tail pointer.
+⭐ **The upfront length check** is what makes the "leave the remainder untouched" rule work. Reversing first and undoing later is far messier.
+
+🎤 **Follow-up: O(1) space?** Replace the recursion with an outer loop tracking `groupPrev`, splicing each reversed block manually. Same logic, more bookkeeping.
 
 ---
 
-### 4. Swap Nodes in Pairs 🟡
+# 4. Merge Two Sorted Lists
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The dummy-node archetype**
+
+```mermaid
+flowchart TD
+    A["⭐ dummy node + `tail` pointer"] --> B{"a->val ≤ b->val ?"}
+    B -->|"yes"| C["tail->next = a<br/>a = a->next"]
+    B -->|"no"| D["tail->next = b<br/>b = b->next"]
+    C --> E["tail = tail->next"]
+    D --> E
+    E --> F{"either list<br/>exhausted?"}
+    F -->|"no"| B
+    F -->|"yes"| G["⭐ attach the WHOLE remaining list<br/>— it's already sorted"]
+
+    style A fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
-ListNode* swapPairs(ListNode* head) {
-    ListNode dummy(0, head);
-    ListNode* prev = &dummy;
-    while (prev->next && prev->next->next) {
-        ListNode* a = prev->next;
-        ListNode* b = a->next;
-        a->next = b->next;
-        b->next = a;
-        prev->next = b;
-        prev = a;
+ListNode* mergeTwoLists(ListNode* a, ListNode* b) {
+    ListNode dummy;
+    ListNode* tail = &dummy;
+
+    while (a && b) {
+        if (a->val <= b->val) { tail->next = a; a = a->next; }  // ⭐ <= keeps
+        else                  { tail->next = b; b = b->next; }  //    it STABLE
+        tail = tail->next;
+    }
+    tail->next = a ? a : b;                     // ⭐ attach the rest in O(1)
+
+    return dummy.next;
+}
+```
+
+⭐ **`tail->next = a ? a : b`** — no loop needed. The remaining list is already sorted and already linked.
+
+⭐ **`<=` rather than `<`** preserves the relative order of equal elements. That's what makes merge sort stable, which matters when this is used as a subroutine.
+
+---
+
+# 5. Merge k Sorted Lists
+
+🔴 **Hard** · 🔵 Full ladder · **Two optimal approaches**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 CONCAT + SORT<br/><b>O(N log N)</b><br/>throws away sortedness"] --> B["⚡ MERGE ONE BY ONE<br/>⚠️ re-walks the accumulator<br/><b>O(N·k)</b>"]
+    B --> C["🚀 MIN-HEAP of k heads<br/><b>O(N log k)</b> / O(k)"]
+    B --> D["🚀 DIVIDE &amp; CONQUER<br/>pairwise merge<br/><b>O(N log k)</b> / <b>O(1)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
+```
+
+## ⚠️ Why sequential merging is slow
+
+```
+   Merging one at a time into an accumulator:
+
+     merge(L1, L2)         → walks  n + n  = 2n
+     merge(result, L3)     → walks 2n + n  = 3n
+     merge(result, L4)     → walks 3n + n  = 4n
+     ...
+   Total = 2n + 3n + ... + kn = O(k²n) = ⭐ O(N·k)
+
+   ⚠️ The accumulated list is re-walked on EVERY merge.
+```
+
+## 3️⃣ Min-Heap — O(N log k)
+
+```mermaid
+flowchart TD
+    A["⭐ Push the HEAD of each list<br/>into a min-heap — only k nodes"] --> B["pop the global minimum"]
+    B --> C["append it to the result"]
+    C --> D["⭐ push its `next` back in<br/>— the heap stays size ≤ k"]
+    D --> B
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+```cpp
+ListNode* mergeKLists(vector<ListNode*>& lists) {
+    auto cmp = [](ListNode* a, ListNode* b) { return a->val > b->val; };  // min-heap
+    priority_queue<ListNode*, vector<ListNode*>, decltype(cmp)> pq(cmp);
+
+    for (ListNode* l : lists) if (l) pq.push(l);   // ⚠️ skip null lists
+
+    ListNode dummy;
+    ListNode* tail = &dummy;
+
+    while (!pq.empty()) {
+        ListNode* n = pq.top(); pq.pop();
+        tail->next = n;
+        tail = n;
+        if (n->next) pq.push(n->next);          // ⭐ heap never exceeds k
     }
     return dummy.next;
 }
 ```
 
----
+## 4️⃣ Divide & Conquer — ⭐ O(1) extra space
 
-### 5. Palindrome Linked List 🟢
+```mermaid
+flowchart TD
+    subgraph "Round 1"
+        A["L1"] & B["L2"] --> AB["merge"]
+        C["L3"] & D["L4"] --> CD["merge"]
+    end
+    subgraph "Round 2"
+        AB & CD --> R["merge → final"]
+    end
+    N["⭐ log k rounds,<br/>each touching all N nodes<br/>→ O(N log k)"] -.-> R
+
+    style AB fill:#fff9c4,stroke:#f9a825,color:#000
+    style CD fill:#fff9c4,stroke:#f9a825,color:#000
+    style R fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style N fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+```
+
 ```cpp
-bool isPalindrome(ListNode* head) {
-    // 1. Find the middle
-    ListNode *slow = head, *fast = head;
-    while (fast->next && fast->next->next) { slow = slow->next; fast = fast->next->next; }
+ListNode* mergeKLists(vector<ListNode*>& lists) {
+    if (lists.empty()) return nullptr;
 
-    // 2. Reverse the second half
-    ListNode *prev = nullptr, *cur = slow->next;
-    while (cur) { ListNode* n = cur->next; cur->next = prev; prev = cur; cur = n; }
-
-    // 3. Compare
-    ListNode *p = head, *q = prev;
-    bool ok = true;
-    while (q) { if (p->val != q->val) { ok = false; break; } p = p->next; q = q->next; }
-
-    // 4. ⭐ Restore the list (good practice; interviewers ask)
-    cur = prev; prev = nullptr;
-    while (cur) { ListNode* n = cur->next; cur->next = prev; prev = cur; cur = n; }
-    slow->next = prev;
-
-    return ok;
+    int n = lists.size();
+    while (n > 1) {
+        int half = (n + 1) / 2;                 // ⭐ ceiling — handles odd counts
+        for (int i = 0; i < n / 2; ++i)
+            lists[i] = mergeTwoLists(lists[i], lists[i + half]);
+        n = half;
+    }
+    return lists[0];
 }
 ```
-**Complexity:** O(n) / O(1).
+
+⭐ **Why this beats sequential merging:** each node is touched once per *round*, and there are only `log k` rounds — instead of being re-walked on every one of the `k` merges.
+
+## 📌 Pattern Card
+```
+SIGNAL   merge/combine k sorted sequences
+KEY      min-heap of k heads · OR pairwise divide & conquer
+         ⚠️ never merge sequentially into an accumulator
+RELATED  Merge Sort · Smallest Range Covering K Lists · Kth Smallest in Matrix
+```
 
 ---
 
-## B. Fast & Slow Pointers
+# 6. Remove Nth Node From End
 
-### 6. Middle of the Linked List 🟢
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The gap technique**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ TWO PASSES<br/>count length,<br/>then walk to L−n<br/><b>O(n)</b>, 2 passes"] -->|"maintain the<br/>offset directly"| B["🚀 GAP OF n<br/><b>O(n)</b>, ONE pass"]
+
+    style A fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["⭐ dummy node —<br/>the head itself may be removed"] --> B["advance `fast` n+1 steps"]
+    B --> C["⭐ now the gap between<br/>slow and fast is exactly n+1"]
+    C --> D["move BOTH until fast is null"]
+    D --> E["⭐ slow now sits just BEFORE<br/>the node to delete"]
+    E --> F["slow->next = slow->next->next"]
+
+    style A fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  1 → 2 → 3 → 4 → 5, n = 2
+
+   dummy → 1 → 2 → 3 → 4 → 5 → ∅
+     ▲
+   slow, fast
+
+   advance fast 3 steps (n+1):
+   dummy → 1 → 2 → 3 → 4 → 5 → ∅
+     ▲             ▲
+   slow          fast
+
+   move both until fast == null:
+   dummy → 1 → 2 → 3 → 4 → 5 → ∅
+                 ▲             ▲
+               slow          fast
+
+   ⭐ slow->next is 4 — the 2nd from the end. Delete it.
+```
+
+```cpp
+ListNode* removeNthFromEnd(ListNode* head, int n) {
+    ListNode dummy(0, head);
+    ListNode *slow = &dummy, *fast = &dummy;
+
+    for (int i = 0; i <= n; ++i) fast = fast->next;   // ⭐ n+1 steps
+
+    while (fast) { slow = slow->next; fast = fast->next; }
+
+    ListNode* del = slow->next;
+    slow->next = del->next;
+    delete del;                                 // ⭐ don't leak
+    return dummy.next;
+}
+```
+
+⭐ **n+1, not n.** You need `slow` to land on the *predecessor*, since a singly linked list can't delete a node it's standing on.
+
+⭐ **The dummy handles `n == length`** (removing the head) with no special case at all.
+
+---
+
+# 7. Middle of the Linked List
+🟢 ⚪ **Variation of fast/slow** — see [Floyd's](03-two-pointers-sliding-window.md#15-linked-list-cycle-floyds).
+
 ```cpp
 ListNode* middleNode(ListNode* head) {
     ListNode *slow = head, *fast = head;
     while (fast && fast->next) { slow = slow->next; fast = fast->next->next; }
-    return slow;                                   // SECOND middle when even
+    return slow;                                // ⭐ SECOND middle when even
 }
-// For the FIRST middle when even: while (fast->next && fast->next->next)
+```
+```
+   ⭐ WHICH MIDDLE DO YOU GET?
+
+   [1,2,3,4]  fast starts at head → slow ends at 3 (SECOND middle)
+              fast starts at head->next → slow ends at 2 (FIRST middle)
+
+   ⚠️ Palindrome and Reorder List need the FIRST middle so the
+     split is clean. Know which one your loop produces.
 ```
 
 ---
 
-### 7. Linked List Cycle 🟢
-```cpp
-bool hasCycle(ListNode* head) {
-    ListNode *slow = head, *fast = head;
-    while (fast && fast->next) {
-        slow = slow->next;
-        fast = fast->next->next;
-        if (slow == fast) return true;
-    }
-    return false;
-}
-```
+# 8. Linked List Cycle + Entry
+🟡 ⚪ **Covered in full** with the algebraic proof: [Two Pointers #15](03-two-pointers-sliding-window.md#15-linked-list-cycle-floyds).
 
----
-
-### 8. Linked List Cycle II (find the entry) 🟡
 ```cpp
 ListNode* detectCycle(ListNode* head) {
     ListNode *slow = head, *fast = head;
     while (fast && fast->next) {
         slow = slow->next;
         fast = fast->next->next;
-        if (slow == fast) {
+        if (slow == fast) {                     // ⭐ F = nC − a
             ListNode* p = head;
             while (p != slow) { p = p->next; slow = slow->next; }
             return p;
@@ -266,253 +533,378 @@ ListNode* detectCycle(ListNode* head) {
     return nullptr;
 }
 ```
-```
-   PROOF:
-   head ──a──▶ [entry] ──b──▶ [meet]
-                  ▲              │
-                  └──────c───────┘
-
-   slow travelled a + b
-   fast travelled a + b + c + b = 2(a + b)   →   a = c
-
-   So walking `a` steps from head and `c` steps from meet
-   arrives at the entry simultaneously.
-```
 
 ---
 
-### 9. Remove Nth Node From End 🟡
+# 9. Palindrome Linked List
+
+🟢 **Easy to state, tricky in O(1) space** · 🔵 Full ladder
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ COPY TO VECTOR<br/>+ two pointers<br/><b>O(n)</b> / <b>O(n)</b>"] --> B["⚡ RECURSION<br/>compare front/back<br/><b>O(n)</b> / <b>O(n)</b> stack"]
+    B --> C["🚀 FIND MID + REVERSE<br/>compare halves<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["① find the middle<br/>(fast/slow)"] --> B["② ⭐ REVERSE the second half<br/>in place"]
+    B --> C["③ walk both halves in parallel,<br/>comparing values"]
+    C --> D["④ ⭐ RESTORE the list by<br/>reversing back"]
+
+    N["⚠️ Step ④ is what separates a<br/>good answer from a great one —<br/>never leave the caller's data mangled"] -.-> D
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style N fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+```
+
+```
+   1 → 2 → 2 → 1
+
+   ① mid → slow lands between the two 2s
+   ② reverse the tail:   1 → 2   and   1 → 2
+   ③ compare 1==1, 2==2 ✅ PALINDROME
+   ④ reverse the tail back → the original list is restored
+```
+
 ```cpp
-ListNode* removeNthFromEnd(ListNode* head, int n) {
-    ListNode dummy(0, head);
-    ListNode *fast = &dummy, *slow = &dummy;
-    for (int i = 0; i <= n; ++i) fast = fast->next;   // ⭐ gap of n+1
-    while (fast) { fast = fast->next; slow = slow->next; }
-    ListNode* del = slow->next;
-    slow->next = del->next;
-    delete del;
-    return dummy.next;
+ListNode* reverse(ListNode* h) {
+    ListNode* prev = nullptr;
+    while (h) { ListNode* n = h->next; h->next = prev; prev = h; h = n; }
+    return prev;
+}
+
+bool isPalindrome(ListNode* head) {
+    if (!head || !head->next) return true;
+
+    // ① find the END OF THE FIRST HALF
+    ListNode *slow = head, *fast = head;
+    while (fast->next && fast->next->next) {    // ⭐ this form gives the FIRST middle
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+
+    // ② reverse the second half
+    ListNode* second = reverse(slow->next);
+
+    // ③ compare
+    bool ok = true;
+    for (ListNode *p = head, *q = second; q; p = p->next, q = q->next)
+        if (p->val != q->val) { ok = false; break; }
+    // ⭐ loop on `q` — the second half is never longer than the first
+
+    // ④ ⭐ RESTORE
+    slow->next = reverse(second);
+    return ok;
 }
 ```
-**Key insight:** Advancing `fast` by `n+1` from the dummy leaves `slow` at the node *before* the target — exactly what's needed for deletion.
+
+⭐ **Loop on `q`, not `p`.** With an odd length the first half has the extra node, so the second half exhausting first is the correct stop condition.
 
 ---
 
-### 10. Happy Number (cycle detection on a function) 🟢
+# 10. Reorder List
+🟡 ⚪ **Variation of #9** — same three phases, but interleave instead of compare.
+
+> `1→2→3→4→5` becomes `1→5→2→4→3`
+
+```mermaid
+flowchart LR
+    A["① find the<br/>FIRST middle"] --> B["② reverse the<br/>second half"] --> C["③ ⭐ WEAVE:<br/>alternate nodes from<br/>each half"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
-int sq(int n) { int s = 0; while (n) { int d = n % 10; s += d * d; n /= 10; } return s; }
-bool isHappy(int n) {
-    int slow = n, fast = n;
-    do { slow = sq(slow); fast = sq(sq(fast)); } while (slow != fast);
-    return slow == 1;
+void reorderList(ListNode* head) {
+    if (!head || !head->next) return;
+
+    ListNode *slow = head, *fast = head;
+    while (fast->next && fast->next->next) { slow = slow->next; fast = fast->next->next; }
+
+    ListNode* second = reverse(slow->next);
+    slow->next = nullptr;                       // ⭐⭐ CUT the list in two —
+                                                //    forgetting this makes a cycle
+    ListNode* first = head;
+    while (second) {                            // ⭐ second is never longer
+        ListNode *f = first->next, *s = second->next;
+        first->next  = second;
+        second->next = f;
+        first = f; second = s;
+    }
 }
 ```
-**Key insight:** Floyd's algorithm works on any function iteration, not just linked lists.
+⚠️ **`slow->next = nullptr` is mandatory.** Without it the two halves still reference each other and the weave produces a cycle.
 
 ---
 
-### 11. Find the Duplicate Number 🟡
-> Array of n+1 integers in `[1, n]`. Find the duplicate without modifying the array, O(1) space.
+# 11. Intersection of Two Linked Lists
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **A genuinely beautiful trick**
+
+> Find the node where two lists merge. `O(1)` space.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 NESTED SCAN<br/><b>O(n·m)</b>"] --> B["⚡ HASH SET<br/>of list A's nodes<br/><b>O(n)</b> / <b>O(n)</b>"]
+    B --> C["⚡ ALIGN BY LENGTH<br/>count both, skip the<br/>difference<br/><b>O(n)</b> / <b>O(1)</b>"]
+    C --> D["🚀 POINTER SWAP<br/>⭐ no counting at all<br/><b>O(n+m)</b> / <b>O(1)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
+```
+
+## 💬 The pointer-swap insight
+
+```mermaid
+flowchart TD
+    A["⭐ Pointer A walks list A,<br/>then continues onto list B"] --> C["Both travel EXACTLY<br/>a + b + c steps"]
+    B["⭐ Pointer B walks list B,<br/>then continues onto list A"] --> C
+    C --> D["⭐ So they arrive at the<br/>intersection SIMULTANEOUSLY —<br/>the length difference cancels out"]
+    D --> E{"no intersection?"}
+    E --> F["⭐ Both hit null at the same time<br/>→ the loop ends, returns null"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
+```
+   ⭐⭐ THE ARITHMETIC
+
+     List A:  a₁ → a₂ → ┐
+                        ├→ c₁ → c₂ → ∅
+     List B:  b₁ → b₂ → b₃ → ┘
+
+     a = 2 (A's unique part)
+     b = 3 (B's unique part)
+     c = 2 (shared tail)
+
+     Pointer A: a + c + b = 2 + 2 + 3 = 7 steps to reach c₁
+     Pointer B: b + c + a = 3 + 2 + 2 = 7 steps to reach c₁
+
+   ⭐ Identical. They MUST meet at c₁. ∎
+```
 
 ```cpp
-int findDuplicate(vector<int>& a) {
-    int slow = a[0], fast = a[0];
-    do { slow = a[slow]; fast = a[a[fast]]; } while (slow != fast);
-    slow = a[0];
-    while (slow != fast) { slow = a[slow]; fast = a[fast]; }
-    return slow;
+ListNode* getIntersectionNode(ListNode* a, ListNode* b) {
+    if (!a || !b) return nullptr;
+
+    ListNode *p = a, *q = b;
+    while (p != q) {
+        p = p ? p->next : b;                    // ⭐ exhausted A → jump to B
+        q = q ? q->next : a;                    // ⭐ exhausted B → jump to A
+    }
+    return p;                                   // ⭐ intersection, or nullptr
 }
 ```
-**Key insight:** Treat `i → a[i]` as a linked list. Since values are in `[1,n]` and there are `n+1` of them, some value repeats — which means two indices point to the same node, forming a cycle whose entry is the duplicate. Brilliant reduction.
+
+⚠️ **The switch must happen at `nullptr`, not at the last node.** Jumping from the tail directly to the other head skips a step and breaks the equality — and it also removes the graceful null-return for non-intersecting lists.
+
+## 📌 Pattern Card
+```
+SIGNAL   two sequences of DIFFERENT lengths converging
+KEY      ⭐ swap pointers at the end → both travel a+b+c
+RELATED  Lowest Common Ancestor (same idea on trees)
+```
 
 ---
 
-## C. Merging & Sorting
+# 12. Add Two Numbers
 
-### 12. Merge Two Sorted Lists 🟢
+🟡 **Medium** · 🔵 Full ladder · **Digits stored in REVERSE order**
+
+> `2→4→3` (342) plus `5→6→4` (465) is `7→0→8` (807).
+
+```mermaid
+flowchart TD
+    A["⭐ Reverse order means the<br/>HEAD is the ones digit —<br/>exactly the order addition needs"] --> B["sum = d1 + d2 + carry"]
+    B --> C["digit = sum % 10<br/>carry = sum / 10"]
+    C --> D{"either list left,<br/>OR carry ≠ 0?"}
+    D -->|"yes"| B
+    D -->|"no"| E(["done"])
+
+    N["⭐ The `|| carry` term handles<br/>99 + 1 = 100, where the result<br/>is LONGER than both inputs"] -.-> D
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style N fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+```
+
 ```cpp
-ListNode* mergeTwoLists(ListNode* a, ListNode* b) {
+ListNode* addTwoNumbers(ListNode* a, ListNode* b) {
     ListNode dummy;
     ListNode* tail = &dummy;
-    while (a && b) {
-        if (a->val <= b->val) { tail->next = a; a = a->next; }
-        else                  { tail->next = b; b = b->next; }
+    int carry = 0;
+
+    while (a || b || carry) {                   // ⭐⭐ the `|| carry` term
+        int sum = carry;
+        if (a) { sum += a->val; a = a->next; }
+        if (b) { sum += b->val; b = b->next; }
+
+        carry = sum / 10;
+        tail->next = new ListNode(sum % 10);
         tail = tail->next;
     }
-    tail->next = a ? a : b;                        // attach the remainder
     return dummy.next;
 }
 ```
 
----
-
-### 13. Merge k Sorted Lists 🔴
-```cpp
-// Approach 1: min-heap — O(N log k)
-ListNode* mergeKLists(vector<ListNode*>& lists) {
-    auto cmp = [](ListNode* a, ListNode* b) { return a->val > b->val; };
-    priority_queue<ListNode*, vector<ListNode*>, decltype(cmp)> pq(cmp);
-    for (auto* l : lists) if (l) pq.push(l);
-
-    ListNode dummy;
-    ListNode* tail = &dummy;
-    while (!pq.empty()) {
-        ListNode* n = pq.top(); pq.pop();
-        tail->next = n; tail = n;
-        if (n->next) pq.push(n->next);
-    }
-    return dummy.next;
-}
-
-// Approach 2: divide and conquer — O(N log k), O(1) extra space  ⭐ often preferred
-ListNode* mergeKLists2(vector<ListNode*>& lists) {
-    if (lists.empty()) return nullptr;
-    int n = lists.size();
-    while (n > 1) {
-        int k = (n + 1) / 2;
-        for (int i = 0; i < n / 2; ++i) lists[i] = mergeTwoLists(lists[i], lists[i + k]);
-        n = k;
-    }
-    return lists[0];
-}
-```
-⚠️ **Naive sequential merging is O(N·k)** — merging list 1 into an accumulator re-traverses everything each time. Pairwise merging is O(N log k).
+⚠️ **Dropping `|| carry`** silently truncates `[9,9] + [1]` from `[0,0,1]` to `[0,0]`.
 
 ---
 
-### 14. Sort List (merge sort) 🟡
-```cpp
-ListNode* sortList(ListNode* head) {
-    if (!head || !head->next) return head;
+# 13. Add Two Numbers II (Forward Order)
+🟡 ⚪ **Variation of #12** — digits stored most-significant first, and you **can't reverse the input**.
 
-    // Split at the middle
-    ListNode *slow = head, *fast = head->next;     // ⭐ fast starts ahead
-    while (fast && fast->next) { slow = slow->next; fast = fast->next->next; }
-    ListNode* mid = slow->next;
-    slow->next = nullptr;                          // cut
+```mermaid
+flowchart LR
+    A["⭐ Need to process from the<br/>LEAST significant digit,<br/>but the list runs the other way"] --> B["⭐ STACKS give reverse<br/>access without mutating"]
+    B --> C["Build the result by<br/>PREPENDING each new digit"]
 
-    return mergeTwoLists(sortList(head), sortList(mid));
-}
-```
-**Complexity:** O(n log n) time, O(log n) stack.
-**Key insight:** Merge sort is the natural choice for linked lists — no random access needed, and merging is O(1) space. `fast = head->next` guarantees `slow` lands on the *first* middle, so the split is always non-trivial and recursion terminates.
-
----
-
-### 15. Insertion Sort List 🟡
-```cpp
-ListNode* insertionSortList(ListNode* head) {
-    ListNode dummy;
-    while (head) {
-        ListNode* nxt = head->next;
-        ListNode* p = &dummy;
-        while (p->next && p->next->val < head->val) p = p->next;
-        head->next = p->next;
-        p->next = head;
-        head = nxt;
-    }
-    return dummy.next;
-}
+    style A fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
-
-## D. Structural Manipulation
-
-### 16. Remove Duplicates from Sorted List 🟢
 ```cpp
-ListNode* deleteDuplicates(ListNode* head) {
-    ListNode* cur = head;
-    while (cur && cur->next) {
-        if (cur->val == cur->next->val) {
-            ListNode* d = cur->next;
-            cur->next = d->next;
-            delete d;
-        } else cur = cur->next;
+ListNode* addTwoNumbers(ListNode* a, ListNode* b) {
+    stack<int> sa, sb;
+    for (; a; a = a->next) sa.push(a->val);
+    for (; b; b = b->next) sb.push(b->val);
+
+    ListNode* head = nullptr;                   // ⭐ build by PREPENDING
+    int carry = 0;
+
+    while (!sa.empty() || !sb.empty() || carry) {
+        int sum = carry;
+        if (!sa.empty()) { sum += sa.top(); sa.pop(); }
+        if (!sb.empty()) { sum += sb.top(); sb.pop(); }
+
+        carry = sum / 10;
+        head = new ListNode(sum % 10, head);    // ⭐ prepend, not append
     }
     return head;
 }
 ```
+⭐ **Prepending while consuming from the stacks** produces the correct forward order with no final reverse.
 
 ---
 
-### 17. Remove Duplicates from Sorted List II (delete all copies) 🟡
+# 14. Remove Duplicates from Sorted List I/II
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The dummy earns its keep**
+
+```mermaid
+flowchart TD
+    subgraph "I — keep ONE copy"
+        A1["1→1→2→3→3"] --> A2["1→2→3"]
+        A3["⭐ compare curr with curr->next<br/>no dummy needed —<br/>the head always survives"]
+    end
+    subgraph "II — remove ALL copies"
+        B1["1→1→2→3→3"] --> B2["2"]
+        B3["⚠️ The HEAD may be deleted<br/>→ ⭐ dummy is mandatory"]
+    end
+
+    style A2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B3 fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+```
+
 ```cpp
+// I — keep one of each
 ListNode* deleteDuplicates(ListNode* head) {
-    ListNode dummy(0, head);
-    ListNode* prev = &dummy;
-    while (head) {
-        if (head->next && head->val == head->next->val) {
-            int v = head->val;
-            while (head && head->val == v) {       // skip the ENTIRE run
-                ListNode* d = head; head = head->next; delete d;
-            }
-            prev->next = head;                     // ⭐ don't advance prev
+    for (ListNode* c = head; c && c->next; )
+        if (c->val == c->next->val) {
+            ListNode* d = c->next;
+            c->next = d->next;
+            delete d;                           // ⭐ don't advance — more dups
         } else {
-            prev = head;
-            head = head->next;
+            c = c->next;
+        }
+    return head;
+}
+
+// II — remove EVERY value that appears more than once
+ListNode* deleteDuplicatesII(ListNode* head) {
+    ListNode dummy(0, head);
+    ListNode* prev = &dummy;                    // ⭐ last confirmed-unique node
+    ListNode* curr = head;
+
+    while (curr) {
+        if (curr->next && curr->val == curr->next->val) {
+            int dupVal = curr->val;
+            while (curr && curr->val == dupVal) {   // ⭐ skip the ENTIRE run
+                ListNode* d = curr;
+                curr = curr->next;
+                delete d;
+            }
+            prev->next = curr;                  // ⭐ splice out the whole block
+        } else {
+            prev = curr;
+            curr = curr->next;
         }
     }
     return dummy.next;
 }
 ```
 
----
-
-### 18. Remove Linked List Elements 🟢
-```cpp
-ListNode* removeElements(ListNode* head, int val) {
-    ListNode dummy(0, head);
-    ListNode* prev = &dummy;
-    while (prev->next) {
-        if (prev->next->val == val) {
-            ListNode* d = prev->next;
-            prev->next = d->next;
-            delete d;
-        } else prev = prev->next;
-    }
-    return dummy.next;
-}
-```
+⚠️ **In II, `prev` only advances when a node is confirmed unique.** Advancing it unconditionally is the classic bug — it leaves the first duplicate in place.
 
 ---
 
-### 19. Partition List 🟡
-```cpp
-ListNode* partition(ListNode* head, int x) {
-    ListNode lessDummy, geDummy;
-    ListNode *less = &lessDummy, *ge = &geDummy;
-    while (head) {
-        if (head->val < x) { less->next = head; less = head; }
-        else               { ge->next = head;   ge = head; }
-        head = head->next;
-    }
-    ge->next = nullptr;                            // ⭐ MUST terminate, or cycle
-    less->next = geDummy.next;
-    return lessDummy.next;
-}
-```
-**Key insight:** Two dummy-headed lists, then splice. Forgetting `ge->next = nullptr` creates an infinite loop — a very common bug.
+# 15. Odd Even Linked List
+🟡 ⚪ **Variation** — build two chains, then join them.
 
----
-
-### 20. Odd Even Linked List 🟡
 ```cpp
 ListNode* oddEvenList(ListNode* head) {
     if (!head || !head->next) return head;
-    ListNode *odd = head, *even = head->next, *evenHead = even;
+
+    ListNode *odd = head, *even = head->next, *evenHead = even;  // ⭐ save it
+
     while (even && even->next) {
-        odd->next = even->next;   odd = odd->next;
-        even->next = odd->next;   even = even->next;
+        odd->next  = even->next;   odd  = odd->next;
+        even->next = odd->next;    even = even->next;
     }
-    odd->next = evenHead;
+    odd->next = evenHead;                       // ⭐ join the two chains
     return head;
 }
 ```
+⭐ **`evenHead` must be saved up front** — by the time the loop ends, nothing else points to the start of the even chain.
 
 ---
 
-### 21. Rotate List 🟡
+# 16. Rotate List
+🟡 ⚪ **Variation** — close the list into a ring, then cut it open elsewhere.
+
+```mermaid
+flowchart LR
+    A["① walk to the tail,<br/>counting the length"] --> B["② ⭐ tail->next = head<br/>(make it a RING)"]
+    B --> C["③ ⭐ k %= n<br/>then walk n − k steps"]
+    C --> D["④ cut: newTail->next = nullptr"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
 ListNode* rotateRight(ListNode* head, int k) {
     if (!head || !head->next || k == 0) return head;
@@ -520,205 +912,247 @@ ListNode* rotateRight(ListNode* head, int k) {
     int n = 1;
     ListNode* tail = head;
     while (tail->next) { tail = tail->next; ++n; }
-    tail->next = head;                             // ⭐ make it circular
 
-    k %= n;
-    int steps = n - k;                             // new tail position
+    tail->next = head;                          // ⭐ close the ring
+    k %= n;                                     // ⭐ k can exceed n
+
     ListNode* newTail = head;
-    for (int i = 1; i < steps; ++i) newTail = newTail->next;
+    for (int i = 0; i < n - k - 1; ++i) newTail = newTail->next;
 
     ListNode* newHead = newTail->next;
-    newTail->next = nullptr;                       // break the circle
+    newTail->next = nullptr;                    // ⭐ cut it open
     return newHead;
 }
 ```
+⭐ **Making a ring first** removes all the off-by-one pain of trying to splice two segments manually.
 
 ---
 
-### 22. Reorder List 🟡
-> L0 → L1 → … → Ln  becomes  L0 → Ln → L1 → Ln-1 → …
+# 17. Partition List
+🟡 ⚪ **Variation** — two dummies, then concatenate. Order must be **stable**.
 
 ```cpp
-void reorderList(ListNode* head) {
-    if (!head || !head->next) return;
+ListNode* partition(ListNode* head, int x) {
+    ListNode lessHead, geHead;                  // ⭐ TWO dummies
+    ListNode *less = &lessHead, *ge = &geHead;
 
-    // 1. Find the middle
-    ListNode *slow = head, *fast = head;
-    while (fast->next && fast->next->next) { slow = slow->next; fast = fast->next->next; }
+    for (ListNode* c = head; c; c = c->next)
+        (c->val < x ? less : ge)->next = c,     // ⭐ append to the right chain
+        (c->val < x ? less : ge) = c;
 
-    // 2. Reverse the second half
-    ListNode *prev = nullptr, *cur = slow->next;
-    slow->next = nullptr;                          // ⭐ cut the list
-    while (cur) { ListNode* n = cur->next; cur->next = prev; prev = cur; cur = n; }
-
-    // 3. Interleave
-    ListNode *p = head, *q = prev;
-    while (q) {
-        ListNode *pn = p->next, *qn = q->next;
-        p->next = q;
-        q->next = pn;
-        p = pn; q = qn;
-    }
+    ge->next = nullptr;                         // ⚠️ TERMINATE — the last node
+                                                //    still points into the old list
+    less->next = geHead.next;
+    return lessHead.next;
 }
 ```
-**Key insight:** Three-phase composition — find middle, reverse, merge. This decomposition pattern recurs constantly.
+⚠️ **`ge->next = nullptr` is essential.** Without it the final node retains a stale forward pointer and you get a cycle.
+
+⭐ **Two dummies preserve stability** for free — nodes enter each chain in their original relative order.
 
 ---
 
-## E. Arithmetic & Complex Structures
+# 18. Sort List
 
-### 23. Add Two Numbers 🟡
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Why merge sort, not quicksort**
+
+> Sort in **O(n log n)** time and **O(1)** space (ignoring recursion).
+
+## 💬 Why merge sort is the right choice here
+
+```mermaid
+flowchart TD
+    Q{"Which sort for<br/>a linked list?"}
+    Q -->|"QUICKSORT"| A["⚠️ Needs RANDOM ACCESS for a<br/>good pivot; partitioning a list<br/>is awkward, and worst case is O(n²)"]
+    Q -->|"HEAPSORT"| B["⚠️ Needs indexed access<br/>to children — impossible"]
+    Q -->|"⭐ MERGE SORT"| C["✅ Splitting = fast/slow pointers<br/>✅ Merging = pure pointer rewiring<br/>✅ ⭐ NO extra array needed,<br/>unlike merge sort on arrays"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#ffcdd2,stroke:#c62828,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ THE INSIGHT WORTH STATING OUT LOUD
+
+   Merge sort on an ARRAY needs O(n) auxiliary space, because
+   merging two adjacent runs in place is hard.
+
+   Merge sort on a LINKED LIST needs none — merging is just
+   relinking existing nodes. The linked list is the one
+   structure where merge sort is space-optimal.
+
+   ⭐ That's why std::list::sort exists separately from std::sort.
+```
+
 ```cpp
-ListNode* addTwoNumbers(ListNode* a, ListNode* b) {
-    ListNode dummy;
-    ListNode* tail = &dummy;
-    int carry = 0;
-    while (a || b || carry) {
-        int s = carry;
-        if (a) { s += a->val; a = a->next; }
-        if (b) { s += b->val; b = b->next; }
-        carry = s / 10;
-        tail->next = new ListNode(s % 10);
-        tail = tail->next;
+ListNode* sortList(ListNode* head) {
+    if (!head || !head->next) return head;      // ⭐ base case
+
+    // ① split at the FIRST middle
+    ListNode *slow = head, *fast = head->next;  // ⭐ fast starts one AHEAD
+    while (fast && fast->next) {
+        slow = slow->next;
+        fast = fast->next->next;
     }
-    return dummy.next;
+    ListNode* second = slow->next;
+    slow->next = nullptr;                       // ⚠️ CUT
+
+    // ② sort each half, ③ merge
+    return mergeTwoLists(sortList(head), sortList(second));
 }
 ```
-**Key insight:** The `|| carry` in the loop condition handles the final carry (999 + 1) without a special case.
+
+⚠️ **`fast = head->next` (not `head`)** guarantees `slow` stops at the *first* middle. With `fast = head` and a two-node list, `slow` never moves, `second` is the whole tail, and the recursion never shrinks — infinite loop.
+
+🎤 **Follow-up: truly O(1) space?** Bottom-up merge sort — iterate with block sizes 1, 2, 4, 8... merging adjacent runs. No recursion stack at all.
+
+## 📌 Pattern Card
+```
+SIGNAL   sort a linked list in O(n log n)
+KEY      ⭐ MERGE SORT — split with fast/slow, merge by relinking
+         ⚠️ fast starts at head->next to get the FIRST middle
+RELATED  Merge Two Sorted Lists · Merge k Sorted · Insertion Sort List
+```
 
 ---
 
-### 24. Add Two Numbers II (most significant first) 🟡
-```cpp
-ListNode* addTwoNumbers(ListNode* a, ListNode* b) {
-    stack<int> sa, sb;
-    for (auto* p = a; p; p = p->next) sa.push(p->val);
-    for (auto* p = b; p; p = p->next) sb.push(p->val);
+# 19. Flatten a Multilevel Doubly Linked List
 
-    ListNode* head = nullptr;
-    int carry = 0;
-    while (!sa.empty() || !sb.empty() || carry) {
-        int s = carry;
-        if (!sa.empty()) { s += sa.top(); sa.pop(); }
-        if (!sb.empty()) { s += sb.top(); sb.pop(); }
-        carry = s / 10;
-        head = new ListNode(s % 10, head);         // ⭐ build by prepending
+🟡 **Medium** · 🔵 Full ladder · **Stack or in-place splice**
+
+> Each node has `next`, `prev`, and possibly a `child` list. Flatten depth-first.
+
+```mermaid
+flowchart TD
+    A["1 ⇄ 2 ⇄ 3 ⇄ 4"] --> B["node 2 has a child:<br/>7 ⇄ 8"]
+    B --> C["⭐ Splice the child list in<br/>BETWEEN 2 and 3"]
+    C --> D["1 ⇄ 2 ⇄ 7 ⇄ 8 ⇄ 3 ⇄ 4"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 1️⃣ Stack — O(n) space, easy to reason about
+```cpp
+Node* flatten(Node* head) {
+    if (!head) return head;
+    stack<Node*> st;
+    Node* curr = head;
+
+    while (curr) {
+        if (curr->child) {
+            if (curr->next) st.push(curr->next);   // ⭐ remember the detour
+
+            curr->next = curr->child;
+            curr->next->prev = curr;
+            curr->child = nullptr;                 // ⚠️ must clear it
+        } else if (!curr->next && !st.empty()) {
+            curr->next = st.top(); st.pop();       // ⭐ resume the outer level
+            curr->next->prev = curr;
+        }
+        curr = curr->next;
     }
     return head;
 }
 ```
-**Key insight:** Stacks reverse without modifying the input. Prepending each new node builds the result in the correct order.
 
----
-
-### 25. Copy List with Random Pointer 🟡
-```cpp
-// O(1) space — interleave, wire, split
-Node* copyRandomList(Node* head) {
-    if (!head) return nullptr;
-
-    // 1. Interleave copies:  A → A' → B → B' → C → C'
-    for (Node* p = head; p; ) {
-        Node* copy = new Node(p->val);
-        copy->next = p->next;
-        p->next = copy;
-        p = copy->next;
-    }
-
-    // 2. Wire random pointers using the interleaving
-    for (Node* p = head; p; p = p->next->next)
-        if (p->random) p->next->random = p->random->next;   // ⭐ the copy of random
-
-    // 3. Split the two lists apart
-    Node* newHead = head->next;
-    for (Node* p = head; p; ) {
-        Node* copy = p->next;
-        p->next = copy->next;
-        copy->next = p->next ? p->next->next : nullptr;
-        p = p->next;
-    }
-    return newHead;
-}
-```
-**Complexity:** O(n) / O(1) — vs O(n) space for the hash map version.
-**Key insight:** The interleaving makes `original->next` the copy, so `original->random->next` is exactly the copy of the random target. No auxiliary map needed.
-
----
-
-### Bonus: Flatten a Multilevel Doubly Linked List 🟡
+## 2️⃣ In-place splice — ⭐ O(1) space
 ```cpp
 Node* flatten(Node* head) {
-    for (Node* p = head; p; p = p->next) {
-        if (!p->child) continue;
-        Node* nxt = p->next;
-        Node* child = p->child;
+    for (Node* curr = head; curr; curr = curr->next) {
+        if (!curr->child) continue;
 
-        p->next = child;
-        child->prev = p;
-        p->child = nullptr;
+        Node* nxt = curr->next;
 
-        Node* tail = child;
-        while (tail->next) tail = tail->next;      // find the child list's tail
+        curr->next = curr->child;               // ⭐ attach the child
+        curr->next->prev = curr;
+        curr->child = nullptr;
 
-        tail->next = nxt;
+        Node* tail = curr->next;
+        while (tail->next) tail = tail->next;    // ⭐ walk to the child's tail
+
+        tail->next = nxt;                        // ⭐ reattach the remainder
         if (nxt) nxt->prev = tail;
     }
     return head;
 }
 ```
+⭐ **Why the O(1) version is still O(n) total:** walking to each child's tail visits nodes that are then never revisited at that level — the same amortization as the monotonic stack.
+
+⚠️ **`curr->child = nullptr` is required by the problem** — leaving stale child pointers fails the validator even when `next`/`prev` are perfect.
 
 ---
 
-### Bonus: LRU Cache
-> See [Hashing §19](02-hashing.md#19-lru-cache-) — hash map + doubly linked list.
+# 20. LRU Cache (Design)
+🟡 ⚪ **Fully covered** in [Hashing #3](02-hashing.md#3-lru-cache) — hash map plus a doubly linked list, with sentinel head/tail.
+
+⭐ **Why it lives in both chapters:** it's the canonical demonstration that a doubly linked list gives **O(1) removal from the middle**, which no other simple structure offers.
 
 ---
 
-### Bonus: Intersection of Two Linked Lists 🟢
-```cpp
-ListNode* getIntersectionNode(ListNode* a, ListNode* b) {
-    ListNode *p = a, *q = b;
-    while (p != q) {
-        p = p ? p->next : b;                       // ⭐ switch to the other list
-        q = q ? q->next : a;
-    }
-    return p;                                      // meeting point, or nullptr
-}
+## 📋 Linked Lists Recall
+
+```mermaid
+mindmap
+  root(("Linked<br/>Lists"))
+    Dummy Node
+      use it whenever the head may change
+      removal · partition · merge
+      ⭐ kills every first-node special case
+    Reversal
+      prev/curr/nxt — save nxt FIRST
+      ⭐ return prev, not curr
+      head-insertion for sublists
+    Fast/Slow
+      middle · cycle · nth from end
+      ⭐ head->next start = FIRST middle
+      gap of n+1 for deletion
+    Splitting
+      ⚠️ always CUT with next = nullptr
+      forgetting it creates a cycle
+    Merging
+      dummy + tail
+      attach the remainder in O(1)
+      ⭐ <= keeps it stable
+    Clever Tricks
+      ⭐ pointer swap for intersection
+      ring-then-cut for rotation
+      stacks for forward-order addition
+      interleaving for O(1) deep copy
+    Sorting
+      ⭐ MERGE SORT — O(1) aux space
+      fast starts at head->next
 ```
-**Key insight:** Each pointer travels `lenA + lenB` total, so they arrive at the intersection simultaneously regardless of the length difference. If there's no intersection, both hit `nullptr` at the same time and the loop exits.
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                  LINKED LISTS — PATTERN RECALL                       ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "the head might change"        → ⭐ DUMMY NODE, always               ║
+║ "reverse anything"             → prev/curr/nxt, return prev          ║
+║ "nth from the end, one pass"   → ⭐ gap of n+1, then move together   ║
+║ "find the middle"              → fast/slow (head->next for FIRST)    ║
+║ "cycle / duplicate"            → Floyd's, then reset to head         ║
+║ "palindrome, O(1) space"       → mid + reverse + compare + ⭐ RESTORE ║
+║ "where do two lists merge"     → ⭐ pointer swap at null             ║
+║ "merge k lists"                → heap of k heads, or pairwise D&C    ║
+║ "sort a list"                  → ⭐ MERGE SORT (O(1) aux!)           ║
+║ "split into two groups"        → two dummies, ⚠️ terminate both       ║
+║ "rotate by k"                  → ⭐ make a ring, then cut            ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   reverse: returning curr (always null) instead of prev              ║
+║   split: forgetting slow->next = nullptr → cycle                     ║
+║   add numbers: dropping `|| carry` truncates the answer              ║
+║   sort list: fast must start at head->next or 2 nodes loop forever   ║
+║   dedupe II: prev must only advance on CONFIRMED-unique nodes        ║
+║   partition: terminate the second chain or you build a cycle         ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
-## 📋 Section Summary
-
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║                  LINKED LISTS — PATTERN RECALL                    ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ DUMMY HEAD whenever the head might change → return dummy.next     ║
-║ FAST & SLOW → middle, cycle, k-th from end                        ║
-║ REVERSAL → save next, point back, advance (3 lines, memorize)     ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ "middle"              → slow/fast, fast starts at head or head->next║
-║                          depending on which middle you want        ║
-║ "cycle entry"         → Floyd, then restart one pointer at head   ║
-║ "nth from end"        → gap of n+1 from a dummy                   ║
-║ "reverse in groups"   → count first, reverse, recurse             ║
-║ "reorder/palindrome"  → find mid + reverse half + merge           ║
-║ "merge k lists"       → heap O(N log k) or pairwise divide&conquer║
-║                          NEVER sequential (that's O(N·k))          ║
-║ "sort a list"         → MERGE sort (no random access needed)      ║
-║ "copy with random"    → interleave copies for O(1) space          ║
-║ "two lists intersect" → switch lists at the end; equal distance   ║
-║ "duplicate in array"  → treat i→a[i] as a list, Floyd's cycle     ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ BUG CHECKLIST                                                     ║
-║   □ saved `next` before overwriting?                              ║
-║   □ returning dummy.next, not head?                               ║
-║   □ checked `fast && fast->next` before ->next->next?             ║
-║   □ terminated the tail with nullptr? (partition, split)          ║
-║   □ handled 0-node and 1-node lists?                              ║
-╚═══════════════════════════════════════════════════════════════════╝
-```
-
-**Next:** [Stacks & Queues →](05-stacks-queues.md)
+**Next:** [Stacks & Queues →](05-stacks-queues.md) · **Back:** [Two Pointers & Sliding Window](03-two-pointers-sliding-window.md)

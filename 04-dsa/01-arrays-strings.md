@@ -1,116 +1,381 @@
-# 📊 Arrays & Strings — 70 Problems
+# 📊 Arrays & Strings — Problems 1–20
 
-> The largest category and the most common in interviews. Master the four sub-patterns here — traversal tricks, prefix sums, in-place manipulation, and matrix operations — and a third of all interview problems become routine.
+> Part 1 of the Arrays & Strings book. Every problem shows **all approaches**, worst to best, with the reasoning that gets you from one to the next.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
----
-
-## 📑 Sections
-
-| Section | Problems | Focus |
+| Part | Problems | Focus |
 |---|---|---|
-| [A. Fundamentals](#a-fundamentals) | 1-12 | Basic traversal, searching, in-place |
-| [B. Prefix Sum & Ranges](#b-prefix-sum--ranges) | 13-24 | Cumulative techniques |
-| [C. Sorting-Based](#c-sorting-based) | 25-34 | Sort then solve |
-| [D. In-Place Manipulation](#d-in-place-manipulation) | 35-44 | O(1) space tricks |
-| [E. Matrix](#e-matrix) | 45-54 | 2D problems |
-| [F. Strings](#f-strings) | 55-70 | Parsing, transformation, matching |
+| **1 (this file)** | 1–20 | Fundamentals, Kadane, binary search, prefix sums |
+| [Part 2](01b-arrays-strings.md) | 21–45 | Sorting, in-place, matrix |
+| [Part 3](01c-arrays-strings.md) | 46–70 | Strings |
 
 ---
 
-## A. Fundamentals
+## 📑 Contents
 
-### 1. Two Sum 🟢
-> Given `nums` and `target`, return indices of two numbers adding to target.
+| # | Problem | Difficulty | Optimal |
+|---|---|---|---|
+| [1](#1-two-sum) | Two Sum | 🟢 | O(n) hash map |
+| [2](#2-best-time-to-buy-and-sell-stock) | Best Time to Buy/Sell Stock | 🟢 | O(n) running min |
+| [3](#3-contains-duplicate) | Contains Duplicate | 🟢 | O(n) set |
+| [4](#4-product-of-array-except-self) | Product of Array Except Self | 🟡 | O(n), O(1) extra |
+| [5](#5-maximum-subarray-kadane) | Maximum Subarray | 🟡 | O(n) Kadane |
+| [6](#6-maximum-product-subarray) | Maximum Product Subarray | 🟡 | O(n) track max+min |
+| [7](#7-find-minimum-in-rotated-sorted-array) | Find Min in Rotated Sorted | 🟡 | O(log n) |
+| [8](#8-search-in-rotated-sorted-array) | Search in Rotated Sorted | 🟡 | O(log n) |
+| [9](#9-search-in-rotated-sorted-array-ii) | Search Rotated II (dupes) | 🟡 | O(log n) avg |
+| [10](#10-find-first-and-last-position) | First and Last Position | 🟡 | O(log n) |
+| [11](#11-missing-number) | Missing Number | 🟢 | O(n), O(1) XOR |
+| [12](#12-single-number) | Single Number | 🟢 | O(n), O(1) XOR |
+| [13](#13-range-sum-query--immutable) | Range Sum Query | 🟢 | O(1) query |
+| [14](#14-subarray-sum-equals-k) | Subarray Sum Equals K | 🟡 | O(n) prefix+map |
+| [15](#15-continuous-subarray-sum) | Continuous Subarray Sum | 🟡 | O(n) remainder map |
+| [16](#16-subarray-sums-divisible-by-k) | Subarrays Divisible by K | 🟡 | O(n) |
+| [17](#17-contiguous-array) | Contiguous Array | 🟡 | O(n) map 0→−1 |
+| [18](#18-maximum-size-subarray-sum-equals-k) | Max Size Subarray Sum K | 🟡 | O(n) |
+| [19](#19-range-addition) | Range Addition | 🟡 | O(u+n) diff array |
+| [20](#20-corporate-flight-bookings) | Corporate Flight Bookings | 🟡 | O(n) diff array |
 
-**Approach:** One-pass hash map. For each element, check if its complement was already seen.
+---
+
+# 1. Two Sum
+
+🟢 **Easy** · Hash map complement
+
+> Given `nums` and `target`, return **indices** of two numbers adding to target. Exactly one solution; can't reuse an element.
+
+```
+   Input:  nums = [2, 7, 11, 15],  target = 9
+   Output: [0, 1]        because 2 + 7 = 9
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BRUTE FORCE<br/>every pair<br/><b>O(n²)</b> / O(1)"] -->|"stop re-searching"| B["⚡ SORT + 2PTR<br/>order guides us<br/><b>O(n log n)</b> / O(n)"]
+    B -->|"we never needed order<br/>— just fast lookup"| C["🚀 HASH MAP<br/>one pass<br/><b>O(n)</b> / O(n)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 1️⃣ Brute Force — O(n²) / O(1)
+
+Check every pair. Literal reading of the problem.
 
 ```cpp
-vector<int> twoSum(vector<int>& nums, int target) {
-    unordered_map<int,int> seen;                 // value -> index
-    for (int i = 0; i < (int)nums.size(); ++i) {
-        int need = target - nums[i];
-        auto it = seen.find(need);
-        if (it != seen.end()) return {it->second, i};
-        seen[nums[i]] = i;                       // insert AFTER checking
+vector<int> twoSumBrute(const vector<int>& nums, int target) {
+    int n = nums.size();
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)     // j = i+1 avoids self-pair & repeats
+            if (nums[i] + nums[j] == target) return {i, j};
+    return {};
+}
+```
+
+⚠️ n=10⁵ → 5 billion comparisons. Far too slow.
+
+## 2️⃣ Sort + Two Pointers — O(n log n) / O(n)
+
+#### 💬 Why this is better
+Brute force searches blindly. **Sorting creates structure**: if the sum is too big, only moving `right` left can help. Each comparison eliminates a whole row of the pair space.
+
+```mermaid
+flowchart TD
+    S(["sorted [2,7,11,15], target 9"]) --> A["L=2, R=15 → sum 17"]
+    A -->|"17 > 9, shrink right"| B["L=2, R=11 → sum 13"]
+    B -->|"13 > 9, shrink right"| C["L=2, R=7 → sum 9 ✅"]
+
+    style S fill:#e3f2fd,stroke:#1565c0,color:#000
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+⚠️ Sorting destroys indices — pair values with indices first.
+
+```cpp
+vector<int> twoSumSort(vector<int> nums, int target) {
+    int n = nums.size();
+    vector<pair<int,int>> v;                       // {value, original index}
+    for (int i = 0; i < n; ++i) v.push_back({nums[i], i});
+    sort(v.begin(), v.end());
+
+    int l = 0, r = n - 1;
+    while (l < r) {
+        int sum = v[l].first + v[r].first;
+        if (sum == target) return {min(v[l].second, v[r].second),
+                                   max(v[l].second, v[r].second)};
+        if (sum < target) ++l; else --r;
     }
     return {};
 }
 ```
-**Complexity:** O(n) time, O(n) space.
-**Key insight:** Inserting after checking handles `target = 2*x` correctly — you can't pair an element with itself.
+
+## 3️⃣ Hash Map — O(n) / O(n) ⭐ OPTIMAL
+
+#### 💬 The key question
+**What was brute force redoing?** *Searching* for `target - nums[i]`. Sorting made that O(log n); a hash map makes it **O(1)** — and we never needed order at all.
+
+```mermaid
+flowchart TD
+    Start(["map = {}"]) --> S1["i=0, val 2<br/>need 7"]
+    S1 -->|"7 in map? ❌"| S1b["store 2→0"]
+    S1b --> S2["i=1, val 7<br/>need 2"]
+    S2 -->|"2 in map? ✅ idx 0"| D(["Return [0,1]"])
+
+    style Start fill:#e3f2fd,stroke:#1565c0,color:#000
+    style S1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S1b fill:#e1f5fe,stroke:#0277bd,color:#000
+    style S2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  [3, 2, 4], target 6
+   ┌───┬─────┬──────┬──────────────┬─────────────┐
+   │ i │ val │ need │ in map?      │ map after   │
+   ├───┼─────┼──────┼──────────────┼─────────────┤
+   │ 0 │  3  │  3   │ ❌ empty     │ {3:0}       │
+   │ 1 │  2  │  4   │ ❌           │ {3:0, 2:1}  │
+   │ 2 │  4  │  2   │ ✅ idx 1     │ → [1,2]     │
+   └───┴─────┴──────┴──────────────┴─────────────┘
+   ⭐ At i=0, need=3 and val=3 — but map is empty, so no
+     self-match. That's WHY we insert after checking.
+```
+
+```cpp
+vector<int> twoSum(const vector<int>& nums, int target) {
+    unordered_map<int,int> seen;                   // value → index
+    seen.reserve(nums.size());                     // ⭐ avoid rehashing
+
+    for (int i = 0; i < (int)nums.size(); ++i) {
+        auto it = seen.find(target - nums[i]);
+        if (it != seen.end()) return {it->second, i};
+        seen[nums[i]] = i;                         // ⭐ insert AFTER checking
+    }
+    return {};
+}
+```
+
+## 📊 Comparison
+
+| Approach | Time | Space | When to use |
+|---|---|---|---|
+| Brute force | O(n²) | O(1) | Never (unless n < 100) |
+| Sort + 2ptr | O(n log n) | O(n) | Already sorted, or need all pairs |
+| **Hash map** | **O(n)** | O(n) | ✅ Default |
+
+⭐ **If the array is already sorted**, two pointers wins: O(n) time, **O(1) space**.
+
+## ⚠️ Edge Cases
+`[3,3]` t=6 → `[0,1]` (insert-after-check) · negatives · `[5,2]` t=10 must NOT return `[0,0]` · overflow in `target - nums[i]` for extreme values.
+
+## 📌 Pattern Card
+```
+SIGNAL   "pair summing to X", unsorted
+OPTIMAL  O(n) hash map, one pass
+KEY      insert AFTER checking
+RELATED  3Sum · 4Sum · Two Sum II · Subarray Sum = K
+```
 
 ---
 
-### 2. Best Time to Buy and Sell Stock 🟢
-> One transaction. Maximize profit.
+# 2. Best Time to Buy and Sell Stock
 
-**Approach:** Track the minimum price so far; the best profit ending at `i` is `price[i] - minSoFar`.
+🟢 **Easy** · Running minimum
+
+> One buy, one sell (buy before sell). Maximize profit. Return 0 if none possible.
+
+```
+   Input:  [7, 1, 5, 3, 6, 4]
+   Output: 5      buy at 1 (day 1), sell at 6 (day 4)
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BRUTE FORCE<br/>every buy/sell pair<br/><b>O(n²)</b>"] -->|"we only need the<br/>BEST buy so far"| B["🚀 RUNNING MIN<br/>one pass<br/><b>O(n)</b> / O(1)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 1️⃣ Brute Force — O(n²)
+
+```cpp
+int maxProfitBrute(vector<int>& p) {
+    int best = 0;
+    for (int i = 0; i < (int)p.size(); ++i)
+        for (int j = i + 1; j < (int)p.size(); ++j)
+            best = max(best, p[j] - p[i]);
+    return best;
+}
+```
+
+## 2️⃣ Running Minimum — O(n) / O(1) ⭐ OPTIMAL
+
+#### 💬 The insight
+To sell on day `i` for maximum profit, you want to have bought at the **cheapest price seen before day `i`**. You don't need to remember *all* previous prices — just the minimum.
+
+```mermaid
+flowchart TD
+    D0["day 0: price 7<br/>min = 7, profit = 0"] --> D1
+    D1["day 1: price 1<br/>⭐ new min = 1"] --> D2
+    D2["day 2: price 5<br/>5−1 = <b>4</b> ✅ best"] --> D3
+    D3["day 3: price 3<br/>3−1 = 2"] --> D4
+    D4["day 4: price 6<br/>6−1 = <b>5</b> ✅ best"] --> D5
+    D5["day 5: price 4<br/>4−1 = 3"] --> R(["Answer: 5"])
+
+    style D1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style D2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style D4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style R fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```cpp
 int maxProfit(vector<int>& p) {
     int lo = INT_MAX, best = 0;
     for (int x : p) {
-        lo = min(lo, x);
-        best = max(best, x - lo);
+        lo   = min(lo, x);          // cheapest buy price so far
+        best = max(best, x - lo);   // best profit if we sell today
     }
     return best;
 }
 ```
-**Complexity:** O(n) / O(1).
-**Key insight:** This is Kadane's algorithm on the difference array in disguise.
+
+⭐ **This is Kadane's algorithm in disguise** — running the max-subarray algorithm on the *difference* array `[p1−p0, p2−p1, ...]` gives the identical answer.
+
+## ⚠️ Edge Cases
+Strictly decreasing `[7,6,4,3,1]` → 0 · single element → 0 · empty → 0.
+
+## 📌 Pattern Card
+```
+SIGNAL   "max difference where the smaller comes first"
+OPTIMAL  O(n)/O(1) running min
+RELATED  Stock II/III/IV/cooldown/fee · Maximum Subarray
+```
 
 ---
 
-### 3. Contains Duplicate 🟢
+# 3. Contains Duplicate
+
+🟢 **Easy** · Set
+
+> Return true if any value appears at least twice.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BRUTE<br/>compare all pairs<br/><b>O(n²)</b>/O(1)"] --> B["⚡ SORT<br/>duplicates become<br/>adjacent<br/><b>O(n log n)</b>/O(1)"]
+    B --> C["🚀 HASH SET<br/><b>O(n)</b>/O(n)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
+// 1️⃣ Brute — O(n²)
+// 2️⃣ Sort then check neighbours — O(n log n) time, O(1) space ⭐ if space matters
+bool containsDuplicateSort(vector<int> a) {
+    sort(a.begin(), a.end());
+    for (int i = 1; i < (int)a.size(); ++i) if (a[i] == a[i-1]) return true;
+    return false;
+}
+
+// 3️⃣ Hash set — O(n) time ⭐ OPTIMAL for time
 bool containsDuplicate(vector<int>& nums) {
     unordered_set<int> s(nums.begin(), nums.end());
     return s.size() != nums.size();
 }
+
+// ⭐ Early-exit version uses less memory in practice
+bool containsDuplicateEarly(vector<int>& nums) {
+    unordered_set<int> s;
+    for (int x : nums) if (!s.insert(x).second) return true;
+    return false;
+}
 ```
-**Complexity:** O(n) / O(n). Sorting gives O(n log n) / O(1) if space matters.
+
+⭐ **Genuine tradeoff:** sorting is O(1) space if you may modify the input. State both.
 
 ---
 
-### 4. Product of Array Except Self 🟡
-> Return array where `out[i]` = product of all elements except `nums[i]`. No division, O(n).
+# 4. Product of Array Except Self
 
-#### 💬 Think of it like this
-The obvious solution is to multiply everything and divide by `nums[i]` — but division is banned, and it breaks on zeros anyway.
+🟡 **Medium** · Prefix × suffix
 
-So think about what "everything except me" actually means. Standing at position `i`, the product of everything except you is **everything to your left, times everything to your right.** Two independent halves.
-
-So make two passes. On the first, sweep left to right and record the running product of everything before you. On the second, sweep right to left and multiply in the running product of everything after you. When both passes finish, each cell holds left × right — which is exactly the answer.
-
-#### 📊 Watching it work on `[1, 2, 3, 4]`
+> `out[i]` = product of all elements except `nums[i]`. **No division.** O(n).
 
 ```
-   PASS 1 — sweep LEFT to RIGHT, storing "product of everything before me"
+   Input:  [1, 2, 3, 4]
+   Output: [24, 12, 8, 6]
+```
 
-   index:      0      1      2      3
-   nums:       1      2      3      4
-              ┌──────┬──────┬──────┬──────┐
-   out:       │  1   │  1   │  2   │  6   │
-              └──────┴──────┴──────┴──────┘
-                 ▲      ▲      ▲      ▲
-             nothing   just   1×2    1×2×3
-             before     1
-              me
+## 🗺️ Approach Ladder
 
-   PASS 2 — sweep RIGHT to LEFT, multiplying in "product of everything after me"
+```mermaid
+flowchart LR
+    A["🐌 BRUTE<br/>recompute per index<br/><b>O(n²)</b>"] --> B["⚠️ DIVISION<br/>total ÷ nums i<br/><b>O(n)</b><br/>BANNED + breaks on 0"]
+    B --> C["⚡ TWO ARRAYS<br/>prefix[] + suffix[]<br/><b>O(n)</b>/O(n)"]
+    C --> D["🚀 TWO SWEEPS<br/>reuse output array<br/><b>O(n)</b>/O(1)"]
 
-   suffix:     24     12     4      1
-               ▲      ▲      ▲      ▲
-             2×3×4   3×4     4    nothing after me
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#ffcdd2,stroke:#c62828,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
-              ┌──────┬──────┬──────┬──────┐
-   out:       │ 1×24 │ 1×12 │ 2×4  │ 6×1  │
-              │ = 24 │ = 12 │ = 8  │ = 6  │
-              └──────┴──────┴──────┴──────┘
+## 1️⃣ Brute Force — O(n²)
+```cpp
+for (int i = 0; i < n; ++i) {
+    int prod = 1;
+    for (int j = 0; j < n; ++j) if (j != i) prod *= a[j];
+    out[i] = prod;
+}
+```
 
-   Check index 2:  everything except 3  =  1×2×4  =  8  ✅
+## 2️⃣ Division — O(n) but ❌ disallowed
+```
+   ⚠️ Even if allowed, zeros break it:
+     one zero  → every other index is 0, that index is the rest's product
+     two zeros → everything is 0
+   You'd need to count zeros and branch. Fragile.
+```
+
+## 3️⃣ Prefix + Suffix Arrays — O(n) / O(n)
+
+#### 💬 The reframe
+"Everything except me" = **everything left of me × everything right of me.** Two independent halves.
+
+```
+   nums:      1     2     3     4
+   prefix:    1     1     2     6      (product of everything BEFORE)
+   suffix:   24    12     4     1      (product of everything AFTER)
+              ×     ×     ×     ×
+   result:   24    12     8     6   ✅
+```
+
+## 4️⃣ Two Sweeps, O(1) Extra — ⭐ OPTIMAL
+
+Store prefixes directly in the output, then multiply suffixes in on a reverse pass.
+
+```mermaid
+flowchart TD
+    P1["PASS 1 → left to right<br/>out[i] = product of everything BEFORE i"] --> R1["out = [1, 1, 2, 6]"]
+    R1 --> P2["PASS 2 ← right to left<br/>out[i] ×= product of everything AFTER i"]
+    P2 --> R2["out = [1×24, 1×12, 2×4, 6×1]<br/>= <b>[24, 12, 8, 6]</b>"]
+
+    style P1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style P2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```cpp
@@ -118,97 +383,321 @@ vector<int> productExceptSelf(vector<int>& nums) {
     int n = nums.size();
     vector<int> out(n, 1);
 
-    // PASS 1: out[i] = product of everything to the LEFT of i
     int pre = 1;
     for (int i = 0; i < n; ++i) {
-        out[i] = pre;        // store BEFORE updating — nums[i] must be excluded
+        out[i] = pre;          // ⭐ store BEFORE updating — excludes nums[i]
         pre *= nums[i];
     }
 
-    // PASS 2: multiply in the product of everything to the RIGHT of i
     int suf = 1;
     for (int i = n - 1; i >= 0; --i) {
-        out[i] *= suf;       // same ordering rule, mirrored
+        out[i] *= suf;         // ⭐ same rule, mirrored
         suf *= nums[i];
     }
-
     return out;
 }
 ```
-**Complexity:** O(n) time, O(1) extra space (the output array doesn't count).
-**Why it handles zeros for free:** a zero simply makes one of the two running products zero, which propagates correctly with no special case — unlike the division approach, which would need to count zeros and branch.
+
+⭐ **Zeros need no special case** — a zero simply zeroes one running product, which propagates correctly.
+
+## 📌 Pattern Card
+```
+SIGNAL   "all except me" / needs left AND right context
+OPTIMAL  two sweeps, O(1) extra space
+RELATED  Trapping Rain Water · Candy · prefix-sum family
+```
 
 ---
 
-### 5. Maximum Subarray (Kadane) 🟡
-> Contiguous subarray with the largest sum.
+# 5. Maximum Subarray (Kadane)
+
+🟡 **Medium** · Kadane's algorithm
+
+> Find the contiguous subarray with the largest sum.
+
+```
+   Input:  [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+   Output: 6        the subarray [4, -1, 2, 1]
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BRUTE<br/>all subarrays<br/>+ re-sum each<br/><b>O(n³)</b>"] --> B["⚡ RUNNING SUM<br/>all subarrays<br/><b>O(n²)</b>"]
+    B --> C["⚡ DIVIDE &amp; CONQUER<br/><b>O(n log n)</b>"]
+    C --> D["🚀 KADANE<br/>extend or restart<br/><b>O(n)</b>/O(1)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 1️⃣ Brute Force — O(n³)
+Every start, every end, re-sum the range.
+
+## 2️⃣ Running Sum — O(n²)
+Keep a running sum as `end` extends — drops one loop.
+```cpp
+for (int i = 0; i < n; ++i) {
+    int sum = 0;
+    for (int j = i; j < n; ++j) { sum += a[j]; best = max(best, sum); }
+}
+```
+
+## 3️⃣ Divide & Conquer — O(n log n)
+Max subarray is entirely left, entirely right, or **crosses the middle**. Compute all three.
+```
+   ⭐ Worth mentioning in interviews — it shows range,
+     and it's the approach that generalizes to segment trees
+     for the "query any range" version.
+```
+
+## 4️⃣ Kadane — O(n) / O(1) ⭐ OPTIMAL
+
+#### 💬 The one question
+At each element, ask: **"is the baggage I'm carrying helping me?"**
+If the running sum is negative, it can only *hurt* whatever comes next. Drop it and start fresh.
+
+```mermaid
+flowchart TD
+    I0["i=0: cur = −2"] --> I1
+    I1["i=1: max(1, −2+1=−1)<br/>= <b>1</b> ⭐ RESTART"] --> I2
+    I2["i=2: max(−3, 1−3=−2)<br/>= −2"] --> I3
+    I3["i=3: max(4, −2+4=2)<br/>= <b>4</b> ⭐ RESTART"] --> I4
+    I4["i=4..6: extend<br/>3 → 5 → <b>6</b> ✅ BEST"] --> I5
+    I5["i=7,8: 1 → 5"] --> R(["Answer: 6"])
+
+    style I1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style I3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style I4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style R fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```cpp
 int maxSubArray(vector<int>& nums) {
     int cur = nums[0], best = nums[0];
     for (int i = 1; i < (int)nums.size(); ++i) {
-        cur = max(nums[i], cur + nums[i]);       // extend or restart
+        cur  = max(nums[i], cur + nums[i]);   // ⭐ restart vs extend
         best = max(best, cur);
     }
     return best;
 }
 ```
-**Complexity:** O(n) / O(1).
-**Key insight:** At each position, either extend the previous subarray or start fresh. If the running sum is negative, it can only hurt — drop it.
 
-**Variant — return the indices:**
+#### Variant — return the actual indices
 ```cpp
 int cur = nums[0], best = nums[0], s = 0, bl = 0, br = 0;
 for (int i = 1; i < n; ++i) {
-    if (nums[i] > cur + nums[i]) { cur = nums[i]; s = i; }
+    if (nums[i] > cur + nums[i]) { cur = nums[i]; s = i; }   // restart here
     else cur += nums[i];
     if (cur > best) { best = cur; bl = s; br = i; }
 }
 ```
 
+## ⚠️ Edge Cases
+**All negative** `[-3,-1,-2]` → `-1`, not 0. ⭐ Initializing `best = 0` is the classic bug — it wrongly returns 0 by allowing an empty subarray.
+
+## 📌 Pattern Card
+```
+SIGNAL   "maximum contiguous sum"
+OPTIMAL  Kadane, O(n)/O(1)
+KEY      init best = nums[0], NOT 0
+RELATED  Max Product Subarray · Best Time to Buy/Sell · Circular Max Sum
+```
+
 ---
 
-### 6. Maximum Product Subarray 🟡
-> Largest product of a contiguous subarray.
+# 6. Maximum Product Subarray
 
-**Approach:** Track both max and min — a negative number swaps them.
+🟡 **Medium** · Track max **and** min
+
+> Largest **product** of a contiguous subarray.
+
+```
+   Input:  [2, 3, -2, 4]  → 6      ([2,3])
+   Input:  [-2, 0, -1]    → 0
+   Input:  [-2, 3, -4]    → 24     ⭐ ([-2,3,-4]) — two negatives!
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BRUTE<br/>all subarrays<br/><b>O(n²)</b>"] --> B["❌ KADANE AS-IS<br/><b>WRONG</b> — a negative<br/>can become the max"]
+    B --> C["🚀 TRACK MAX + MIN<br/>swap on negative<br/><b>O(n)</b>/O(1)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#ff8a80,stroke:#b71c1c,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 Why plain Kadane fails
+
+With sums, a big negative running total is simply bad. With **products**, a big negative is potentially *fantastic* — multiply by another negative and it becomes a big positive.
+
+```mermaid
+flowchart TD
+    N["Current number is <b>negative</b>"] --> S["⭐ SWAP max and min<br/>before updating"]
+    S --> W["Because: max × negative → becomes small<br/>min × negative → becomes LARGE"]
+
+    style N fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style S fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style W fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
+```
+   TRACE  [2, 3, -2, 4]
+   ┌───┬─────┬────────────┬─────────────┬──────┐
+   │ i │ val │ mx         │ mn          │ best │
+   ├───┼─────┼────────────┼─────────────┼──────┤
+   │ 0 │  2  │  2         │  2          │  2   │
+   │ 1 │  3  │  6         │  3          │  6   │
+   │ 2 │ −2  │ ⭐SWAP → mx=3, mn=6      │      │
+   │   │     │ max(−2,−6)=−2│ min(−2,−12)=−12│ 6 │
+   │ 3 │  4  │ max(4,−8)=4│ min(4,−48)=−48│  6  │
+   └───┴─────┴────────────┴─────────────┴──────┘
+   ⭐ We keep −12 because a future negative could flip it huge.
+```
 
 ```cpp
 int maxProduct(vector<int>& nums) {
     int mx = nums[0], mn = nums[0], best = nums[0];
     for (int i = 1; i < (int)nums.size(); ++i) {
         int x = nums[i];
-        if (x < 0) swap(mx, mn);                 // negative flips the roles
-        mx = max(x, mx * x);
+        if (x < 0) swap(mx, mn);          // ⭐ negative flips the roles
+        mx = max(x, mx * x);              // restart vs extend
         mn = min(x, mn * x);
         best = max(best, mx);
     }
     return best;
 }
 ```
-**Complexity:** O(n) / O(1).
-**Key insight:** Unlike sums, the *minimum* matters — a large negative times a negative becomes a large positive.
+
+⭐ **Zeros reset naturally** — `max(0, anything*0) = 0` restarts both trackers.
+
+## 📌 Pattern Card
+```
+SIGNAL   "maximum product subarray"
+KEY      track BOTH max and min; swap when the value is negative
+RELATED  Maximum Subarray (the additive version)
+```
 
 ---
 
-### 7. Find Minimum in Rotated Sorted Array 🟡
+# 7. Find Minimum in Rotated Sorted Array
+
+🟡 **Medium** · Binary search
+
+> A sorted array rotated at an unknown pivot. Find the minimum in O(log n).
+
+```
+   Input:  [4, 5, 6, 7, 0, 1, 2]  → 0
+   Input:  [3, 4, 5, 1, 2]        → 1
+   Input:  [1, 2, 3]              → 1   (not rotated)
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 LINEAR SCAN<br/><b>O(n)</b>"] --> B["🚀 BINARY SEARCH<br/>compare to a[hi]<br/><b>O(log n)</b>/O(1)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 The shape of the array
+
+```mermaid
+flowchart LR
+    subgraph "Rotated sorted array"
+        direction LR
+        H["HIGH SEGMENT<br/>4,5,6,7<br/>all ≥ a[0]"] -->|"⭐ the drop<br/>= the minimum"| L["LOW SEGMENT<br/>0,1,2<br/>all ≤ a[n-1]"]
+    end
+
+    style H fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style L fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+⭐ **Compare `a[mid]` with `a[hi]`, not `a[lo]`:**
+
+```
+   if a[mid] > a[hi]  →  mid is in the HIGH segment
+                          the minimum must be to the RIGHT
+                          lo = mid + 1
+
+   else               →  mid is in the LOW segment (or IS the min)
+                          hi = mid          ⭐ keep mid — it might be the answer
+```
+
+```
+   TRACE  [4,5,6,7,0,1,2]
+   ┌────────┬─────┬────────────┬──────────────────────┐
+   │ lo, hi │ mid │ a[mid] vs  │ action               │
+   │        │     │ a[hi]      │                      │
+   ├────────┼─────┼────────────┼──────────────────────┤
+   │  0, 6  │  3  │ 7 > 2      │ min is right → lo=4  │
+   │  4, 6  │  5  │ 1 < 2      │ min is here/left→hi=5│
+   │  4, 5  │  4  │ 0 < 1      │ hi = 4               │
+   │  4, 4  │  —  │ lo == hi   │ ⭐ answer = a[4] = 0  │
+   └────────┴─────┴────────────┴──────────────────────┘
+```
+
 ```cpp
 int findMin(vector<int>& a) {
     int lo = 0, hi = a.size() - 1;
-    while (lo < hi) {
-        int mid = lo + (hi - lo) / 2;
-        if (a[mid] > a[hi]) lo = mid + 1;        // min is to the right
-        else hi = mid;                            // min is at mid or left
+    while (lo < hi) {                       // ⭐ note: lo < hi, not <=
+        int mid = lo + (hi - lo) / 2;       // ⭐ overflow-safe
+        if (a[mid] > a[hi]) lo = mid + 1;   // min strictly right
+        else                hi = mid;       // ⭐ mid could BE the min
     }
     return a[lo];
 }
 ```
-**Complexity:** O(log n) / O(1).
-**Key insight:** Compare with `a[hi]`, not `a[lo]` — comparing with `lo` is ambiguous when the array isn't rotated.
+
+⚠️ **Why not compare with `a[lo]`?** It's ambiguous. In `[1,2,3]` (unrotated), `a[mid] > a[lo]` is true — same as in a rotated array — so you can't distinguish the cases. `a[hi]` has no such ambiguity.
+
+## 📌 Pattern Card
+```
+SIGNAL   rotated sorted array
+KEY      compare mid to HI, not LO. Use lo<hi and hi=mid.
+RELATED  Search in Rotated Sorted (I & II) · Peak Element
+```
 
 ---
 
-### 8. Search in Rotated Sorted Array 🟡
+# 8. Search in Rotated Sorted Array
+
+🟡 **Medium** · Binary search with a sorted half
+
+> Rotated sorted array with **distinct** values. Find `target`'s index, or −1. O(log n).
+
+## 💬 The key observation
+
+```mermaid
+flowchart TD
+    M["Pick mid"] --> Q{"Is the LEFT half<br/>sorted?<br/>a[lo] ≤ a[mid]"}
+    Q -->|"YES"| L{"Is target inside<br/>a[lo] … a[mid]?"}
+    Q -->|"NO → right half<br/>must be sorted"| R{"Is target inside<br/>a[mid] … a[hi]?"}
+    L -->|"yes"| L1["search LEFT<br/>hi = mid−1"]
+    L -->|"no"| L2["search RIGHT<br/>lo = mid+1"]
+    R -->|"yes"| R1["search RIGHT<br/>lo = mid+1"]
+    R -->|"no"| R2["search LEFT<br/>hi = mid−1"]
+
+    style M fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Q fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style L fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R fill:#e1f5fe,stroke:#0277bd,color:#000
+    style L1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style L2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
+⭐ **However you cut a rotated array, at least one half is fully sorted.** Identify which, check if the target lies in its known range, and discard the other half.
+
 ```cpp
 int search(vector<int>& a, int t) {
     int lo = 0, hi = a.size() - 1;
@@ -216,22 +705,61 @@ int search(vector<int>& a, int t) {
         int mid = lo + (hi - lo) / 2;
         if (a[mid] == t) return mid;
 
-        if (a[lo] <= a[mid]) {                   // LEFT half is sorted
+        if (a[lo] <= a[mid]) {                    // LEFT half is sorted
             if (a[lo] <= t && t < a[mid]) hi = mid - 1;
-            else lo = mid + 1;
-        } else {                                  // RIGHT half is sorted
+            else                          lo = mid + 1;
+        } else {                                   // RIGHT half is sorted
             if (a[mid] < t && t <= a[hi]) lo = mid + 1;
-            else hi = mid - 1;
+            else                          hi = mid - 1;
         }
     }
     return -1;
 }
 ```
-**Key insight:** One half is always sorted. Determine which, check if the target lies within it, and discard the other half.
+
+#### Alternative: two binary searches
+Find the pivot with problem #7, then binary search the correct segment. Same complexity, arguably easier to reason about, but two passes.
+
+## 📌 Pattern Card
+```
+SIGNAL   search in a rotated sorted array
+KEY      one half is ALWAYS sorted — identify it, then decide
+RELATED  Find Min in Rotated · Search Rotated II
+```
 
 ---
 
-### 9. Search in Rotated Sorted Array II (with duplicates) 🟡
+# 9. Search in Rotated Sorted Array II
+
+🟡 **Medium** · Rotated + **duplicates**
+
+> Same as #8, but values may repeat. Return true/false.
+
+## ⚠️ Why duplicates break the previous solution
+
+```
+   a = [3, 1, 3, 3, 3]
+        ▲     ▲     ▲
+       lo    mid    hi
+
+   a[lo] == a[mid] == a[hi] == 3
+
+   ⭐ Is the left half sorted? Can't tell.
+     [3,1,3] is not sorted, but [3,3,3] would be.
+     The comparison gives us NO information.
+```
+
+```mermaid
+flowchart TD
+    C{"a[lo] == a[mid]<br/>== a[hi] ?"}
+    C -->|"YES — no information"| S["⚠️ SHRINK LINEARLY<br/>lo++, hi−−<br/><b>degrades to O(n)</b>"]
+    C -->|"NO"| N["✅ Normal logic<br/>from problem #8"]
+
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style S fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style N fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
 ```cpp
 bool search(vector<int>& a, int t) {
     int lo = 0, hi = a.size() - 1;
@@ -239,7 +767,8 @@ bool search(vector<int>& a, int t) {
         int mid = lo + (hi - lo) / 2;
         if (a[mid] == t) return true;
 
-        if (a[lo] == a[mid] && a[mid] == a[hi]) { ++lo; --hi; continue; }  // ⭐
+        // ⭐ Ambiguous case — shed one element from each end
+        if (a[lo] == a[mid] && a[mid] == a[hi]) { ++lo; --hi; continue; }
 
         if (a[lo] <= a[mid]) {
             if (a[lo] <= t && t < a[mid]) hi = mid - 1; else lo = mid + 1;
@@ -250,1258 +779,613 @@ bool search(vector<int>& a, int t) {
     return false;
 }
 ```
-**Complexity:** O(log n) average, **O(n) worst** (all duplicates).
-**Key insight:** Duplicates break the "one half is sorted" guarantee — `[3,1,3,3,3]`. When ends match the middle, shrink linearly.
+
+**Complexity:** O(log n) average, ⚠️ **O(n) worst case** (all values identical). ⭐ Say this explicitly — it's the whole point of the problem.
 
 ---
 
-### 10. Find First and Last Position of Element 🟡
+# 10. Find First and Last Position
+
+🟡 **Medium** · Two binary searches
+
+> Sorted array with duplicates. Find the first and last index of `target`. O(log n).
+
+```
+   Input:  [5,7,7,8,8,10], target 8  → [3, 4]
+   Input:  [5,7,7,8,8,10], target 6  → [-1, -1]
+```
+
+## 💬 lower_bound vs upper_bound
+
+```mermaid
+flowchart LR
+    A["[5, 7, 7, <b>8, 8</b>, 10]"] --> LB["lower_bound(8)<br/>first index ≥ 8<br/>→ <b>3</b>"]
+    A --> UB["upper_bound(8)<br/>first index &gt; 8<br/>→ <b>5</b>"]
+    LB --> R["first = 3<br/>last = upper − 1 = <b>4</b>"]
+    UB --> R
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style LB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style UB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
+// ⭐ Know how to write these by hand — interviewers often ban STL here
+int lowerBound(vector<int>& a, int t) {      // first index with a[i] >= t
+    int lo = 0, hi = a.size();               // ⭐ hi = n, not n-1
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (a[mid] < t) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+}
+
 vector<int> searchRange(vector<int>& a, int t) {
-    auto lo = lower_bound(a.begin(), a.end(), t);
-    if (lo == a.end() || *lo != t) return {-1, -1};
-    auto hi = upper_bound(a.begin(), a.end(), t);
-    return {int(lo - a.begin()), int(hi - a.begin()) - 1};
+    int first = lowerBound(a, t);
+    if (first == (int)a.size() || a[first] != t) return {-1, -1};
+    int last = lowerBound(a, t + 1) - 1;      // ⭐ upper_bound(t) == lower_bound(t+1)
+    return {first, last};
 }
 ```
-**Key insight:** `lower_bound` finds the first `>= t`; `upper_bound` finds the first `> t`. Write them by hand if asked.
+
+⭐ **The trick worth remembering:** `upper_bound(t) == lower_bound(t+1)` for integers, so you only need one helper function.
 
 ---
 
-### 11. Missing Number 🟢
+# 11. Missing Number
+
+🟢 **Easy** · XOR / Gauss
+
+> `n` distinct numbers from `[0, n]`. One is missing. Find it.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["SORT<br/><b>O(n log n)</b>"] --> B["HASH SET<br/><b>O(n)</b>/O(n)"]
+    B --> C["🚀 SUM FORMULA<br/><b>O(n)</b>/O(1)<br/>⚠️ overflow risk"]
+    B --> D["🚀 XOR<br/><b>O(n)</b>/O(1)<br/>✅ no overflow"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 3️⃣ Sum formula
+```cpp
+int missingNumberSum(vector<int>& a) {
+    long long n = a.size();
+    long long expected = n * (n + 1) / 2;         // ⭐ long long to avoid overflow
+    long long actual = accumulate(a.begin(), a.end(), 0LL);
+    return (int)(expected - actual);
+}
+```
+
+## 4️⃣ XOR — ⭐ OPTIMAL (no overflow at all)
+
+#### 💬 Why XOR works
+`a ^ a = 0` and `a ^ 0 = a`, and XOR is commutative. So XOR every index *and* every value together — each present number appears exactly twice and cancels, leaving only the missing one.
+
+```
+   a = [3, 0, 1],  n = 3
+
+   XOR of indices 0..3  :  0^1^2^3
+   XOR of values        :  3^0^1
+   ─────────────────────────────────
+   combined             :  (0^0)^(1^1)^(3^3)^2  =  2  ⭐
+                            └─ everything paired cancels ─┘
+```
+
 ```cpp
 int missingNumber(vector<int>& a) {
-    int n = a.size(), res = n;
-    for (int i = 0; i < n; ++i) res ^= i ^ a[i];   // XOR cancels pairs
+    int res = a.size();                      // start with n (never a valid index)
+    for (int i = 0; i < (int)a.size(); ++i) res ^= i ^ a[i];
     return res;
 }
-// Alternative: sum formula n(n+1)/2 - actual  (⚠️ overflow risk for large n)
 ```
-**Key insight:** XOR of `0..n` with all array elements leaves only the missing one, since `a ^ a = 0`.
 
 ---
 
-### 12. Single Number 🟢
+# 12. Single Number
+
+🟢 **Easy** · XOR
+
+> Every element appears twice except one. Find it. O(n) time, O(1) space.
+
 ```cpp
 int singleNumber(vector<int>& a) {
     int r = 0;
-    for (int x : a) r ^= x;
+    for (int x : a) r ^= x;      // ⭐ pairs cancel, the loner survives
     return r;
 }
 ```
 
+```mermaid
+flowchart LR
+    A["[4, 1, 2, 1, 2]"] --> B["4^1^2^1^2"]
+    B --> C["reorder (commutative)<br/>4^(1^1)^(2^2)"]
+    C --> D["4^0^0 = <b>4</b> ✅"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+⭐ **Related:** [Single Number II](10-greedy-backtracking-misc.md#34-single-number-ii-others-appear-3-) (others appear 3×) and [III](10-greedy-backtracking-misc.md#35-single-number-iii-two-loners-) (two loners) — both use cleverer bit tricks.
+
 ---
 
-## B. Prefix Sum & Ranges
+# 13. Range Sum Query — Immutable
 
-### 13. Range Sum Query — Immutable 🟢
+🟢 **Easy** · Prefix sum
+
+> Many `sumRange(l, r)` queries on a fixed array. Make queries O(1).
+
+```mermaid
+flowchart LR
+    A["🐌 SUM ON DEMAND<br/>O(1) build<br/><b>O(n) per query</b>"] --> B["🚀 PREFIX SUM<br/>O(n) build<br/><b>O(1) per query</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   nums:        [ -2,  0,  3, -5,  2, -1 ]
+   prefix:  [0,   -2, -2,  1, -4, -2, -3 ]
+             ▲
+        ⭐ leading 0 removes the l==0 special case
+
+   sumRange(2, 5) = prefix[6] − prefix[2] = −3 − (−2) = −1 ✅
+```
+
 ```cpp
 class NumArray {
-    vector<long long> pre;
+    vector<long long> pre;                     // ⭐ long long avoids overflow
 public:
     NumArray(vector<int>& a) : pre(a.size() + 1, 0) {
         for (int i = 0; i < (int)a.size(); ++i) pre[i+1] = pre[i] + a[i];
     }
-    int sumRange(int l, int r) { return pre[r+1] - pre[l]; }
+    int sumRange(int l, int r) { return (int)(pre[r+1] - pre[l]); }
 };
 ```
-**Complexity:** O(n) build, O(1) query.
+
+⭐ **If updates were allowed**, prefix sums break (an update costs O(n) to rebuild). You'd need a **Fenwick tree** or **segment tree** for O(log n) update *and* query.
 
 ---
 
-### 14. Subarray Sum Equals K 🟡
-> Count subarrays summing to `k`. Values may be negative (so no sliding window).
+# 14. Subarray Sum Equals K
 
-#### 💬 Think of it like this
-Imagine walking along the array keeping a running total — the *prefix sum*. After each step you know "the sum of everything from the start up to here."
+🟡 **Medium** · Prefix sum + hash map ⭐ **very high frequency**
 
-Now here's the key move. The sum of any subarray from `l` to `r` is just:
+> Count subarrays summing to `k`. **Values may be negative.**
 
 ```
-   sum(l..r)  =  prefix[r]  −  prefix[l-1]
+   Input:  [1, 1, 1], k = 2  → 2
+   Input:  [1, 2, 3], k = 3  → 2      ([1,2] and [3])
 ```
 
-So if you're standing at position `r` and you want subarrays ending here that sum to `k`, you need to find earlier positions where the prefix was exactly `prefix[r] − k`. Every one of those is a valid subarray.
+## 🗺️ Approach Ladder
 
-That turns the problem into: *"how many times have I seen the value `prefix[r] − k` before?"* — which is a hash map lookup.
+```mermaid
+flowchart LR
+    A["🐌 BRUTE<br/>all subarrays, re-sum<br/><b>O(n³)</b>"] --> B["⚡ RUNNING SUM<br/><b>O(n²)</b>/O(1)"]
+    B --> C["❌ SLIDING WINDOW<br/><b>WRONG</b> — negatives<br/>break monotonicity"]
+    C --> D["🚀 PREFIX + HASHMAP<br/><b>O(n)</b>/O(n)"]
 
-#### 📊 Tracing `[1, 2, 3]` with `k = 3`
-
-```
-   We keep a map: prefix_sum → how many times we've seen it
-   Seeded with {0: 1} — the "empty prefix", so subarrays
-   starting at index 0 are counted correctly.
-
-   ┌───────────────────────────────────────────────────────────┐
-   │ start:  sum = 0   map = {0:1}   answer = 0                 │
-   ├───────────────────────────────────────────────────────────┤
-   │ i=0, x=1:  sum = 1                                        │
-   │            looking for sum−k = 1−3 = −2   → not in map    │
-   │            map = {0:1, 1:1}          answer = 0           │
-   ├───────────────────────────────────────────────────────────┤
-   │ i=1, x=2:  sum = 3                                        │
-   │            looking for 3−3 = 0   → ⭐ found, count 1       │
-   │            (that's the subarray [1,2])   answer = 1        │
-   │            map = {0:1, 1:1, 3:1}                          │
-   ├───────────────────────────────────────────────────────────┤
-   │ i=2, x=3:  sum = 6                                        │
-   │            looking for 6−3 = 3   → ⭐ found, count 1       │
-   │            (that's the subarray [3])     answer = 2        │
-   │            map = {0:1, 1:1, 3:1, 6:1}                     │
-   └───────────────────────────────────────────────────────────┘
-
-   ANSWER = 2   →   [1,2] and [3]  ✅
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#ff8a80,stroke:#b71c1c,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-#### Why the `{0: 1}` seed is essential
+## ⚠️ Why sliding window fails here
 
 ```
-   Without it, a subarray starting at index 0 is missed.
+   Sliding window needs: growing the window MONOTONICALLY
+   changes the sum in one direction.
 
-   In the trace above, at i=1 the running sum is exactly 3.
-   The subarray [1,2] uses NOTHING before it — so the "prefix
-   before it" is the empty prefix, whose sum is 0.
+   With negatives, adding an element can DECREASE the sum —
+   so there's no valid shrink condition. The technique
+   simply doesn't apply.
 
-   ⭐ Seeding {0: 1} says "I have seen a prefix summing to 0,
-     once — the empty one." That makes the arithmetic work.
+   ⭐ This is the key distinction to state in an interview:
+     all-positive → sliding window
+     negatives    → prefix sum + hash map
 ```
 
-⚠️ **Why sliding window fails here:** with negative numbers, extending the window doesn't monotonically increase the sum, so there's no valid shrink condition. Prefix sums don't care about sign.
+## 4️⃣ Prefix Sum + Hash Map — ⭐ OPTIMAL
+
+#### 💬 The reframe
+
+```
+   sum(l..r)  =  prefix[r]  −  prefix[l−1]
+
+   So "which subarrays ending at r sum to k?" becomes:
+   "how many earlier prefixes equal prefix[r] − k?"
+   → a hash map lookup.
+```
+
+```mermaid
+flowchart TD
+    S(["sum=0, map={0:1}, ans=0"]) --> A["i=0, x=1 → sum=1<br/>need 1−3 = −2 ❌"]
+    A --> B["i=1, x=2 → sum=3<br/>need 3−3 = <b>0</b> ✅ found ×1<br/>ans=1 (subarray [1,2])"]
+    B --> C["i=2, x=3 → sum=6<br/>need 6−3 = <b>3</b> ✅ found ×1<br/>ans=2 (subarray [3])"]
+    C --> R(["Answer: 2"])
+
+    style S fill:#e3f2fd,stroke:#1565c0,color:#000
+    style A fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+#### ⭐ Why the `{0: 1}` seed is essential
+
+```
+   At i=1 above, the running sum IS exactly 3 = k.
+   That subarray [1,2] starts at index 0, so the "prefix
+   before it" is the EMPTY prefix, whose sum is 0.
+
+   ⭐ Seeding {0:1} declares "I have seen a prefix summing
+     to 0, once — the empty one." Without it, every subarray
+     starting at index 0 is missed.
+```
 
 ```cpp
 int subarraySum(vector<int>& a, int k) {
-    unordered_map<long long,int> cnt{{0, 1}};    // ⭐ empty prefix counts once
-    long long sum = 0; int ans = 0;
+    unordered_map<long long,int> cnt;
+    cnt[0] = 1;                                // ⭐ the empty prefix
+    long long sum = 0;
+    int ans = 0;
+
     for (int x : a) {
         sum += x;
-        auto it = cnt.find(sum - k);
-        if (it != cnt.end()) ans += it->second;
+        auto it = cnt.find(sum - k);           // ⭐ find, not [] — avoids
+        if (it != cnt.end()) ans += it->second; //    inserting junk keys
         cnt[sum]++;
     }
     return ans;
 }
 ```
-**Complexity:** O(n) / O(n).
-**Key insight:** `sum(l..r) = pre[r] - pre[l-1]`. So for each `r`, count how many earlier prefixes equal `pre[r] - k`. The `{0,1}` seed handles subarrays starting at index 0.
 
-⚠️ **Sliding window does NOT work here** because negatives mean growing the window doesn't monotonically grow the sum.
+## 📌 Pattern Card
+```
+SIGNAL   "count/find subarrays with sum = k" WITH NEGATIVES
+OPTIMAL  prefix sum + hash map, O(n)
+KEY      seed {0:1} · use find() not operator[]
+RELATED  Subarrays Div by K · Contiguous Array · Max Size Subarray Sum K
+         Path Sum III (same idea, on a TREE)
+```
 
 ---
 
-### 15. Continuous Subarray Sum (multiple of k) 🟡
+# 15. Continuous Subarray Sum
+
+🟡 **Medium** · Prefix remainder
+
+> Is there a subarray of length **≥ 2** whose sum is a multiple of `k`?
+
+## 💬 The modular insight
+
+```mermaid
+flowchart TD
+    A["Two prefixes with the<br/><b>SAME REMAINDER mod k</b>"] --> B["Their difference is<br/>divisible by k"]
+    B --> C["⭐ So the subarray between<br/>them sums to a multiple of k"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  [23, 2, 4, 6, 7], k = 6
+
+   ┌───┬─────┬──────────┬───────────┬────────────────────────┐
+   │ i │ val │ prefix   │ mod 6     │ seen before?           │
+   ├───┼─────┼──────────┼───────────┼────────────────────────┤
+   │ − │  −  │    0     │     0     │ store {0: −1}          │
+   │ 0 │ 23  │   23     │  ⭐ 5     │ no → store {5: 0}      │
+   │ 1 │  2  │   25     │     1     │ no → store {1: 1}      │
+   │ 2 │  4  │   29     │  ⭐ 5     │ ✅ seen at index 0     │
+   │   │     │          │           │ length = 2−0 = 2 ≥ 2 ✅ │
+   └───┴─────┴──────────┴───────────┴────────────────────────┘
+   → subarray [2,4] sums to 6 ✅
+```
+
 ```cpp
 bool checkSubarraySum(vector<int>& a, int k) {
-    unordered_map<int,int> first{{0, -1}};       // remainder -> earliest index
+    unordered_map<int,int> first;              // remainder → EARLIEST index
+    first[0] = -1;                             // ⭐ handles prefixes ending at i
     int sum = 0;
+
     for (int i = 0; i < (int)a.size(); ++i) {
         sum = (sum + a[i]) % k;
         auto it = first.find(sum);
-        if (it != first.end()) { if (i - it->second >= 2) return true; }
-        else first[sum] = i;                      // keep the EARLIEST only
+        if (it != first.end()) {
+            if (i - it->second >= 2) return true;   // ⭐ length ≥ 2 required
+        } else {
+            first[sum] = i;                    // ⭐ store only the EARLIEST
+        }                                      //    to maximize length
     }
     return false;
 }
 ```
-**Key insight:** Two prefixes with the same remainder mod k means the subarray between them is divisible by k. Store only the earliest index to maximize length.
+
+⭐ **Two subtleties:** store only the *earliest* index per remainder (maximizes subarray length), and the `-1` seed lets a prefix from index 0 count correctly.
 
 ---
 
-### 16. Subarray Sums Divisible by K 🟡
+# 16. Subarrays Sums Divisible by K
+
+🟡 **Medium** · Count version of #15
+
 ```cpp
 int subarraysDivByK(vector<int>& a, int k) {
     vector<int> cnt(k, 0);
-    cnt[0] = 1;
+    cnt[0] = 1;                                // ⭐ empty prefix
     int sum = 0, ans = 0;
+
     for (int x : a) {
-        sum = ((sum + x) % k + k) % k;            // ⭐ handle negatives
-        ans += cnt[sum]++;
+        sum = ((sum + x) % k + k) % k;         // ⭐⭐ normalize NEGATIVE mod
+        ans += cnt[sum]++;                     // count then increment
     }
     return ans;
 }
 ```
-**Key insight:** C++ `%` can return negative — normalize with `((x % k) + k) % k`.
+
+```
+   ⚠️⚠️ THE C++ NEGATIVE MODULO TRAP
+
+   In C++, (-7) % 3 == -1, NOT 2.
+
+   So remainders can be negative, and −1 and 2 represent the
+   SAME residue class but hash to different buckets.
+
+   ⭐ FIX:  ((x % k) + k) % k     always yields [0, k)
+```
+
+⭐ **Counting pairs:** if a remainder is seen `m` times, that gives `m(m−1)/2` valid subarrays. The `ans += cnt[sum]++` idiom accumulates that incrementally.
 
 ---
 
-### 17. Contiguous Array (equal 0s and 1s) 🟡
+# 17. Contiguous Array
+
+🟡 **Medium** · The 0→−1 trick
+
+> Longest subarray with an **equal number of 0s and 1s**.
+
+## 💬 The transformation
+
+```mermaid
+flowchart LR
+    A["[0, 1, 0, 1]"] -->|"map 0 → −1"| B["[−1, 1, −1, 1]"]
+    B --> C["⭐ 'equal counts'<br/>becomes<br/>'sum = 0'"]
+    C --> D["Now it's the standard<br/>prefix-sum problem"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  [0, 1, 0, 0, 1, 1]
+
+   mapped:  −1   1  −1  −1   1   1
+   prefix:  −1   0  −1  −2  −1   0
+             ▲   ▲               ▲
+             │   └── sum 0 at i=1 → length 2
+             │       (seed {0:−1} makes this work)
+             └────── sum 0 again at i=5 → length 6 ⭐ BEST
+```
+
 ```cpp
 int findMaxLength(vector<int>& a) {
-    unordered_map<int,int> first{{0, -1}};
+    unordered_map<int,int> first;
+    first[0] = -1;                             // ⭐ empty prefix at index −1
     int sum = 0, best = 0;
+
     for (int i = 0; i < (int)a.size(); ++i) {
-        sum += (a[i] == 1 ? 1 : -1);              // ⭐ map 0 to -1
+        sum += (a[i] == 1 ? 1 : -1);           // ⭐ THE TRICK
         auto it = first.find(sum);
         if (it != first.end()) best = max(best, i - it->second);
-        else first[sum] = i;
+        else first[sum] = i;                   // earliest only → longest span
     }
     return best;
 }
 ```
-**Key insight:** Mapping 0→−1 turns "equal counts" into "sum equals zero," which is the standard prefix-sum problem.
+
+⭐ **Generalizable:** mapping two categories to `+1`/`−1` turns "equal counts" into "sum zero" — works for any balanced-partition problem.
 
 ---
 
-### 18. Maximum Size Subarray Sum Equals K 🟡
+# 18. Maximum Size Subarray Sum Equals K
+
+🟡 **Medium** · Longest version of #14
+
 ```cpp
 int maxSubArrayLen(vector<int>& a, int k) {
-    unordered_map<long long,int> first{{0, -1}};
-    long long sum = 0; int best = 0;
+    unordered_map<long long,int> first;
+    first[0] = -1;
+    long long sum = 0;
+    int best = 0;
+
     for (int i = 0; i < (int)a.size(); ++i) {
         sum += a[i];
         auto it = first.find(sum - k);
         if (it != first.end()) best = max(best, i - it->second);
-        if (!first.count(sum)) first[sum] = i;    // earliest index only
+        if (!first.count(sum)) first[sum] = i;   // ⭐ EARLIEST index only
     }
     return best;
 }
 ```
 
+```
+   ⭐ COUNTING vs LONGEST — the difference in one line
+
+   COUNT  (#14):  map stores HOW MANY times each prefix appeared
+                  cnt[sum]++
+
+   LONGEST (#18): map stores the EARLIEST index of each prefix
+                  if (!first.count(sum)) first[sum] = i
+                  ⭐ earliest gives the longest possible span
+```
+
 ---
 
-### 19. Range Addition (difference array) 🟡
+# 19. Range Addition
+
+🟡 **Medium** · Difference array
+
+> Apply `u` range updates `[start, end, val]` to a zero array of length `n`. Return the final array.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 NAIVE<br/>loop each range<br/><b>O(u × n)</b>"] --> B["🚀 DIFFERENCE ARRAY<br/>2 writes per update<br/><b>O(u + n)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 The difference array — prefix sums, inverted
+
+```mermaid
+flowchart TD
+    U["Update: add v to range [l, r]"] --> D["⭐ Only TWO writes:<br/>diff[l] += v<br/>diff[r+1] −= v"]
+    D --> P["At the end, one prefix-sum<br/>pass materializes everything"]
+
+    style U fill:#e3f2fd,stroke:#1565c0,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style P fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   n = 5, updates = [[1,3,2], [2,4,3]]
+
+   diff after update 1 (add 2 to [1..3]):
+     index:   0   1   2   3   4  (5)
+     diff:    0  +2   0   0  −2   0
+                  ▲           ▲
+              turn ON     turn OFF
+
+   diff after update 2 (add 3 to [2..4]):
+     diff:    0  +2  +3   0  −2  −3
+
+   PREFIX SUM to materialize:
+     result:  0   2   5   5   3
+              └─ running total of diff ─┘   ✅
+```
+
 ```cpp
 vector<int> getModifiedArray(int n, vector<vector<int>>& updates) {
-    vector<int> diff(n + 1, 0);
-    for (auto& u : updates) { diff[u[0]] += u[2]; diff[u[1] + 1] -= u[2]; }
+    vector<int> diff(n + 1, 0);                // ⭐ n+1 so r+1 is always valid
+
+    for (auto& u : updates) {
+        diff[u[0]]     += u[2];                // turn the increment ON
+        diff[u[1] + 1] -= u[2];                // turn it OFF after the range
+    }
+
     vector<int> out(n);
     int run = 0;
     for (int i = 0; i < n; ++i) { run += diff[i]; out[i] = run; }
     return out;
 }
 ```
-**Complexity:** O(u + n) instead of O(u·n).
-**Key insight:** The difference array turns range updates into two point updates.
+
+⭐ **The duality worth remembering:**
+```
+   PREFIX SUM     → O(1) range QUERY,  O(n) update
+   DIFFERENCE ARR → O(1) range UPDATE, O(n) query
+   FENWICK TREE   → O(log n) for BOTH
+```
 
 ---
 
-### 20. Corporate Flight Bookings 🟡
+# 20. Corporate Flight Bookings
+
+🟡 **Medium** · Difference array applied
+
+> `bookings[i] = [first, last, seats]`. Return total seats booked per flight (1-indexed).
+
 ```cpp
 vector<int> corpFlightBookings(vector<vector<int>>& b, int n) {
     vector<int> d(n + 1, 0);
-    for (auto& x : b) { d[x[0]-1] += x[2]; d[x[1]] -= x[2]; }
+
+    for (auto& x : b) {
+        d[x[0] - 1] += x[2];                   // ⭐ convert 1-indexed → 0-indexed
+        d[x[1]]     -= x[2];                   // x[1] is already "last+1" after
+    }                                          //    the index shift
+
     for (int i = 1; i < n; ++i) d[i] += d[i-1];
     d.pop_back();
     return d;
 }
 ```
 
+⭐ **Same technique as #19.** Once you recognize "many range updates, one final read," the difference array is automatic.
+
 ---
 
-### 21. Car Pooling 🟡
-```cpp
-bool carPooling(vector<vector<int>>& trips, int cap) {
-    vector<int> d(1001, 0);
-    for (auto& t : trips) { d[t[1]] += t[0]; d[t[2]] -= t[0]; }
-    int cur = 0;
-    for (int x : d) { cur += x; if (cur > cap) return false; }
-    return true;
-}
+## 📋 Part 1 Recall
+
+```mermaid
+mindmap
+  root(("Arrays<br/>Part 1"))
+    Hash Map
+      Two Sum
+      Contains Duplicate
+      insert AFTER checking
+    Prefix Sum
+      Subarray Sum = K
+      seed with 0:1
+      COUNT→frequency<br/>LONGEST→earliest index
+      0→−1 trick
+      normalize negative mod
+    Difference Array
+      Range Addition
+      O(1) update, O(n) read
+      inverse of prefix sum
+    Kadane
+      Maximum Subarray
+      extend or restart
+      Max PRODUCT tracks max AND min
+    Binary Search
+      Rotated array
+      compare mid to HI not LO
+      one half is always sorted
+      duplicates → O(n) worst
+    XOR
+      Missing Number
+      Single Number
+      pairs cancel
 ```
 
----
-
-### 22. Find Pivot Index 🟢
-```cpp
-int pivotIndex(vector<int>& a) {
-    long long total = accumulate(a.begin(), a.end(), 0LL), left = 0;
-    for (int i = 0; i < (int)a.size(); ++i) {
-        if (left == total - left - a[i]) return i;
-        left += a[i];
-    }
-    return -1;
-}
 ```
-
----
-
-### 23. Range Sum Query 2D — Immutable 🟡
-```cpp
-class NumMatrix {
-    vector<vector<long long>> pre;
-public:
-    NumMatrix(vector<vector<int>>& m) {
-        int R = m.size(), C = R ? m[0].size() : 0;
-        pre.assign(R + 1, vector<long long>(C + 1, 0));
-        for (int i = 0; i < R; ++i)
-            for (int j = 0; j < C; ++j)
-                pre[i+1][j+1] = m[i][j] + pre[i][j+1] + pre[i+1][j] - pre[i][j];
-    }
-    int sumRegion(int r1, int c1, int r2, int c2) {
-        return pre[r2+1][c2+1] - pre[r1][c2+1] - pre[r2+1][c1] + pre[r1][c1];
-    }
-};
-```
-**Key insight:** Inclusion-exclusion. Subtract the two overlapping strips, then add back the doubly-subtracted corner.
-
----
-
-### 24. Maximum Sum Rectangle in a 2D Matrix 🔴
-```cpp
-int maxSumRectangle(vector<vector<int>>& m) {
-    int R = m.size(), C = m[0].size(), best = INT_MIN;
-    for (int top = 0; top < R; ++top) {
-        vector<int> col(C, 0);
-        for (int bot = top; bot < R; ++bot) {
-            for (int c = 0; c < C; ++c) col[c] += m[bot][c];   // collapse rows
-            // Kadane on the collapsed 1D array
-            int cur = col[0], loc = col[0];
-            for (int c = 1; c < C; ++c) {
-                cur = max(col[c], cur + col[c]);
-                loc = max(loc, cur);
-            }
-            best = max(best, loc);
-        }
-    }
-    return best;
-}
-```
-**Complexity:** O(R²·C).
-**Key insight:** Fix the top and bottom rows, collapse the strip into a 1D array by summing columns, then run Kadane. This reduction from 2D to 1D is a reusable technique.
-
----
-
-## C. Sorting-Based
-
-### 25. Merge Sorted Array 🟢
-> Merge `b` into `a` in place; `a` has trailing space.
-
-```cpp
-void merge(vector<int>& a, int m, vector<int>& b, int n) {
-    int i = m - 1, j = n - 1, k = m + n - 1;
-    while (j >= 0) {                              // ⭐ fill from the BACK
-        a[k--] = (i >= 0 && a[i] > b[j]) ? a[i--] : b[j--];
-    }
-}
-```
-**Key insight:** Filling from the back avoids overwriting unprocessed elements — no extra space needed.
-
----
-
-### 26. Sort Colors (Dutch National Flag) 🟡
-> Sort an array of 0s, 1s, 2s in one pass.
-
-```cpp
-void sortColors(vector<int>& a) {
-    int lo = 0, mid = 0, hi = a.size() - 1;
-    while (mid <= hi) {
-        if (a[mid] == 0) swap(a[lo++], a[mid++]);
-        else if (a[mid] == 2) swap(a[mid], a[hi--]);   // ⭐ don't ++mid here
-        else ++mid;
-    }
-}
-```
-**Key insight:** After swapping with `hi`, the incoming value is unexamined, so `mid` must not advance. After swapping with `lo`, the incoming value is already known to be 0 or 1.
-
----
-
-### 27. Merge Intervals 🟡
-```cpp
-vector<vector<int>> merge(vector<vector<int>>& iv) {
-    sort(iv.begin(), iv.end());
-    vector<vector<int>> out;
-    for (auto& c : iv) {
-        if (out.empty() || out.back()[1] < c[0]) out.push_back(c);
-        else out.back()[1] = max(out.back()[1], c[1]);
-    }
-    return out;
-}
+╔══════════════════════════════════════════════════════════════════════╗
+║               ARRAYS & STRINGS PART 1 — PATTERN RECALL               ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "pair summing to X"            → hash map, insert AFTER checking     ║
+║ "subarray sum = k" + NEGATIVES → prefix sum + hashmap, seed {0:1}    ║
+║ "subarray sum = k" all positive→ sliding window                      ║
+║ "equal counts of A and B"      → map one to −1, find sum 0           ║
+║ "many range updates"           → difference array                    ║
+║ "max contiguous sum"           → Kadane (init best = a[0], NOT 0)    ║
+║ "max contiguous PRODUCT"       → track max AND min, swap on negative ║
+║ "rotated sorted array"         → binary search, compare mid to HI    ║
+║ "appears twice except one"     → XOR everything                      ║
+║ "all except me"                → prefix × suffix, two sweeps         ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   C++ negative modulo → ((x%k)+k)%k                                  ║
+║   Kadane with best=0 → wrong on all-negative input                   ║
+║   mid = lo + (hi−lo)/2 → overflow safety                             ║
+║   map[key] INSERTS on read → use find()                              ║
+╚══════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-### 28. Insert Interval 🟡
-```cpp
-vector<vector<int>> insert(vector<vector<int>>& iv, vector<int> ni) {
-    vector<vector<int>> out;
-    int i = 0, n = iv.size();
-    while (i < n && iv[i][1] < ni[0]) out.push_back(iv[i++]);       // before
-    while (i < n && iv[i][0] <= ni[1]) {                             // overlapping
-        ni[0] = min(ni[0], iv[i][0]);
-        ni[1] = max(ni[1], iv[i][1]);
-        ++i;
-    }
-    out.push_back(ni);
-    while (i < n) out.push_back(iv[i++]);                            // after
-    return out;
-}
-```
-**Complexity:** O(n) — input is already sorted, no re-sort needed.
-
----
-
-### 29. Non-overlapping Intervals 🟡
-> Minimum removals to make intervals non-overlapping.
-
-```cpp
-int eraseOverlapIntervals(vector<vector<int>>& iv) {
-    sort(iv.begin(), iv.end(), [](auto& a, auto& b){ return a[1] < b[1]; });  // ⭐ by END
-    int end = INT_MIN, keep = 0;
-    for (auto& x : iv) if (x[0] >= end) { end = x[1]; ++keep; }
-    return iv.size() - keep;
-}
-```
-**Key insight:** Classic activity selection. Sorting by **end** time is what makes greedy optimal — keeping the earliest-ending interval leaves the most room for the rest.
-
----
-
-### 30. Meeting Rooms II 🟡
-```cpp
-int minMeetingRooms(vector<vector<int>>& iv) {
-    vector<pair<int,int>> ev;
-    for (auto& m : iv) { ev.push_back({m[0], 1}); ev.push_back({m[1], -1}); }
-    sort(ev.begin(), ev.end());                   // -1 sorts before +1 at equal time
-    int cur = 0, best = 0;
-    for (auto& [t, d] : ev) { cur += d; best = max(best, cur); }
-    return best;
-}
-```
-**Key insight:** At equal timestamps, ends must process before starts (a room freed at 10 can be reused at 10). `pair` sorting gives this for free since `-1 < 1`.
-
----
-
-### 31. Largest Number 🟡
-```cpp
-string largestNumber(vector<int>& a) {
-    vector<string> s;
-    for (int x : a) s.push_back(to_string(x));
-    sort(s.begin(), s.end(), [](const string& x, const string& y){
-        return x + y > y + x;                     // ⭐ custom order
-    });
-    if (s[0] == "0") return "0";                  // all zeros
-    string out;
-    for (auto& t : s) out += t;
-    return out;
-}
-```
-**Key insight:** Compare concatenations, not the numbers. "9" vs "34": `"934" > "349"`, so 9 comes first. This comparator is provably a valid strict weak ordering.
-
----
-
-### 32. Sort Array by Parity 🟢
-```cpp
-vector<int> sortArrayByParity(vector<int>& a) {
-    int i = 0, j = a.size() - 1;
-    while (i < j) {
-        if (a[i] % 2 > a[j] % 2) swap(a[i], a[j]);
-        if (a[i] % 2 == 0) ++i;
-        if (a[j] % 2 == 1) --j;
-    }
-    return a;
-}
-```
-
----
-
-### 33. H-Index 🟡
-```cpp
-int hIndex(vector<int>& c) {
-    int n = c.size();
-    vector<int> bucket(n + 1, 0);
-    for (int x : c) bucket[min(x, n)]++;          // counting sort
-    int total = 0;
-    for (int h = n; h >= 0; --h) {
-        total += bucket[h];
-        if (total >= h) return h;
-    }
-    return 0;
-}
-```
-**Complexity:** O(n) with counting sort, vs O(n log n) sorting.
-
----
-
-### 34. Top K Frequent Elements 🟡
-```cpp
-vector<int> topKFrequent(vector<int>& a, int k) {
-    unordered_map<int,int> cnt;
-    for (int x : a) cnt[x]++;
-
-    int n = a.size();
-    vector<vector<int>> bucket(n + 1);            // ⭐ bucket sort by frequency
-    for (auto& [v, c] : cnt) bucket[c].push_back(v);
-
-    vector<int> out;
-    for (int f = n; f >= 1 && (int)out.size() < k; --f)
-        for (int v : bucket[f]) {
-            out.push_back(v);
-            if ((int)out.size() == k) break;
-        }
-    return out;
-}
-```
-**Complexity:** O(n) — bucket sort beats the O(n log k) heap approach because frequency is bounded by n.
-
----
-
-## D. In-Place Manipulation
-
-### 35. Remove Duplicates from Sorted Array 🟢
-```cpp
-int removeDuplicates(vector<int>& a) {
-    if (a.empty()) return 0;
-    int k = 1;
-    for (int i = 1; i < (int)a.size(); ++i)
-        if (a[i] != a[k-1]) a[k++] = a[i];
-    return k;
-}
-```
-
----
-
-### 36. Remove Duplicates from Sorted Array II (allow 2) 🟡
-```cpp
-int removeDuplicates(vector<int>& a) {
-    int k = 0;
-    for (int x : a)
-        if (k < 2 || x != a[k-2]) a[k++] = x;     // ⭐ generalizes to k copies
-    return k;
-}
-```
-**Key insight:** Comparing against `a[k-2]` generalizes: for at most `m` copies, compare against `a[k-m]`.
-
----
-
-### 37. Remove Element 🟢
-```cpp
-int removeElement(vector<int>& a, int val) {
-    int k = 0;
-    for (int x : a) if (x != val) a[k++] = x;
-    return k;
-}
-```
-
----
-
-### 38. Move Zeroes 🟢
-```cpp
-void moveZeroes(vector<int>& a) {
-    int k = 0;
-    for (int i = 0; i < (int)a.size(); ++i) if (a[i]) swap(a[k++], a[i]);
-}
-```
-**Key insight:** Swapping (rather than assigning then zero-filling) keeps it to one pass.
-
----
-
-### 39. Rotate Array 🟡
-```cpp
-void rotate(vector<int>& a, int k) {
-    int n = a.size();
-    k %= n;                                       // ⭐ k can exceed n
-    reverse(a.begin(), a.end());
-    reverse(a.begin(), a.begin() + k);
-    reverse(a.begin() + k, a.end());
-}
-```
-**Key insight:** Reverse all, then reverse each part. Three reversals, O(1) space.
-
-```
-   [1,2,3,4,5,6,7], k=3
-   reverse all      → [7,6,5,4,3,2,1]
-   reverse first 3  → [5,6,7,4,3,2,1]
-   reverse rest     → [5,6,7,1,2,3,4] ✅
-```
-
----
-
-### 40. First Missing Positive 🔴
-> Find the smallest missing positive integer in O(n) time, O(1) space.
-
-#### 💬 Think of it like this
-Start with an observation that makes the problem tractable. With `n` numbers, the answer **must** be somewhere in `1..n+1`. If the array happened to contain exactly 1 through n, the answer is n+1. Otherwise one of 1..n is missing. Nothing outside that range can possibly be the answer.
-
-So you only care about values 1 through n — everything else (negatives, zeros, huge numbers) is noise.
-
-Now, you'd like a hash set to check membership. But you're not allowed extra space. **So use the array itself as the hash set.** Put the value `v` at index `v-1`. Then "is 3 present?" becomes "is `a[2] == 3`?" — an O(1) check with no extra memory.
-
-The placement pass is a series of swaps: look at the current slot, and if its value belongs somewhere else, swap it there. Repeat until the current slot holds something that belongs (or is out of range), then move on.
-
-#### 📊 Watching the placement on `[3, 4, -1, 1]`
-
-```
-   Goal: put value v at index v-1
-
-   ┌─────────────────────────────────────────────────────────────┐
-   │ i=0:  a = [3, 4, -1, 1]                                     │
-   │       a[0]=3 → belongs at index 2. Swap a[0] ↔ a[2].        │
-   │       a = [-1, 4, 3, 1]                                     │
-   │       ⭐ don't advance i — the incoming value is unexamined  │
-   ├─────────────────────────────────────────────────────────────┤
-   │ i=0:  a[0] = -1 → out of range, ignore. Advance.            │
-   ├─────────────────────────────────────────────────────────────┤
-   │ i=1:  a[1]=4 → belongs at index 3. Swap a[1] ↔ a[3].        │
-   │       a = [-1, 1, 3, 4]                                     │
-   ├─────────────────────────────────────────────────────────────┤
-   │ i=1:  a[1]=1 → belongs at index 0. Swap a[1] ↔ a[0].        │
-   │       a = [1, -1, 3, 4]                                     │
-   ├─────────────────────────────────────────────────────────────┤
-   │ i=1:  a[1] = -1 → out of range. Advance.                    │
-   │ i=2:  a[2] = 3, and 3 belongs at index 2. ✅ Already home.   │
-   │ i=3:  a[3] = 4, belongs at index 3. ✅ Already home.         │
-   └─────────────────────────────────────────────────────────────┘
-
-   FINAL SCAN — first index where a[i] != i+1
-
-   index:      0     1     2     3
-              ┌─────┬─────┬─────┬─────┐
-   a:         │  1  │ -1  │  3  │  4  │
-              └─────┴─────┴─────┴─────┘
-   expected:     1     2     3     4
-                       ▲
-                  ⭐ MISMATCH at index 1 → answer is 2
-```
-
-#### Why this is O(n) despite the nested loop
-
-```
-   The `while` inside the `for` looks like it could be O(n²).
-   It isn't.
-
-   ⭐ Every swap places at least one value in its FINAL correct
-     position, and a value once placed is never moved again.
-     There are only n values, so there can be at most n swaps
-     across the ENTIRE run.
-
-   Total work = n iterations + at most n swaps = O(n).
-```
-
-```cpp
-int firstMissingPositive(vector<int>& a) {
-    int n = a.size();
-    for (int i = 0; i < n; ++i) {
-        while (a[i] > 0 && a[i] <= n && a[a[i] - 1] != a[i])
-            swap(a[i], a[a[i] - 1]);              // cyclic sort placement
-    }
-    for (int i = 0; i < n; ++i) if (a[i] != i + 1) return i + 1;
-    return n + 1;
-}
-```
-**Complexity:** O(n) / O(1).
-**Key insight:** The answer must be in `[1, n+1]`. Use the array itself as a hash table by placing value `v` at index `v-1`. Each swap places one value permanently, so total swaps ≤ n.
-
----
-
-### 41. Find All Duplicates in an Array 🟡
-```cpp
-vector<int> findDuplicates(vector<int>& a) {
-    vector<int> out;
-    for (int x : a) {
-        int i = abs(x) - 1;
-        if (a[i] < 0) out.push_back(abs(x));      // seen before
-        else a[i] = -a[i];                         // mark as seen
-    }
-    return out;
-}
-```
-**Key insight:** Use the sign bit at index `v-1` as a "seen" marker — O(1) extra space.
-
----
-
-### 42. Find All Numbers Disappeared in an Array 🟢
-```cpp
-vector<int> findDisappearedNumbers(vector<int>& a) {
-    for (int x : a) a[abs(x) - 1] = -abs(a[abs(x) - 1]);
-    vector<int> out;
-    for (int i = 0; i < (int)a.size(); ++i) if (a[i] > 0) out.push_back(i + 1);
-    return out;
-}
-```
-
----
-
-### 43. Set Matrix Zeroes 🟡
-```cpp
-void setZeroes(vector<vector<int>>& m) {
-    int R = m.size(), C = m[0].size();
-    bool firstCol = false;
-
-    for (int i = 0; i < R; ++i) {
-        if (m[i][0] == 0) firstCol = true;        // ⭐ track column 0 separately
-        for (int j = 1; j < C; ++j)
-            if (m[i][j] == 0) { m[i][0] = 0; m[0][j] = 0; }   // use row/col 0 as flags
-    }
-
-    for (int i = R - 1; i >= 0; --i) {            // ⭐ backwards: flags stay intact
-        for (int j = C - 1; j >= 1; --j)
-            if (m[i][0] == 0 || m[0][j] == 0) m[i][j] = 0;
-        if (firstCol) m[i][0] = 0;
-    }
-}
-```
-**Complexity:** O(R·C) / O(1).
-**Key insight:** Store the flags in the matrix's own first row and column. Column 0 needs a separate boolean because `m[0][0]` is shared between the row-0 and column-0 flags.
-
----
-
-### 44. Next Permutation 🟡
-```cpp
-void nextPermutation(vector<int>& a) {
-    int n = a.size(), i = n - 2;
-    while (i >= 0 && a[i] >= a[i+1]) --i;         // 1. find the pivot
-
-    if (i >= 0) {
-        int j = n - 1;
-        while (a[j] <= a[i]) --j;                 // 2. rightmost element > pivot
-        swap(a[i], a[j]);
-    }
-    reverse(a.begin() + i + 1, a.end());          // 3. make the suffix ascending
-}
-```
-```
-   [1,3,5,4,2]
-    ↑ pivot (3, since 3 < 5)
-   find rightmost > 3 → 4
-   swap → [1,4,5,3,2]
-   reverse suffix → [1,4,2,3,5] ✅
-```
-**Key insight:** The suffix after the pivot is always non-increasing, so reversing it produces the smallest arrangement.
-
----
-
-## E. Matrix
-
-### 45. Rotate Image (90° clockwise, in place) 🟡
-```cpp
-void rotate(vector<vector<int>>& m) {
-    int n = m.size();
-    for (int i = 0; i < n; ++i)                   // 1. transpose
-        for (int j = i + 1; j < n; ++j)
-            swap(m[i][j], m[j][i]);
-    for (auto& row : m) reverse(row.begin(), row.end());   // 2. reverse each row
-}
-// Counter-clockwise: transpose, then reverse COLUMNS (reverse the row order).
-```
-
----
-
-### 46. Spiral Matrix 🟡
-```cpp
-vector<int> spiralOrder(vector<vector<int>>& m) {
-    if (m.empty()) return {};
-    int top = 0, bot = m.size() - 1, left = 0, right = m[0].size() - 1;
-    vector<int> out;
-    while (top <= bot && left <= right) {
-        for (int j = left; j <= right; ++j) out.push_back(m[top][j]);
-        ++top;
-        for (int i = top; i <= bot; ++i) out.push_back(m[i][right]);
-        --right;
-        if (top <= bot) {                          // ⭐ re-check after shrinking
-            for (int j = right; j >= left; --j) out.push_back(m[bot][j]);
-            --bot;
-        }
-        if (left <= right) {
-            for (int i = bot; i >= top; --i) out.push_back(m[i][left]);
-            ++left;
-        }
-    }
-    return out;
-}
-```
-**Key insight:** The two re-checks prevent double-visiting on single-row or single-column remainders.
-
----
-
-### 47. Spiral Matrix II (generate) 🟡
-```cpp
-vector<vector<int>> generateMatrix(int n) {
-    vector<vector<int>> m(n, vector<int>(n));
-    int v = 1, top = 0, bot = n - 1, left = 0, right = n - 1;
-    while (v <= n * n) {
-        for (int j = left; j <= right; ++j) m[top][j] = v++;
-        ++top;
-        for (int i = top; i <= bot; ++i) m[i][right] = v++;
-        --right;
-        for (int j = right; j >= left; --j) m[bot][j] = v++;
-        --bot;
-        for (int i = bot; i >= top; --i) m[i][left] = v++;
-        ++left;
-    }
-    return m;
-}
-```
-
----
-
-### 48. Search a 2D Matrix 🟡
-> Rows sorted, first element of each row > last of the previous.
-
-```cpp
-bool searchMatrix(vector<vector<int>>& m, int t) {
-    int R = m.size(), C = m[0].size();
-    int lo = 0, hi = R * C - 1;
-    while (lo <= hi) {
-        int mid = lo + (hi - lo) / 2;
-        int v = m[mid / C][mid % C];              // ⭐ treat as a flat array
-        if (v == t) return true;
-        if (v < t) lo = mid + 1; else hi = mid - 1;
-    }
-    return false;
-}
-```
-
----
-
-### 49. Search a 2D Matrix II 🟡
-> Rows and columns each sorted, but rows don't chain.
-
-```cpp
-bool searchMatrix(vector<vector<int>>& m, int t) {
-    int r = 0, c = m[0].size() - 1;               // ⭐ start top-RIGHT
-    while (r < (int)m.size() && c >= 0) {
-        if (m[r][c] == t) return true;
-        if (m[r][c] > t) --c;                     // eliminate a column
-        else ++r;                                  // eliminate a row
-    }
-    return false;
-}
-```
-**Complexity:** O(R + C).
-**Key insight:** The top-right corner is the only position where moving left strictly decreases and moving down strictly increases — each step eliminates an entire row or column.
-
----
-
-### 50. Diagonal Traverse 🟡
-```cpp
-vector<int> findDiagonalOrder(vector<vector<int>>& m) {
-    if (m.empty()) return {};
-    int R = m.size(), C = m[0].size();
-    vector<int> out;
-    for (int d = 0; d < R + C - 1; ++d) {
-        if (d % 2 == 0) {                          // up-right
-            int r = min(d, R - 1), c = d - r;
-            while (r >= 0 && c < C) out.push_back(m[r--][c++]);
-        } else {                                   // down-left
-            int c = min(d, C - 1), r = d - c;
-            while (c >= 0 && r < R) out.push_back(m[r++][c--]);
-        }
-    }
-    return out;
-}
-```
-**Key insight:** All cells on a diagonal share `r + c = d`.
-
----
-
-### 51. Game of Life (in place) 🟡
-```cpp
-void gameOfLife(vector<vector<int>>& b) {
-    int R = b.size(), C = b[0].size();
-    // Encode: bit0 = current, bit1 = next
-    for (int i = 0; i < R; ++i)
-        for (int j = 0; j < C; ++j) {
-            int live = 0;
-            for (int di = -1; di <= 1; ++di)
-                for (int dj = -1; dj <= 1; ++dj) {
-                    if (!di && !dj) continue;
-                    int ni = i + di, nj = j + dj;
-                    if (ni >= 0 && ni < R && nj >= 0 && nj < C)
-                        live += b[ni][nj] & 1;     // ⭐ read the ORIGINAL bit
-                }
-            if ((b[i][j] & 1) && (live == 2 || live == 3)) b[i][j] |= 2;
-            if (!(b[i][j] & 1) && live == 3)               b[i][j] |= 2;
-        }
-    for (auto& row : b) for (int& x : row) x >>= 1;
-}
-```
-**Key insight:** Store two states in one integer using bits — the low bit holds the current state so neighbors read correctly, the high bit accumulates the next state.
-
----
-
-### 52. Transpose Matrix 🟢
-```cpp
-vector<vector<int>> transpose(vector<vector<int>>& m) {
-    int R = m.size(), C = m[0].size();
-    vector<vector<int>> t(C, vector<int>(R));
-    for (int i = 0; i < R; ++i) for (int j = 0; j < C; ++j) t[j][i] = m[i][j];
-    return t;
-}
-```
-
----
-
-### 53. Valid Sudoku 🟡
-```cpp
-bool isValidSudoku(vector<vector<char>>& b) {
-    bool row[9][9] = {}, col[9][9] = {}, box[9][9] = {};
-    for (int i = 0; i < 9; ++i)
-        for (int j = 0; j < 9; ++j) {
-            if (b[i][j] == '.') continue;
-            int d = b[i][j] - '1';
-            int k = (i / 3) * 3 + j / 3;          // ⭐ box index
-            if (row[i][d] || col[j][d] || box[k][d]) return false;
-            row[i][d] = col[j][d] = box[k][d] = true;
-        }
-    return true;
-}
-```
-
----
-
-### 54. Spiral Matrix III / Matrix Diagonal Sum 🟢
-```cpp
-int diagonalSum(vector<vector<int>>& m) {
-    int n = m.size(), s = 0;
-    for (int i = 0; i < n; ++i) {
-        s += m[i][i];
-        if (i != n - 1 - i) s += m[i][n - 1 - i];  // avoid double-counting the center
-    }
-    return s;
-}
-```
-
----
-
-## F. Strings
-
-### 55. Valid Anagram 🟢
-```cpp
-bool isAnagram(string s, string t) {
-    if (s.size() != t.size()) return false;
-    int c[26] = {};
-    for (char x : s) c[x - 'a']++;
-    for (char x : t) if (--c[x - 'a'] < 0) return false;
-    return true;
-}
-```
-
----
-
-### 56. Group Anagrams 🟡
-```cpp
-vector<vector<string>> groupAnagrams(vector<string>& v) {
-    unordered_map<string, vector<string>> g;
-    for (auto& s : v) {
-        array<int,26> c{};
-        for (char x : s) c[x - 'a']++;
-        string key;
-        for (int i = 0; i < 26; ++i) { key += '#'; key += to_string(c[i]); }
-        g[key].push_back(s);                      // ⭐ count-key: O(L) not O(L log L)
-    }
-    vector<vector<string>> out;
-    for (auto& [k, vec] : g) out.push_back(move(vec));
-    return out;
-}
-```
-**Complexity:** O(N·L) with count keys vs O(N·L log L) with sorted keys.
-
----
-
-### 57. Valid Palindrome 🟢
-```cpp
-bool isPalindrome(string s) {
-    int i = 0, j = s.size() - 1;
-    while (i < j) {
-        while (i < j && !isalnum(s[i])) ++i;
-        while (i < j && !isalnum(s[j])) --j;
-        if (tolower(s[i]) != tolower(s[j])) return false;
-        ++i; --j;
-    }
-    return true;
-}
-```
-
----
-
-### 58. Valid Palindrome II (delete at most one) 🟢
-```cpp
-bool check(const string& s, int i, int j) {
-    while (i < j) { if (s[i++] != s[j--]) return false; }
-    return true;
-}
-bool validPalindrome(string s) {
-    int i = 0, j = s.size() - 1;
-    while (i < j) {
-        if (s[i] != s[j])
-            return check(s, i + 1, j) || check(s, i, j - 1);   // try both deletions
-        ++i; --j;
-    }
-    return true;
-}
-```
-
----
-
-### 59. Longest Common Prefix 🟢
-```cpp
-string longestCommonPrefix(vector<string>& v) {
-    if (v.empty()) return "";
-    string p = v[0];
-    for (int i = 1; i < (int)v.size(); ++i) {
-        while (v[i].compare(0, p.size(), p) != 0) {
-            p.pop_back();
-            if (p.empty()) return "";
-        }
-    }
-    return p;
-}
-```
-
----
-
-### 60. String to Integer (atoi) 🟡
-```cpp
-int myAtoi(string s) {
-    int i = 0, n = s.size();
-    while (i < n && s[i] == ' ') ++i;
-    int sign = 1;
-    if (i < n && (s[i] == '+' || s[i] == '-')) sign = (s[i++] == '-') ? -1 : 1;
-
-    long long r = 0;
-    while (i < n && isdigit(s[i])) {
-        r = r * 10 + (s[i++] - '0');
-        if (sign == 1 && r > INT_MAX) return INT_MAX;          // ⭐ clamp early
-        if (sign == -1 && -r < INT_MIN) return INT_MIN;
-    }
-    return (int)(sign * r);
-}
-```
-**Key insight:** Clamp inside the loop, before the accumulator itself overflows.
-
----
-
-### 61. Implement strStr (KMP) 🟡
-```cpp
-int strStr(string h, string n) {
-    if (n.empty()) return 0;
-    int m = n.size();
-
-    // LPS: lps[i] = length of the longest proper prefix that is also a suffix
-    vector<int> lps(m, 0);
-    for (int i = 1, len = 0; i < m; ) {
-        if (n[i] == n[len]) lps[i++] = ++len;
-        else if (len) len = lps[len - 1];         // ⭐ fall back
-        else lps[i++] = 0;
-    }
-
-    for (int i = 0, j = 0; i < (int)h.size(); ) {
-        if (h[i] == n[j]) { ++i; ++j; if (j == m) return i - m; }
-        else if (j) j = lps[j - 1];               // shift without moving i
-        else ++i;
-    }
-    return -1;
-}
-```
-**Complexity:** O(n + m).
-**Key insight:** The LPS array lets you skip re-comparing characters you already matched — `i` never moves backwards.
-
----
-
-### 62. Longest Palindromic Substring 🟡
-```cpp
-string longestPalindrome(string s) {
-    int n = s.size(), bl = 0, blen = 1;
-    if (n < 2) return s;
-
-    auto expand = [&](int l, int r) {
-        while (l >= 0 && r < n && s[l] == s[r]) { --l; ++r; }
-        int len = r - l - 1;
-        if (len > blen) { blen = len; bl = l + 1; }
-    };
-
-    for (int i = 0; i < n; ++i) { expand(i, i); expand(i, i + 1); }  // odd + even
-    return s.substr(bl, blen);
-}
-```
-**Complexity:** O(n²) / O(1). Manacher's gives O(n) but is rarely required.
-**Key insight:** Expand around all 2n−1 possible centers (n characters plus n−1 gaps).
-
----
-
-### 63. Palindromic Substrings (count) 🟡
-```cpp
-int countSubstrings(string s) {
-    int n = s.size(), cnt = 0;
-    auto expand = [&](int l, int r) {
-        while (l >= 0 && r < n && s[l] == s[r]) { ++cnt; --l; ++r; }
-    };
-    for (int i = 0; i < n; ++i) { expand(i, i); expand(i, i + 1); }
-    return cnt;
-}
-```
-
----
-
-### 64. Reverse Words in a String 🟡
-```cpp
-string reverseWords(string s) {
-    reverse(s.begin(), s.end());
-    int n = s.size(), k = 0;
-    for (int i = 0; i < n; ) {
-        while (i < n && s[i] == ' ') ++i;
-        if (i == n) break;
-        if (k) s[k++] = ' ';
-        int start = k;
-        while (i < n && s[i] != ' ') s[k++] = s[i++];
-        reverse(s.begin() + start, s.begin() + k);   // ⭐ un-reverse each word
-    }
-    s.resize(k);
-    return s;
-}
-```
-**Key insight:** Reverse everything, then reverse each word back. Same trick as rotating an array.
-
----
-
-### 65. Zigzag Conversion 🟡
-```cpp
-string convert(string s, int rows) {
-    if (rows == 1) return s;
-    vector<string> r(rows);
-    int cur = 0, dir = -1;
-    for (char c : s) {
-        r[cur] += c;
-        if (cur == 0 || cur == rows - 1) dir = -dir;   // bounce
-        cur += dir;
-    }
-    string out;
-    for (auto& x : r) out += x;
-    return out;
-}
-```
-
----
-
-### 66. Compare Version Numbers 🟡
-```cpp
-int compareVersion(string a, string b) {
-    int i = 0, j = 0;
-    while (i < (int)a.size() || j < (int)b.size()) {
-        long long x = 0, y = 0;
-        while (i < (int)a.size() && a[i] != '.') x = x * 10 + (a[i++] - '0');
-        while (j < (int)b.size() && b[j] != '.') y = y * 10 + (b[j++] - '0');
-        if (x != y) return x < y ? -1 : 1;
-        ++i; ++j;                                  // skip the dots
-    }
-    return 0;
-}
-```
-**Key insight:** Missing revisions are treated as 0 — the loop condition handles unequal lengths naturally.
-
----
-
-### 67. Multiply Strings 🟡
-```cpp
-string multiply(string a, string b) {
-    if (a == "0" || b == "0") return "0";
-    int m = a.size(), n = b.size();
-    vector<int> r(m + n, 0);
-
-    for (int i = m - 1; i >= 0; --i)
-        for (int j = n - 1; j >= 0; --j) {
-            int mul = (a[i] - '0') * (b[j] - '0');
-            int p1 = i + j, p2 = i + j + 1;        // ⭐ positions
-            int sum = mul + r[p2];
-            r[p2] = sum % 10;
-            r[p1] += sum / 10;                     // carry
-        }
-
-    string out;
-    for (int x : r) if (!(out.empty() && x == 0)) out += ('0' + x);
-    return out;
-}
-```
-**Key insight:** Digits `i` and `j` contribute to result positions `i+j` and `i+j+1` — the standard grade-school layout.
-
----
-
-### 68. Add Binary / Add Strings 🟢
-```cpp
-string addStrings(string a, string b) {
-    string out;
-    int i = a.size() - 1, j = b.size() - 1, carry = 0;
-    while (i >= 0 || j >= 0 || carry) {
-        int s = carry;
-        if (i >= 0) s += a[i--] - '0';
-        if (j >= 0) s += b[j--] - '0';
-        out += ('0' + s % 10);
-        carry = s / 10;
-    }
-    reverse(out.begin(), out.end());
-    return out;
-}
-```
-
----
-
-### 69. Text Justification 🔴
-```cpp
-vector<string> fullJustify(vector<string>& w, int W) {
-    vector<string> out;
-    int i = 0, n = w.size();
-    while (i < n) {
-        int j = i, len = 0;
-        while (j < n && len + (int)w[j].size() + (j - i) <= W) len += w[j++].size();
-
-        int words = j - i, spaces = W - len;
-        string line;
-        if (words == 1 || j == n) {                // left-justify last line
-            for (int k = i; k < j; ++k) { line += w[k]; if (k + 1 < j) line += ' '; }
-            line += string(W - line.size(), ' ');
-        } else {
-            int base = spaces / (words - 1), extra = spaces % (words - 1);
-            for (int k = i; k < j; ++k) {
-                line += w[k];
-                if (k + 1 < j) line += string(base + (k - i < extra ? 1 : 0), ' ');
-            }
-        }
-        out.push_back(line);
-        i = j;
-    }
-    return out;
-}
-```
-**Key insight:** Extra spaces go to the leftmost gaps — that's the `(k - i < extra)` term.
-
----
-
-### 70. Encode and Decode Strings 🟡
-```cpp
-string encode(vector<string>& v) {
-    string out;
-    for (auto& s : v) out += to_string(s.size()) + "#" + s;   // ⭐ length prefix
-    return out;
-}
-vector<string> decode(string s) {
-    vector<string> out;
-    int i = 0;
-    while (i < (int)s.size()) {
-        int j = s.find('#', i);
-        int len = stoi(s.substr(i, j - i));
-        out.push_back(s.substr(j + 1, len));
-        i = j + 1 + len;
-    }
-    return out;
-}
-```
-**Key insight:** Length-prefixing is delimiter-free and works for any content, including strings containing `#`. Any pure-delimiter scheme is breakable.
-
----
-
-## 📋 Section Summary
-
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║              ARRAYS & STRINGS — PATTERN RECALL                    ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ "subarray sum = k" with NEGATIVES  → prefix sum + hashmap         ║
-║ "subarray sum = k" all POSITIVE    → sliding window               ║
-║ "range updates"                    → difference array             ║
-║ "max subarray"                     → Kadane                       ║
-║ "max product subarray"             → track BOTH max and min       ║
-║ "except self"                      → prefix × suffix, two sweeps  ║
-║ "values in 1..n, find missing/dup" → cyclic sort or sign marking  ║
-║ "rotated sorted array"             → binary search, one half      ║
-║                                      is always sorted             ║
-║ "in-place O(1) space"              → reverse tricks, sign bits,   ║
-║                                      use the matrix's own row 0   ║
-║ "sorted 2D, rows+cols"             → start from the TOP-RIGHT     ║
-║ "palindromic substring"            → expand around 2n-1 centers   ║
-║ "anagram grouping"                 → count array as the key       ║
-║ "serialize strings"                → length prefix, not delimiter ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ ALWAYS: check empty · check overflow (use long long) ·            ║
-║   mid = lo + (hi-lo)/2 · normalize negative % with ((x%k)+k)%k    ║
-╚═══════════════════════════════════════════════════════════════════╝
-```
-
-**Next:** [Hashing →](02-hashing.md)
+**Next:** [Arrays Part 2 — Sorting, In-Place & Matrix →](01b-arrays-strings.md)
