@@ -60,6 +60,31 @@ What's actually being scored:
 
 ⭐ **The single highest-leverage behaviour:** narrate your reasoning continuously. An interviewer cannot give credit for thoughts they can't hear, and cannot redirect you if they don't know where you're going.
 
+```mermaid
+flowchart TD
+    A["Vague prompt<br/><b>'Design Twitter'</b>"] --> B{"What is<br/>being scored?"}
+    B --> C["1. Do you ASK<br/>before you build?"]
+    B --> D["2. Can you reason<br/>about MAGNITUDE?"]
+    B --> E["3. Do you make<br/>TRADEOFFS explicit?"]
+    B --> F["4. Do you know<br/>WHERE it breaks?"]
+    B --> G["5. Can I<br/>WORK WITH YOU?"]
+
+    C --> H["⭐ Narrate continuously<br/>Unspoken thoughts score zero"]
+    D --> H
+    E --> H
+    F --> H
+    G --> H
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style G fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style H fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ---
 
 ## 2. The 7-Step Framework
@@ -78,6 +103,27 @@ What's actually being scored:
 ```
 
 ⚠️ **The most common time-management failure** is spending 25 minutes on requirements and estimation, then rushing the deep dives. The deep dives are where senior signal lives. Budget accordingly — if you're 20 minutes in and haven't drawn a box, you're behind.
+
+```mermaid
+flowchart LR
+    S1["<b>1. Requirements</b><br/>5-8 min<br/>scope it, write it down"]
+    S2["<b>2. Estimation</b><br/>3-5 min<br/>QPS, storage, the ratio"]
+    S3["<b>3. API Design</b><br/>3-5 min<br/>the contract"]
+    S4["<b>4. Data Model</b><br/>5 min<br/>entities + access patterns"]
+    S5["<b>5. High-Level Design</b><br/>10 min<br/>boxes and arrows"]
+    S6["<b>6. Deep Dives</b><br/>15-20 min<br/>⭐ where you're evaluated"]
+    S7["<b>7. Wrap Up</b><br/>3-5 min<br/>bottlenecks, next steps"]
+
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+
+    style S1 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style S2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style S3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style S4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style S5 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style S6 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style S7 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+```
 
 ---
 
@@ -111,6 +157,21 @@ Turn a deliberately vague prompt ("design Twitter") into a bounded, buildable pr
 ```
 
 ⭐ **Proposing a scope and confirming** is much stronger than asking open-ended questions forever. It shows judgment.
+
+```mermaid
+flowchart TD
+    A["Vague prompt"] --> B["Ask: who are the users?<br/>what are the 3-5 CORE actions?<br/>what's OUT of scope?"]
+    B --> C["<b>Propose</b> a scope out loud"]
+    C --> D{"Interviewer<br/>confirms?"}
+    D -->|"yes"| E["✅ Bounded, buildable problem<br/>Move to non-functional reqs"]
+    D -->|"pushes back"| B
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ### Non-functional requirements — how well it does it
 
@@ -149,6 +210,34 @@ This is where most candidates are weak, and where the design is actually determi
 
    ⭐ Each additional nine roughly 10× the cost and complexity.
      Ask what the business actually needs.
+```
+
+```mermaid
+flowchart TD
+    RW["⭐ Read : Write ratio<br/><b>drives everything</b>"] --> Cache{"Read-heavy?"}
+    Cache -->|"yes, e.g. 100:1"| C1["Aggressive caching<br/>optimize for read latency"]
+    Cache -->|"no, write-heavy"| C2["Optimize for write throughput<br/>consider append-only / log-structured"]
+
+    Latency["Latency SLO<br/>p50 vs p99"] --> L1{"Strict p99?"}
+    L1 -->|"yes"| L2["Avoid synchronous fan-out<br/>precompute / cache aggressively"]
+    L1 -->|"relaxed"| L3["Compute on read is viable"]
+
+    Avail["Availability SLO"] --> A1{"Downtime worse<br/>or wrong data worse?"}
+    A1 -->|"downtime worse"| A2["Favor AP — stay available,<br/>tolerate staleness"]
+    A1 -->|"wrong data worse"| A3["Favor CP — reject requests<br/>rather than serve stale/wrong data"]
+
+    style RW fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Cache fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style C2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Latency fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style L1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style L2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style L3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Avail fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style A1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style A2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style A3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ---
@@ -204,6 +293,24 @@ Not for the arithmetic. For showing that your design is **sized correctly** — 
 ```
 
 ⭐ The last paragraph is the entire point of the estimation step. Numbers without implications are wasted time.
+
+```mermaid
+flowchart LR
+    A["DAU × actions/user/day"] --> B["÷ 86,400<br/>average QPS"]
+    B --> C["× 2 to 10<br/><b>peak QPS</b> ⭐"]
+    C --> D["bytes × items × days<br/>storage (× 3 replication)"]
+    D --> E["QPS × payload<br/>bandwidth"]
+    E --> F["hot 20% of data<br/>cache size"]
+    F --> G["⭐ 'Which means...'<br/>state the design implication"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style F fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ---
 
@@ -289,6 +396,26 @@ follows  (follower_id, followee_id, created_at)
        consistency, so I'd keep that in Postgres."
 ```
 
+```mermaid
+flowchart TD
+    Q["What's the access pattern<br/>and consistency need?"] --> R{"Relationships +<br/>need transactions/joins?"}
+    R -->|"yes"| SQL["✅ SQL<br/>e.g. Postgres<br/><i>user/follow graph</i>"]
+    R -->|"no"| S2{"Access pattern<br/>known in advance,<br/>write-heavy, append-only?"}
+    S2 -->|"yes"| WideCol["✅ Wide-column store<br/>e.g. Cassandra<br/><i>tweets</i>"]
+    S2 -->|"no, simple key lookup"| KV["✅ Key-value store<br/>e.g. DynamoDB/Redis<br/><i>sessions, short-URL map</i>"]
+    S2 -->|"flexible schema,<br/>document-shaped"| Doc["✅ Document store<br/>e.g. MongoDB"]
+
+    style Q fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style R fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style SQL fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style S2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style WideCol fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style KV fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Doc fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+⚠️ Naming the tool without the mechanism (`"I'll use Cassandra."`) is the failure mode from §5 — always justify with the access pattern, not the brand name.
+
 ---
 
 ## Step 5 — High-Level Design (10 min)
@@ -324,6 +451,23 @@ Get one complete request flowing end to end before you add anything clever. Then
    • Show where data is WRITTEN vs READ
    • Leave whitespace — you'll be adding to this diagram
 ```
+
+```mermaid
+flowchart LR
+    Client(["Client"]) --> LB["Load Balancer"]
+    LB --> App["App Servers"]
+    App -->|"write"| DB[("Database")]
+    App -->|"read (cache miss)"| DB
+    App -.->|"read (cache hit)"| Cache[("Cache")]
+    DB -.-> Cache
+
+    style Client fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style LB fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style App fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style DB fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Cache fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+*Solid arrows = sync path. Dashed arrows = async/cache path. This is deliberately the simplest thing that works — evolve it under pressure once the bottleneck is named.*
 
 ---
 
@@ -362,6 +506,44 @@ Everything before this was setup. Deep dives are where level is determined. The 
 ### 📊 A worked deep dive — timeline fan-out
 
 This is the canonical example of how to structure a deep dive.
+
+```mermaid
+flowchart TD
+    A["Deep dive: home timeline<br/>at 350K QPS"] --> B{"Compute fan-out<br/>on READ or WRITE?"}
+    B -->|"read"| C["<b>Fan-out on READ (pull)</b><br/>query every followee + merge"]
+    B -->|"write"| D["<b>Fan-out on WRITE (push)</b><br/>precompute into follower timelines"]
+
+    C --> C1["✅ cheap write, no wasted work"]
+    C --> C2["❌ N queries/request<br/>impossible at scale"]
+
+    D --> D1["✅ O(1) read, great latency"]
+    D --> D2["❌ celebrity = 100M writes/tweet"]
+
+    C2 --> E{"Follower count?"}
+    D2 --> E
+
+    E -->|"< ~10K followers"| F["✅ Fan-out on WRITE<br/>push into follower timelines"]
+    E -->|"> ~10K (celebrity)"| G["✅ Store once, do NOT fan out"]
+
+    F --> H["On read: fetch precomputed<br/>timeline + merge in celebrity<br/>tweets fetched separately"]
+    G --> H
+
+    H --> I["⭐ HYBRID<br/>bounded write amplification<br/>+ fast reads"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C1 fill:#fff9c4,stroke:#f9a825,stroke-width:1px,color:#000
+    style C2 fill:#ffcdd2,stroke:#c62828,stroke-width:1px,color:#000
+    style D1 fill:#fff9c4,stroke:#f9a825,stroke-width:1px,color:#000
+    style D2 fill:#ffcdd2,stroke:#c62828,stroke-width:1px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style H fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style I fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```
    PROBLEM: home timeline = merge tweets from N followees,
@@ -416,6 +598,31 @@ This is the canonical example of how to structure a deep dive.
      tweet returns immediately regardless of follower count.
    • The threshold is tunable, and should be measured, not guessed.
 ```
+
+### Decision tree: queue vs. direct call
+
+A recurring choice inside almost every deep dive — say this reasoning out loud whenever you introduce (or skip) a queue.
+
+```mermaid
+flowchart TD
+    A["Does the caller need<br/>the result to respond?"] --> B{"Result needed<br/>synchronously?"}
+    B -->|"yes"| C["✅ Direct call<br/>(sync RPC/HTTP)"]
+    B -->|"no"| D{"Can the work be slow,<br/>retried, or fail<br/>independently of the request?"}
+    D -->|"yes"| E{"Fan-out to many<br/>consumers, or bursty<br/>traffic to smooth?"}
+    E -->|"yes"| F["✅ Queue / message broker<br/>e.g. Kafka, SQS"]
+    E -->|"no, just decouple<br/>one producer/consumer"| G["✅ Async direct call<br/>or lightweight task queue"]
+    D -->|"no, must complete<br/>before responding"| C
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+⭐ In the fan-out example, tweet posting returns immediately while fan-out happens **asynchronously via a queue** — exactly this reasoning: the client doesn't need to wait for 100M writes to complete.
 
 ⭐ That structure — **enumerate options, state the tradeoff of each, pick one with justification, then refine** — is what a strong deep dive looks like. Apply it to any sub-problem.
 
@@ -478,6 +685,16 @@ This is the canonical example of how to structure a deep dive.
                  accepting [cost], mitigated by [mitigation]
 ```
 
+```mermaid
+flowchart LR
+    J["❌ JUNIOR<br/>'I'll use Redis.'"] --> M["🟡 MID<br/>'...because it's fast.'"]
+    M --> S["✅ SENIOR<br/>'...because reads are 1000× writes,<br/>accepting an outage risk,<br/>mitigated by a degraded fallback<br/>+ TTL jitter.'"]
+
+    style J fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style M fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style S fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ### The tradeoff table you should be able to produce for anything
 
 ```
@@ -531,6 +748,18 @@ This is the canonical example of how to structure a deep dive.
 #### 💬 The senior/staff differentiator
 
 Junior and mid answers describe **a system**. Senior and staff answers describe **a system, why it's shaped that way, what it costs, how it fails, how you'd know, and how you'd get there from where the company is today.**
+
+```mermaid
+flowchart TD
+    L1["JUNIOR<br/>knows components exist,<br/>needs prompting"] --> L2["MID<br/>drives structure,<br/>correct estimation"]
+    L2 --> L3["⭐ SENIOR<br/>every choice justified,<br/>names failure modes unprompted"]
+    L3 --> L4["STAFF+<br/>questions requirements,<br/>phased delivery, 3-yr evolution"]
+
+    style L1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style L2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style L3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style L4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+```
 
 ---
 
@@ -649,7 +878,31 @@ If you're interviewing for frontend, the framework is identical but the deep div
    1. RENDERING STRATEGY
       SSG / ISR / SSR / streaming SSR / CSR — and WHY for each route
       → [Next.js](../02-frontend/nextjs.md#2-the-rendering-spectrum)
+```
 
+```mermaid
+flowchart TD
+    A["Per-route decision"] --> B{"Content same<br/>for every user?"}
+    B -->|"yes, rarely changes"| C["✅ SSG<br/>static generation at build time"]
+    B -->|"yes, changes occasionally"| D["✅ ISR<br/>static + periodic revalidation"]
+    B -->|"no, personalized/dynamic"| E{"SEO or fast<br/>first paint needed?"}
+    E -->|"yes"| F{"Page is large /<br/>slow data source?"}
+    F -->|"yes"| G["✅ Streaming SSR<br/>send shell, stream in data"]
+    F -->|"no"| H["✅ SSR<br/>render per request"]
+    E -->|"no, behind login,<br/>highly interactive"| I["✅ CSR<br/>client-side rendering"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style H fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style I fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+```
    2. STATE MANAGEMENT
       ⭐ "Most global state is actually SERVER CACHE. Separate
         server state (TanStack Query) from client state (Zustand)

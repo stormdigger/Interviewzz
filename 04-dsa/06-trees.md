@@ -1,158 +1,478 @@
-# 🌳 Trees & Binary Search Trees — 50 Problems
+# 🌳 Trees & Binary Search Trees
 
-> Trees are recursion made visible. Nearly every tree problem is answered by one question: **what do I need from my children, and what do I return to my parent?**
+> Almost every tree problem is one question: **what do I need from my children, and what do I return to my parent?** Get that contract right and the code writes itself.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
-## 🧠 The Universal Tree Template
+## 🧠 The Decision That Drives Every Tree Problem
+
+```mermaid
+flowchart TD
+    Q{"What does the<br/>problem need?"}
+    Q -->|"info flows UP<br/>from children"| A["⭐ POST-ORDER DFS<br/>compute children first,<br/>then combine"]
+    Q -->|"info flows DOWN<br/>from the parent"| B["⭐ PRE-ORDER DFS<br/>pass state as a parameter"]
+    Q -->|"sorted order,<br/>BST validation"| C["⭐ IN-ORDER DFS<br/>⚠️ BST in-order = SORTED"]
+    Q -->|"level by level,<br/>shortest path"| D["⭐ BFS with a queue<br/>process one full level<br/>per iteration"]
+    Q -->|"both up AND down"| E["⭐ POST-ORDER returning one<br/>thing while UPDATING a<br/>global answer"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000
+    style D fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style E fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
+```
+
+## ⭐ The Three Traversals — and when each is right
+
+```mermaid
+flowchart TD
+    R["1"] --> L["2"]
+    R --> RR["3"]
+    L --> LL["4"]
+    L --> LR["5"]
+
+    style R fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style L fill:#fff9c4,stroke:#f9a825,color:#000
+    style RR fill:#fff9c4,stroke:#f9a825,color:#000
+    style LL fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style LR fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
+```
+   PRE-ORDER    node, left, right   →  1 2 4 5 3
+     ⭐ Use when the parent must decide something BEFORE
+       the children see it (passing down a bound, a path,
+       an accumulated value). Also: serialization, tree copying.
+
+   IN-ORDER     left, node, right   →  4 2 5 1 3
+     ⭐ On a BST this yields SORTED order. That single fact
+       solves Validate BST, Kth Smallest, Recover BST,
+       and BST-to-list conversions.
+
+   POST-ORDER   left, right, node   →  4 5 2 3 1
+     ⭐ Use when the node's answer DEPENDS on its children:
+       height, diameter, subtree sums, balance checks,
+       deletion, LCA.
+```
 
 ```cpp
 struct TreeNode {
     int val;
     TreeNode *left, *right;
-    TreeNode(int x = 0, TreeNode* l = nullptr, TreeNode* r = nullptr)
-        : val(x), left(l), right(r) {}
+    TreeNode(int v = 0) : val(v), left(nullptr), right(nullptr) {}
 };
 ```
 
+---
+
+## 📑 Contents
+
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-maximum-depth-of-binary-tree) | Maximum Depth | 🟢 | 🔵 **Full** | O(n) post-order |
+| [2](#2-balanced-binary-tree) | Balanced Binary Tree | 🟢 | 🔵 **Full** | ⭐ O(n) with early exit |
+| [3](#3-diameter-of-binary-tree) | Diameter of Binary Tree | 🟢 | 🔵 **Full** | ⭐ return one thing, track another |
+| [4](#4-binary-tree-maximum-path-sum) | Max Path Sum | 🔴 | ⚪ Variation | same shape, clamp at 0 |
+| [5](#5-same-tree--symmetric-tree) | Same Tree / Symmetric | 🟢 | 🔵 **Full** | parallel recursion |
+| [6](#6-subtree-of-another-tree) | Subtree of Another Tree | 🟢 | ⚪ Variation | O(n·m) or O(n) via KMP |
+| [7](#7-invert-binary-tree) | Invert Binary Tree | 🟢 | ⚪ Variation | swap children |
+| [8](#8-level-order-traversal) | Level Order Traversal | 🟡 | 🔵 **Full** | ⭐ the level-size trick |
+| [9](#9-zigzag--right-side-view) | Zigzag / Right Side View | 🟡 | ⚪ Variation | BFS with a flag |
+| [10](#10-validate-binary-search-tree) | Validate BST | 🟡 | 🔵 **Full** | ⭐ bounds, not local checks |
+| [11](#11-kth-smallest-in-a-bst) | Kth Smallest in BST | 🟡 | 🔵 **Full** | in-order with early stop |
+| [12](#12-lowest-common-ancestor-bst--binary-tree) | LCA (BST + general) | 🟡 | 🔵 **Full** | O(n) post-order |
+| [13](#13-construct-tree-from-traversals) | Construct from Traversals | 🟡 | 🔵 **Full** | ⭐ pre + in, with a map |
+| [14](#14-serialize-and-deserialize) | Serialize / Deserialize | 🔴 | 🔵 **Full** | pre-order with null markers |
+| [15](#15-path-sum-i--ii--iii) | Path Sum I / II / III | 🟡 | 🔵 **Full** | ⭐ III = prefix sums on paths |
+| [16](#16-flatten-binary-tree-to-linked-list) | Flatten to Linked List | 🟡 | 🔵 **Full** | ⭐ O(1) Morris-style |
+| [17](#17-populating-next-right-pointers) | Populating Next Right Pointers | 🟡 | ⚪ Variation | O(1) using the built links |
+| [18](#18-morris-traversal) | Morris Traversal | 🔴 | 🔵 **Full** | ⭐ O(1) space in-order |
+| [19](#19-trie-prefix-tree) | Trie (Prefix Tree) | 🟡 | 🔵 **Full** | design + word search |
+| [20](#20-segment-tree--fenwick-tree) | Segment Tree / Fenwick | 🔴 | 🔵 **Full** | range query + point update |
+
+---
+
+# 1. Maximum Depth of Binary Tree
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The post-order contract in its purest form**
+
+## 💬 The recursive contract
+
+```mermaid
+flowchart TD
+    A["⭐ THE CONTRACT<br/>'Give me the depth of the subtree<br/>rooted at this node.'"] --> B["Base case: an empty tree<br/>has depth 0"]
+    B --> C["Recursive case:<br/>ask both children"]
+    C --> D["⭐ depth = 1 + max(left, right)"]
+    D --> E["Trust the recursion —<br/>don't trace it mentally"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
+```
+   ⭐⭐ THE MOST USEFUL MENTAL HABIT IN TREE PROBLEMS
+
+   Do NOT trace the recursion by hand. Instead:
+
+     1. State what the function PROMISES to return.
+     2. Handle the empty/base case.
+     3. ASSUME the recursive calls fulfil the promise.
+     4. Combine their answers correctly.
+
+   If steps 1–4 are right, the whole tree is right by induction.
+   ⭐ Tracing three levels deep is how people talk themselves
+     into bugs.
+```
+
 ```cpp
-ReturnType solve(TreeNode* node) {
-    // 1. BASE CASE — what does an empty subtree contribute?
-    if (!node) return identity;
-
-    // 2. RECURSE — get answers from both children
-    auto L = solve(node->left);
-    auto R = solve(node->right);
-
-    // 3. COMBINE — what do I tell my parent?
-    return combine(node->val, L, R);
+int maxDepth(TreeNode* root) {
+    if (!root) return 0;                        // ⭐ base case
+    return 1 + max(maxDepth(root->left), maxDepth(root->right));
 }
 ```
 
+## 🔁 The iterative BFS version
+```cpp
+int maxDepth(TreeNode* root) {
+    if (!root) return 0;
+    queue<TreeNode*> q;
+    q.push(root);
+    int depth = 0;
+
+    while (!q.empty()) {
+        int sz = q.size();                      // ⭐ freeze the level size
+        for (int i = 0; i < sz; ++i) {
+            TreeNode* n = q.front(); q.pop();
+            if (n->left)  q.push(n->left);
+            if (n->right) q.push(n->right);
+        }
+        ++depth;
+    }
+    return depth;
+}
 ```
-   TWO KINDS OF TREE PROBLEMS
 
-   TOP-DOWN (pass information DOWN)     BOTTOM-UP (collect UP)
-   ───────────────────────────────     ──────────────────────
-   depth, path sums, validation         height, diameter, LCA,
-   with bounds                          subtree properties
-   → pass parameters into the call      → return values from the call
+⚠️ **Space:** recursion is O(h) — that's O(log n) for a balanced tree but **O(n) for a degenerate one**. Worth stating; interviewers ask.
 
-   ⭐ Many "hard" tree problems become easy by returning a STRUCT
-     with several pieces of information at once.
+---
+
+# 2. Balanced Binary Tree
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The early-exit sentinel**
+
+> Every node's two subtrees differ in height by at most 1.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 CHECK EACH NODE<br/>recompute height everywhere<br/><b>O(n²)</b> on a skewed tree"] -->|"compute height and<br/>balance in ONE pass"| B["🚀 POST-ORDER + SENTINEL<br/><b>O(n)</b> / O(h)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-### The four traversals
-
 ```
-                1
-              /   \
-             2     3
-            / \
-           4   5
+   ⚠️ WHY THE NAIVE VERSION IS O(n²)
 
-   PREORDER   (root, L, R)  →  1 2 4 5 3    "copy the tree, serialize"
-   INORDER    (L, root, R)  →  4 2 5 1 3    "BST → sorted order"  ⭐
-   POSTORDER  (L, R, root)  →  4 5 2 3 1    "delete, compute from children"
-   LEVEL      (BFS)         →  1 2 3 4 5    "level-by-level, shortest path"
+   isBalanced(node):
+       return |height(left) − height(right)| <= 1
+              && isBalanced(left) && isBalanced(right)
+
+   ⭐ height() walks the ENTIRE subtree, and it's called
+     at every node. On a skewed tree that's
+     n + (n−1) + (n−2) + ... = O(n²).
+```
+
+## 💬 The fix: one value carries two meanings
+
+```mermaid
+flowchart TD
+    A["⭐ Return the height...<br/>...OR −1 as a 'not balanced' flag"] --> B["Post-order: get both<br/>child heights first"]
+    B --> C{"either child<br/>returned −1?"}
+    C -->|"yes"| D["⭐ propagate −1 immediately<br/>— no further work"]
+    C -->|"no"| E{"|left − right| &gt; 1 ?"}
+    E -->|"yes"| F["return −1"]
+    E -->|"no"| G["return 1 + max(left, right)"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+int height(TreeNode* n) {
+    if (!n) return 0;
+
+    int L = height(n->left);
+    if (L == -1) return -1;                     // ⭐ short-circuit up the stack
+
+    int R = height(n->right);
+    if (R == -1) return -1;
+
+    if (abs(L - R) > 1) return -1;              // ⭐ unbalanced HERE
+    return 1 + max(L, R);
+}
+
+bool isBalanced(TreeNode* root) { return height(root) != -1; }
+```
+
+⭐ **Encoding a failure in the return value** is a broadly useful trick — it turns a two-pass algorithm into one pass whenever the "failure" value can't collide with a legitimate one (heights are never negative).
+
+## 📌 Pattern Card
+```
+SIGNAL   a property that must hold at EVERY node
+KEY      ⭐ one post-order pass; encode failure as an impossible value
+RELATED  Diameter · Max Path Sum · Longest Univalue Path
 ```
 
 ---
 
-## A. Traversal
+# 3. Diameter of Binary Tree
 
-### 1. Binary Tree Inorder Traversal 🟢
+🟢 **Easy to state, the pattern is everything** · 🔵 Full ladder
+
+> Longest path between any two nodes. The path **need not pass through the root**.
+
+## 💬 The two-values insight — ⭐ the most important idea in this chapter
+
+```mermaid
+flowchart TD
+    A["⚠️ The path can BEND at a node<br/>(go down-left, up, down-right)"] --> B["But a bent path CANNOT be<br/>extended to the parent —<br/>you'd visit the node twice"]
+    B --> C["⭐ SO: return the STRAIGHT depth<br/>to the parent, but separately<br/>UPDATE a global best with the<br/>BENT path through this node"]
+    C --> D["return: 1 + max(L, R)<br/>⭐ update global: L + R"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   AT EACH NODE, TWO DIFFERENT QUANTITIES
+
+              (n)
+             /   \
+       depth L     depth R
+
+   ⭐ RETURNED to the parent:  1 + max(L, R)
+      "the longest STRAIGHT path going down from me"
+      — must be straight, or the parent can't use it
+
+   ⭐ USED for the global answer:  L + R
+      "the longest BENT path through me"
+      — this node is the highest point of that path
+
+   ⚠️ Confusing these two is THE bug in this family of problems.
+```
+
+```
+   EXAMPLE          1
+                   / \
+                  2   3
+                 / \
+                4   5
+
+   at node 4: return 1, global = 0
+   at node 5: return 1, global = 0
+   at node 2: L=1, R=1 → ⭐ global = 1+1 = 2, return 1+max = 2
+   at node 3: return 1, global unchanged
+   at node 1: L=2, R=1 → ⭐ global = 2+1 = 3, return 3
+
+   ⭐ ANSWER: 3 edges (path 4 → 2 → 1 → 3)
+```
+
 ```cpp
-// Recursive
-void inorder(TreeNode* n, vector<int>& out) {
-    if (!n) return;
-    inorder(n->left, out);
-    out.push_back(n->val);
-    inorder(n->right, out);
-}
+class Solution {
+    int best = 0;
 
-// Iterative — the pattern you should know cold
-vector<int> inorderTraversal(TreeNode* root) {
-    vector<int> out;
-    stack<TreeNode*> st;
-    TreeNode* cur = root;
-    while (cur || !st.empty()) {
-        while (cur) { st.push(cur); cur = cur->left; }   // go as far left as possible
-        cur = st.top(); st.pop();
-        out.push_back(cur->val);                          // visit
-        cur = cur->right;                                 // then go right
+    int depth(TreeNode* n) {
+        if (!n) return 0;
+
+        int L = depth(n->left);
+        int R = depth(n->right);
+
+        best = max(best, L + R);                // ⭐ BENT path through n
+        return 1 + max(L, R);                   // ⭐ STRAIGHT path for the parent
     }
-    return out;
-}
+
+public:
+    int diameterOfBinaryTree(TreeNode* root) {
+        depth(root);
+        return best;
+    }
+};
+```
+
+## 📌 Pattern Card
+```
+SIGNAL   "longest/best path anywhere in the tree"
+KEY      ⭐ RETURN the straight (extendable) value
+         ⭐ UPDATE a global with the bent (non-extendable) value
+RELATED  Max Path Sum · Longest Univalue Path · Longest ZigZag Path
 ```
 
 ---
 
-### 2. Preorder / Postorder Iterative 🟡
-```cpp
-vector<int> preorderTraversal(TreeNode* root) {
-    if (!root) return {};
-    vector<int> out;
-    stack<TreeNode*> st{{root}};
-    while (!st.empty()) {
-        TreeNode* n = st.top(); st.pop();
-        out.push_back(n->val);
-        if (n->right) st.push(n->right);           // ⭐ right first → left pops first
-        if (n->left)  st.push(n->left);
-    }
-    return out;
-}
+# 4. Binary Tree Maximum Path Sum
+🔴 ⚪ **Variation of #3** — the same two-values structure, plus one crucial clamp.
 
-vector<int> postorderTraversal(TreeNode* root) {
-    if (!root) return {};
-    vector<int> out;
-    stack<TreeNode*> st{{root}};
-    while (!st.empty()) {
-        TreeNode* n = st.top(); st.pop();
-        out.push_back(n->val);
-        if (n->left)  st.push(n->left);            // reversed preorder
-        if (n->right) st.push(n->right);
-    }
-    reverse(out.begin(), out.end());               // ⭐ root-R-L reversed = L-R-root
-    return out;
-}
+```mermaid
+flowchart LR
+    A["diameter: L + R"] -->|"⭐ values can be NEGATIVE"| B["path sum: max(L,0) + max(R,0) + val"]
+    B --> C["⭐ A negative branch is worse<br/>than taking nothing at all —<br/>so clamp it to 0"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
+
+```cpp
+class Solution {
+    int best = INT_MIN;                         // ⚠️ NOT 0 — all values may be negative
+
+    int gain(TreeNode* n) {
+        if (!n) return 0;
+
+        int L = max(gain(n->left),  0);         // ⭐⭐ CLAMP — skip negative branches
+        int R = max(gain(n->right), 0);
+
+        best = max(best, n->val + L + R);       // ⭐ bent path through n
+        return n->val + max(L, R);              // ⭐ straight path for the parent
+    }
+
+public:
+    int maxPathSum(TreeNode* root) { gain(root); return best; }
+};
+```
+
+⚠️ **`best = INT_MIN`, not 0.** A tree of all-negative values must return the largest single node, not 0.
+
+⭐ **`max(gain(...), 0)` is the entire difference from Diameter.** It encodes "you may decline a subtree" — exactly the same idea as Kadane's restart in [Maximum Subarray](01-arrays-strings.md).
 
 ---
 
-### 3. Morris Traversal (O(1) space) 🔴
-```cpp
-vector<int> morrisInorder(TreeNode* root) {
-    vector<int> out;
-    TreeNode* cur = root;
-    while (cur) {
-        if (!cur->left) { out.push_back(cur->val); cur = cur->right; }
-        else {
-            TreeNode* pred = cur->left;
-            while (pred->right && pred->right != cur) pred = pred->right;
+# 5. Same Tree / Symmetric Tree
 
-            if (!pred->right) { pred->right = cur; cur = cur->left; }   // create thread
-            else { pred->right = nullptr; out.push_back(cur->val); cur = cur->right; }
-        }                                          // ⭐ remove thread, restore tree
-    }
-    return out;
+🟢 **Easy** · 🔵 Full ladder · ⭐ **Parallel recursion**
+
+```mermaid
+flowchart LR
+    subgraph "SAME TREE"
+        A1["compare a->left with b->left<br/>compare a->right with b->right"]
+    end
+    subgraph "SYMMETRIC ⭐"
+        A2["compare a->left with b->RIGHT<br/>compare a->right with b->LEFT<br/>⭐ MIRRORED"]
+    end
+
+    style A1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style A2 fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+```
+
+```cpp
+bool isSameTree(TreeNode* a, TreeNode* b) {
+    if (!a && !b) return true;                  // ⭐ both null → equal
+    if (!a || !b) return false;                 // ⭐ one null → not equal
+    return a->val == b->val
+        && isSameTree(a->left,  b->left)
+        && isSameTree(a->right, b->right);
+}
+
+bool isMirror(TreeNode* a, TreeNode* b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return a->val == b->val
+        && isMirror(a->left,  b->right)         // ⭐⭐ CROSSED
+        && isMirror(a->right, b->left);
+}
+
+bool isSymmetric(TreeNode* root) {
+    return !root || isMirror(root->left, root->right);
 }
 ```
-**Key insight:** Temporarily use null right pointers of predecessors as "threads" back to the ancestor, then remove them. O(1) space, O(n) time.
+
+⭐ **The null-handling order matters.** Check "both null" first (success), then "either null" (failure). Reversing them makes two null trees report unequal.
 
 ---
 
-### 4. Level Order Traversal 🟡
+# 6. Subtree of Another Tree
+🟢 ⚪ **Variation of #5** — run `isSameTree` at every node.
+
+```cpp
+bool isSubtree(TreeNode* root, TreeNode* sub) {
+    if (!root) return false;
+    if (isSameTree(root, sub)) return true;     // ⭐ try here
+    return isSubtree(root->left, sub) || isSubtree(root->right, sub);
+}
+```
+**O(n·m)** worst case.
+
+🎤 **Follow-up: O(n + m)?** Serialize both trees to strings *with null markers and delimiters*, then run [KMP](01c-arrays-strings.md#56-implement-strstr-needle-search).
+
+⚠️ **The markers are essential.** Without them, tree `[1,2]` and `[1,null,2]` serialize identically, and you get false positives. Use `"#"` for null and `","` between values.
+
+---
+
+# 7. Invert Binary Tree
+🟢 ⚪ **Variation** — famously the question that got Max Howell rejected by Google.
+
+```cpp
+TreeNode* invertTree(TreeNode* root) {
+    if (!root) return nullptr;
+    swap(root->left, root->right);              // ⭐ swap, then recurse
+    invertTree(root->left);
+    invertTree(root->right);
+    return root;
+}
+```
+⭐ **Pre-order or post-order both work** — swapping is order-independent. In-order does *not*: after the swap, the second recursive call would revisit an already-inverted subtree.
+
+---
+
+# 8. Level Order Traversal
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The level-size trick**
+
+## 💬 The core question: how do you know where a level ends?
+
+```mermaid
+flowchart TD
+    A["A plain BFS queue mixes<br/>nodes from adjacent levels"] --> B["⭐ THE FIX: capture q.size()<br/>BEFORE the inner loop"]
+    B --> C["⭐ That count is EXACTLY the<br/>number of nodes on this level"]
+    C --> D["Process precisely that many,<br/>even as children are enqueued"]
+    D --> E["⭐ One outer iteration = one level"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⚠️ THE BUG THIS PREVENTS
+
+     for (int i = 0; i < q.size(); ++i)   ❌ WRONG
+
+   q.size() is re-evaluated every iteration, and it GROWS as
+   you push children. The loop never terminates correctly.
+
+   ⭐ Freeze it first:  int sz = q.size();
+```
+
 ```cpp
 vector<vector<int>> levelOrder(TreeNode* root) {
     if (!root) return {};
+
     vector<vector<int>> out;
-    queue<TreeNode*> q{{root}};
+    queue<TreeNode*> q;
+    q.push(root);
+
     while (!q.empty()) {
-        int sz = q.size();                         // ⭐ freeze the level size
+        int sz = q.size();                      // ⭐⭐ FREEZE the level size
         vector<int> level;
+
         for (int i = 0; i < sz; ++i) {
             TreeNode* n = q.front(); q.pop();
             level.push_back(n->val);
@@ -165,44 +485,57 @@ vector<vector<int>> levelOrder(TreeNode* root) {
 }
 ```
 
+⭐ **This single skeleton solves a whole family:** Level Order, Zigzag, Right Side View, Average of Levels, Largest Value per Row, Level Order Bottom-Up (reverse at the end), and Minimum Depth (return at the first leaf).
+
+## 📌 Pattern Card
+```
+SIGNAL   "level by level" · "shortest path in an unweighted graph"
+KEY      ⭐ int sz = q.size() BEFORE the inner loop
+RELATED  Zigzag · Right Side View · Min Depth · Word Ladder · Rotting Oranges
+```
+
 ---
 
-### 5. Zigzag Level Order 🟡
+# 9. Zigzag / Right Side View
+🟡 ⚪ **Variations of #8** — same skeleton, different bookkeeping.
+
 ```cpp
+// Zigzag — reverse alternate levels
 vector<vector<int>> zigzagLevelOrder(TreeNode* root) {
     if (!root) return {};
     vector<vector<int>> out;
-    queue<TreeNode*> q{{root}};
-    bool ltr = true;
+    queue<TreeNode*> q;
+    q.push(root);
+    bool leftToRight = true;
+
     while (!q.empty()) {
         int sz = q.size();
         vector<int> level(sz);
         for (int i = 0; i < sz; ++i) {
             TreeNode* n = q.front(); q.pop();
-            level[ltr ? i : sz - 1 - i] = n->val;  // ⭐ write in place, no reverse
+            // ⭐ write into the correct slot instead of reversing afterwards
+            level[leftToRight ? i : sz - 1 - i] = n->val;
             if (n->left)  q.push(n->left);
             if (n->right) q.push(n->right);
         }
         out.push_back(move(level));
-        ltr = !ltr;
+        leftToRight = !leftToRight;
     }
     return out;
 }
-```
 
----
-
-### 6. Right Side View 🟡
-```cpp
+// Right Side View — the LAST node of each level
 vector<int> rightSideView(TreeNode* root) {
     if (!root) return {};
     vector<int> out;
-    queue<TreeNode*> q{{root}};
+    queue<TreeNode*> q;
+    q.push(root);
+
     while (!q.empty()) {
         int sz = q.size();
         for (int i = 0; i < sz; ++i) {
             TreeNode* n = q.front(); q.pop();
-            if (i == sz - 1) out.push_back(n->val);   // last of each level
+            if (i == sz - 1) out.push_back(n->val);   // ⭐ last in this level
             if (n->left)  q.push(n->left);
             if (n->right) q.push(n->right);
         }
@@ -210,857 +543,560 @@ vector<int> rightSideView(TreeNode* root) {
     return out;
 }
 ```
+⭐ **Writing into an indexed slot** beats building then reversing — same complexity, less code, no allocation churn.
 
 ---
 
-### 7. Vertical Order Traversal 🔴
-```cpp
-vector<vector<int>> verticalTraversal(TreeNode* root) {
-    map<int, map<int, multiset<int>>> m;           // col -> row -> values
-    function<void(TreeNode*,int,int)> dfs = [&](TreeNode* n, int r, int c) {
-        if (!n) return;
-        m[c][r].insert(n->val);                    // ⭐ multiset sorts ties by value
-        dfs(n->left, r + 1, c - 1);
-        dfs(n->right, r + 1, c + 1);
-    };
-    dfs(root, 0, 0);
+# 10. Validate Binary Search Tree
 
-    vector<vector<int>> out;
-    for (auto& [c, rows] : m) {
-        vector<int> col;
-        for (auto& [r, vals] : rows) col.insert(col.end(), vals.begin(), vals.end());
-        out.push_back(move(col));
-    }
-    return out;
-}
-```
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The classic trap**
 
----
+## ⚠️ Why the obvious check is wrong
 
-### 8. Average of Levels 🟢
-```cpp
-vector<double> averageOfLevels(TreeNode* root) {
-    vector<double> out;
-    queue<TreeNode*> q{{root}};
-    while (!q.empty()) {
-        int sz = q.size();
-        double sum = 0;
-        for (int i = 0; i < sz; ++i) {
-            TreeNode* n = q.front(); q.pop();
-            sum += n->val;
-            if (n->left)  q.push(n->left);
-            if (n->right) q.push(n->right);
-        }
-        out.push_back(sum / sz);
-    }
-    return out;
-}
-```
+```mermaid
+flowchart TD
+    A["❌ NAIVE: check<br/>left.val &lt; node.val &lt; right.val<br/>at every node"] --> B["Consider the tree below"]
+    B --> C["root 5, left 1, right 6,<br/>and 6 has children 3 and 7"]
+    C --> D["⚠️ Node 6: 3 &lt; 6 &lt; 7 ✅ locally fine"]
+    D --> E["❌ But 3 sits in the RIGHT subtree of 5,<br/>and 3 &lt; 5 — the BST property is broken"]
+    E --> F["⭐ FIX: every node must satisfy a<br/>RANGE inherited from ALL its ancestors,<br/>not just its immediate children"]
 
----
-
-## B. Depth & Structure
-
-### 9. Maximum Depth 🟢
-```cpp
-int maxDepth(TreeNode* root) {
-    return root ? 1 + max(maxDepth(root->left), maxDepth(root->right)) : 0;
-}
-```
-
----
-
-### 10. Minimum Depth 🟢
-```cpp
-int minDepth(TreeNode* root) {
-    if (!root) return 0;
-    if (!root->left)  return 1 + minDepth(root->right);   // ⭐ not a leaf!
-    if (!root->right) return 1 + minDepth(root->left);
-    return 1 + min(minDepth(root->left), minDepth(root->right));
-}
-```
-⚠️ The naive `min` is wrong: a node with only a left child would return 1, but it isn't a leaf. BFS is even better here — return at the first leaf found.
-
----
-
-### 11. Balanced Binary Tree 🟢
-```cpp
-int check(TreeNode* n) {                           // returns height, or -1 if unbalanced
-    if (!n) return 0;
-    int l = check(n->left);  if (l < 0) return -1;
-    int r = check(n->right); if (r < 0) return -1;
-    if (abs(l - r) > 1) return -1;                 // ⭐ early exit
-    return 1 + max(l, r);
-}
-bool isBalanced(TreeNode* root) { return check(root) >= 0; }
-```
-**Complexity:** O(n) — the naive version that calls `height()` inside `isBalanced()` is O(n²).
-
----
-
-### 12. Diameter of Binary Tree 🟢
-> The diameter is the longest path between any two nodes. It may or may not pass through the root.
-
-#### 💬 Think of it like this
-Any path in a tree has a single highest point — the topmost node it passes through. So instead of hunting for paths, visit every node and ask: *"what's the longest path whose highest point is me?"*
-
-That's easy to answer: it's the deepest reach into my left subtree plus the deepest reach into my right subtree. Take the maximum of that over all nodes and you have the diameter.
-
-But here's the part that trips people up. **What you report to your parent is not the same as what you record.**
-
-- **Record** (the candidate answer): left depth + right depth — a path going *down one side and up the other*
-- **Return** (to your parent): 1 + max(left, right) — because a path continuing upward can only use *one* branch. It can't go down both and still climb.
-
-#### 📊 Seeing the two quantities at node 1
-
-```
-            1
-           / \
-          2   3          Depths: left subtree reaches 2 levels,
-         / \             right subtree reaches 1 level.
-        4   5
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ⭐ RECORD at node 1:  left(2) + right(1) = 3                  │
-   │    That's the path  4 → 2 → 1 → 3  — three edges.            │
-   │    ⭐ It uses BOTH children.                                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ⭐ RETURN from node 1:  1 + max(2, 1) = 3                     │
-   │    That's the depth available to node 1's parent.            │
-   │    ⭐ It uses only ONE child — a path coming from above can   │
-   │      descend one branch, not both.                           │
-   └──────────────────────────────────────────────────────────────┘
-```
-
-#### The full traversal
-
-```
-   Post-order — children are resolved before the parent
-
-   ┌─────────────────────────────────────────────────────────────┐
-   │ node 4:  leaf.  record 0+0 = 0.   return 1                  │
-   │ node 5:  leaf.  record 0+0 = 0.   return 1                  │
-   │ node 2:  left=1, right=1                                    │
-   │          ⭐ record 1+1 = 2  (path 4→2→5)                     │
-   │          return 1 + max(1,1) = 2                            │
-   │ node 3:  leaf.  record 0.         return 1                  │
-   │ node 1:  left=2, right=1                                    │
-   │          ⭐ record 2+1 = 3  (path 4→2→1→3)  ⭐ BEST           │
-   │          return 1 + max(2,1) = 3                            │
-   └─────────────────────────────────────────────────────────────┘
-
-   ANSWER = 3
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style E fill:#ff8a80,stroke:#b71c1c,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```
-   ⭐⭐ THIS "RECORD BOTH, RETURN ONE" PATTERN IS EVERYWHERE
+   ⭐ THE RANGE PROPAGATES DOWN
 
-   It's the same shape in:
-     • Binary Tree Maximum Path Sum
-     • Longest Univalue Path
-     • Longest ZigZag Path
+              5              range (−∞, +∞)
+            /   \
+           1     6           left: (−∞, 5)   right: (5, +∞)
+                / \
+               3   7         ⭐ 3 must be in (5, +∞) → ❌ INVALID
 
-   ⭐ Whenever a problem asks for the best path THROUGH a node
-     but the recursion must report something USABLE BY THE
-     PARENT, you'll need these two different values.
+   ⭐ Going LEFT tightens the UPPER bound to node->val
+   ⭐ Going RIGHT tightens the LOWER bound to node->val
 ```
 
-```cpp
-int diameter = 0;
-int depth(TreeNode* n) {
-    if (!n) return 0;
-    int l = depth(n->left), r = depth(n->right);
-    diameter = max(diameter, l + r);               // ⭐ path THROUGH this node
-    return 1 + max(l, r);                          // ⭐ but return only ONE side
-}
-int diameterOfBinaryTree(TreeNode* root) { depth(root); return diameter; }
-```
-**Key insight:** The classic pattern — the answer at a node uses *both* children, but the value returned to the parent uses only *one*. This shows up in max path sum, longest univalue path, and many others.
-
----
-
-### 13. Same Tree 🟢
-```cpp
-bool isSameTree(TreeNode* p, TreeNode* q) {
-    if (!p || !q) return p == q;
-    return p->val == q->val && isSameTree(p->left, q->left) && isSameTree(p->right, q->right);
-}
-```
-
----
-
-### 14. Symmetric Tree 🟢
-```cpp
-bool mirror(TreeNode* a, TreeNode* b) {
-    if (!a || !b) return a == b;
-    return a->val == b->val && mirror(a->left, b->right) && mirror(a->right, b->left);
-}
-bool isSymmetric(TreeNode* root) { return !root || mirror(root->left, root->right); }
-```
-**Key insight:** Compare left-with-right and right-with-left — the crossed comparison is the whole trick.
-
----
-
-### 15. Subtree of Another Tree 🟢
-```cpp
-bool isSubtree(TreeNode* s, TreeNode* t) {
-    if (!s) return false;
-    if (isSameTree(s, t)) return true;
-    return isSubtree(s->left, t) || isSubtree(s->right, t);
-}
-```
-**Complexity:** O(m·n). O(m+n) is possible by serializing both and using KMP.
-
----
-
-### 16. Invert Binary Tree 🟢
-```cpp
-TreeNode* invertTree(TreeNode* root) {
-    if (!root) return nullptr;
-    swap(root->left, root->right);
-    invertTree(root->left);
-    invertTree(root->right);
-    return root;
-}
-```
-
----
-
-### 17. Merge Two Binary Trees 🟢
-```cpp
-TreeNode* mergeTrees(TreeNode* a, TreeNode* b) {
-    if (!a) return b;
-    if (!b) return a;
-    a->val += b->val;
-    a->left  = mergeTrees(a->left,  b->left);
-    a->right = mergeTrees(a->right, b->right);
-    return a;
-}
-```
-
----
-
-### 18. Count Complete Tree Nodes 🟡
-```cpp
-int countNodes(TreeNode* root) {
-    if (!root) return 0;
-    int lh = 0, rh = 0;
-    for (TreeNode* p = root; p; p = p->left)  ++lh;
-    for (TreeNode* p = root; p; p = p->right) ++rh;
-    if (lh == rh) return (1 << lh) - 1;             // ⭐ perfect subtree, O(1)
-    return 1 + countNodes(root->left) + countNodes(root->right);
-}
-```
-**Complexity:** O(log²n) — at each level only one subtree is imperfect, so recursion follows a single path.
-
----
-
-## C. Path Problems
-
-### 19. Path Sum 🟢
-```cpp
-bool hasPathSum(TreeNode* root, int target) {
-    if (!root) return false;
-    if (!root->left && !root->right) return target == root->val;   // ⭐ leaf check
-    return hasPathSum(root->left,  target - root->val)
-        || hasPathSum(root->right, target - root->val);
-}
-```
-
----
-
-### 20. Path Sum II (all root-to-leaf paths) 🟡
-```cpp
-vector<vector<int>> pathSum(TreeNode* root, int target) {
-    vector<vector<int>> out;
-    vector<int> path;
-    function<void(TreeNode*,int)> dfs = [&](TreeNode* n, int rem) {
-        if (!n) return;
-        path.push_back(n->val);
-        if (!n->left && !n->right && rem == n->val) out.push_back(path);
-        else { dfs(n->left, rem - n->val); dfs(n->right, rem - n->val); }
-        path.pop_back();                           // ⭐ backtrack
-    };
-    dfs(root, target);
-    return out;
-}
-```
-
----
-
-### 21. Path Sum III (any downward path) 🟡
-```cpp
-int pathSum(TreeNode* root, int target) {
-    unordered_map<long long,int> prefix{{0, 1}};   // ⭐ prefix sums on a tree
-    int count = 0;
-    function<void(TreeNode*, long long)> dfs = [&](TreeNode* n, long long sum) {
-        if (!n) return;
-        sum += n->val;
-        auto it = prefix.find(sum - target);
-        if (it != prefix.end()) count += it->second;
-
-        prefix[sum]++;
-        dfs(n->left, sum);
-        dfs(n->right, sum);
-        prefix[sum]--;                             // ⭐ UNDO on the way back up
-    };
-    dfs(root, 0);
-    return count;
-}
-```
-**Complexity:** O(n) instead of the naive O(n²).
-**Key insight:** The same prefix-sum-plus-hashmap technique from arrays, applied along root-to-node paths. The decrement on exit is essential — otherwise paths from sibling branches get counted.
-
----
-
-### 22. Binary Tree Maximum Path Sum 🔴
-```cpp
-int best = INT_MIN;
-int gain(TreeNode* n) {
-    if (!n) return 0;
-    int l = max(0, gain(n->left));                 // ⭐ negative gains are dropped
-    int r = max(0, gain(n->right));
-    best = max(best, n->val + l + r);              // path THROUGH this node
-    return n->val + max(l, r);                     // return only ONE branch
-}
-int maxPathSum(TreeNode* root) { gain(root); return best; }
-```
-**Key insight:** Same "answer uses both, return uses one" pattern as diameter. `max(0, ...)` implements "a negative subtree is worth skipping entirely."
-
----
-
-### 23. Sum Root to Leaf Numbers 🟡
-```cpp
-int sumNumbers(TreeNode* root, int cur = 0) {
-    if (!root) return 0;
-    cur = cur * 10 + root->val;
-    if (!root->left && !root->right) return cur;
-    return sumNumbers(root->left, cur) + sumNumbers(root->right, cur);
-}
-```
-
----
-
-### 24. Binary Tree Paths 🟢
-```cpp
-vector<string> binaryTreePaths(TreeNode* root) {
-    vector<string> out;
-    function<void(TreeNode*, string)> dfs = [&](TreeNode* n, string path) {
-        if (!n) return;
-        path += (path.empty() ? "" : "->") + to_string(n->val);
-        if (!n->left && !n->right) { out.push_back(path); return; }
-        dfs(n->left, path); dfs(n->right, path);
-    };
-    dfs(root, "");
-    return out;
-}
-```
-
----
-
-### 25. Longest Univalue Path 🟡
-```cpp
-int best = 0;
-int arrow(TreeNode* n) {
-    if (!n) return 0;
-    int l = arrow(n->left), r = arrow(n->right);
-    int la = (n->left  && n->left->val  == n->val) ? l + 1 : 0;
-    int ra = (n->right && n->right->val == n->val) ? r + 1 : 0;
-    best = max(best, la + ra);
-    return max(la, ra);
-}
-```
-
----
-
-### 26. All Nodes Distance K in Binary Tree 🟡
-```cpp
-vector<int> distanceK(TreeNode* root, TreeNode* target, int k) {
-    unordered_map<TreeNode*, TreeNode*> parent;    // ⭐ make it an undirected graph
-    function<void(TreeNode*, TreeNode*)> build = [&](TreeNode* n, TreeNode* p) {
-        if (!n) return;
-        parent[n] = p;
-        build(n->left, n); build(n->right, n);
-    };
-    build(root, nullptr);
-
-    unordered_set<TreeNode*> seen{target};
-    queue<TreeNode*> q{{target}};
-    int dist = 0;
-    while (!q.empty()) {
-        if (dist == k) {
-            vector<int> out;
-            while (!q.empty()) { out.push_back(q.front()->val); q.pop(); }
-            return out;
-        }
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            TreeNode* n = q.front(); q.pop();
-            for (TreeNode* nb : {n->left, n->right, parent[n]})
-                if (nb && seen.insert(nb).second) q.push(nb);
-        }
-        ++dist;
-    }
-    return {};
-}
-```
-**Key insight:** Adding parent pointers converts the tree into an undirected graph, then it's plain BFS. This conversion is a recurring move.
-
----
-
-## D. Binary Search Trees
-
-### 27. Validate BST 🟡
+## Approach A — bounds passed down (pre-order)
 ```cpp
 bool valid(TreeNode* n, long long lo, long long hi) {
     if (!n) return true;
-    if (n->val <= lo || n->val >= hi) return false;
-    return valid(n->left, lo, n->val) && valid(n->right, n->val, hi);
+    if (n->val <= lo || n->val >= hi) return false;   // ⚠️ strict — no duplicates
+
+    return valid(n->left,  lo, n->val)          // ⭐ tighten the UPPER bound
+        && valid(n->right, n->val, hi);         // ⭐ tighten the LOWER bound
 }
-bool isValidBST(TreeNode* root) { return valid(root, LLONG_MIN, LLONG_MAX); }
-```
-⚠️ **Comparing only with immediate children is wrong.** A node deep in the left subtree must still be less than the root — the bounds must be threaded down. Use `long long` because node values can be `INT_MIN`/`INT_MAX`.
 
----
-
-### 28. Search in a BST 🟢
-```cpp
-TreeNode* searchBST(TreeNode* root, int val) {
-    while (root && root->val != val) root = val < root->val ? root->left : root->right;
-    return root;
+bool isValidBST(TreeNode* root) {
+    return valid(root, LLONG_MIN, LLONG_MAX);   // ⚠️ long long — nodes may be INT_MIN/MAX
 }
 ```
 
----
-
-### 29. Insert into a BST 🟡
+## Approach B — in-order must be strictly increasing ⭐
 ```cpp
-TreeNode* insertIntoBST(TreeNode* root, int val) {
-    if (!root) return new TreeNode(val);
-    if (val < root->val) root->left  = insertIntoBST(root->left, val);
-    else                 root->right = insertIntoBST(root->right, val);
-    return root;
-}
-```
+class Solution {
+    TreeNode* prev = nullptr;
+public:
+    bool isValidBST(TreeNode* root) {
+        if (!root) return true;
 
----
+        if (!isValidBST(root->left)) return false;
 
-### 30. Delete Node in a BST 🟡
-```cpp
-TreeNode* deleteNode(TreeNode* root, int key) {
-    if (!root) return nullptr;
-    if (key < root->val)      root->left  = deleteNode(root->left, key);
-    else if (key > root->val) root->right = deleteNode(root->right, key);
-    else {
-        if (!root->left)  { TreeNode* r = root->right; delete root; return r; }
-        if (!root->right) { TreeNode* l = root->left;  delete root; return l; }
-        TreeNode* succ = root->right;                  // ⭐ inorder successor
-        while (succ->left) succ = succ->left;
-        root->val = succ->val;
-        root->right = deleteNode(root->right, succ->val);
+        // ⭐ in-order position: prev is the immediately preceding value
+        if (prev && prev->val >= root->val) return false;
+        prev = root;
+
+        return isValidBST(root->right);
     }
-    return root;
-}
+};
 ```
-**Key insight:** Three cases — no children, one child (splice), two children (replace with the inorder successor, then delete that successor).
+
+⭐ **Approach B uses the defining fact of BSTs:** in-order traversal yields sorted order. Storing a `TreeNode*` rather than an `int` sidesteps the `INT_MIN` sentinel problem entirely.
+
+## 📌 Pattern Card
+```
+SIGNAL   validate a BST · anything needing ancestor context
+KEY      ⭐ pass a RANGE down, or check in-order monotonicity
+         ⚠️ local parent-child comparisons are NOT sufficient
+RELATED  Recover BST · Kth Smallest · Range Sum of BST
+```
 
 ---
 
-### 31. Kth Smallest Element in a BST 🟡
+# 11. Kth Smallest in a BST
+
+🟡 **Medium** · 🔵 Full ladder
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ FULL IN-ORDER<br/>into a vector, then index<br/><b>O(n)</b> / <b>O(n)</b>"] --> B["🚀 IN-ORDER + EARLY STOP<br/><b>O(h + k)</b> / O(h)"]
+    B --> C["🏆 AUGMENTED BST<br/>store subtree sizes<br/><b>O(h)</b> per query<br/>⭐ the FOLLOW-UP answer"]
+
+    style A fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
+```
+
 ```cpp
 int kthSmallest(TreeNode* root, int k) {
     stack<TreeNode*> st;
-    TreeNode* cur = root;
-    while (cur || !st.empty()) {
-        while (cur) { st.push(cur); cur = cur->left; }
-        cur = st.top(); st.pop();
-        if (--k == 0) return cur->val;             // ⭐ inorder = sorted order
-        cur = cur->right;
+    TreeNode* curr = root;
+
+    while (curr || !st.empty()) {
+        while (curr) { st.push(curr); curr = curr->left; }   // ⭐ dive left
+
+        curr = st.top(); st.pop();
+        if (--k == 0) return curr->val;         // ⭐ EARLY EXIT
+
+        curr = curr->right;
     }
     return -1;
 }
 ```
-🎤 **Follow-up (frequent modifications):** augment each node with a subtree size count, giving O(log n) per query.
+
+🎤 **Follow-up: the BST is modified often and kth is queried often.**
+
+```mermaid
+flowchart TD
+    A["⭐ Augment each node with<br/>`count` = size of its subtree"] --> B{"compare k with<br/>leftCount + 1"}
+    B -->|"k ≤ leftCount"| C["recurse LEFT"]
+    B -->|"k == leftCount + 1"| D["⭐ this node IS the answer"]
+    B -->|"k &gt; leftCount + 1"| E["recurse RIGHT<br/>with k − leftCount − 1"]
+    D --> F(["<b>O(h)</b> per query"])
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+⭐ **Order-statistic trees** are exactly this augmentation, and they're what makes "kth element" an O(log n) database operation.
 
 ---
 
-### 32. Lowest Common Ancestor of a BST 🟢
+# 12. Lowest Common Ancestor (BST + Binary Tree)
+
+🟡 **Medium** · 🔵 Full ladder · **Two very different solutions**
+
+## BST version — ⭐ O(h), no recursion needed
+
+```mermaid
+flowchart TD
+    A["start at the root"] --> B{"compare with<br/>both p and q"}
+    B -->|"both SMALLER"| C["go LEFT"]
+    B -->|"both LARGER"| D["go RIGHT"]
+    B -->|"⭐ they SPLIT<br/>(or one IS the node)"| E["⭐ this is the LCA"]
+    C --> B
+    D --> B
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
 TreeNode* lowestCommonAncestor(TreeNode* root, TreeNode* p, TreeNode* q) {
     while (root) {
-        if (p->val < root->val && q->val < root->val) root = root->left;
+        if      (p->val < root->val && q->val < root->val) root = root->left;
         else if (p->val > root->val && q->val > root->val) root = root->right;
-        else return root;                          // ⭐ the split point
+        else return root;                       // ⭐ the split point
     }
     return nullptr;
 }
 ```
+⭐ **The first node where p and q diverge is by definition their LCA** — above it they share the path, below it they don't.
 
----
+## General binary tree — ⭐ post-order
 
-### 33. Lowest Common Ancestor of a Binary Tree 🟡
-> Find the deepest node that has both `p` and `q` as descendants. No BST property — values are arbitrary.
+```mermaid
+flowchart TD
+    A["⭐ THE CONTRACT<br/>'Return p, q, or the LCA if<br/>found in my subtree; else null.'"] --> B{"is this node<br/>p or q?"}
+    B -->|"yes"| C["⭐ return it immediately —<br/>no need to search deeper"]
+    B -->|"no"| D["recurse both children"]
+    D --> E{"how many children<br/>returned non-null?"}
+    E -->|"BOTH"| F["⭐ p and q are in different<br/>subtrees → THIS node is the LCA"]
+    E -->|"ONE"| G["propagate that one up"]
+    E -->|"NEITHER"| H["return null"]
 
-#### 💬 Think of it like this
-The recursion answers a deliberately loose question: *"searching my subtree, what did you find?"*
-
-Three possible replies:
-- **Nothing** → return null
-- **One of them** → return that node
-- **Both** (one in my left subtree, one in my right) → ⭐ *I am the LCA* — return myself
-
-The elegance is that the same return value means different things at different points, and it works out. If a node hears back from *both* children, the two targets are on opposite sides, so this node is the meeting point. If only one child reports a find, that answer just bubbles upward unchanged.
-
-#### 📊 Tracing LCA(4, 5)
-
-```
-            3
-           / \
-          5   1
-         / \
-        6   2
-
-   Post-order — leaves resolve first
-
-   ┌─────────────────────────────────────────────────────────────┐
-   │ node 6:  not a target, no children → return null            │
-   │ node 2:  not a target, no children → return null            │
-   ├─────────────────────────────────────────────────────────────┤
-   │ node 5:  ⭐ IS a target → return 5 immediately               │
-   │          (no need to search below — if the other target is  │
-   │           down there, 5 is still the correct ancestor)      │
-   ├─────────────────────────────────────────────────────────────┤
-   │ node 1:  not a target, both children null → return null     │
-   ├─────────────────────────────────────────────────────────────┤
-   │ node 3:  left returned 5,  right returned null              │
-   │          ⭐ only ONE side found something → pass it up       │
-   │          return 5                                            │
-   └─────────────────────────────────────────────────────────────┘
-
-   Now LCA(6, 2):
-
-   ┌─────────────────────────────────────────────────────────────┐
-   │ node 6:  ⭐ IS a target → return 6                           │
-   │ node 2:  ⭐ IS a target → return 2                           │
-   │ node 5:  left=6, right=2 → ⭐⭐ BOTH non-null                 │
-   │          → node 5 IS the LCA → return 5                     │
-   │ node 3:  left=5, right=null → pass up → return 5            │
-   └─────────────────────────────────────────────────────────────┘
-
-   ANSWER = 5
-```
-
-#### Why returning early on a match is correct
-
-```
-   ⭐ When node 5 discovers it IS a target, it returns
-     immediately without searching its own subtree.
-
-     Isn't that a problem if node 2 is beneath it?
-
-     No — because if the other target IS beneath node 5, then
-     node 5 is genuinely the lowest common ancestor. Searching
-     deeper could not produce a better answer.
-
-   ⭐ This is why the algorithm assumes both nodes EXIST in the
-     tree. If one might be absent, you need a full traversal
-     with explicit found-flags rather than this early return.
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```cpp
 TreeNode* lowestCommonAncestor(TreeNode* root, TreeNode* p, TreeNode* q) {
-    if (!root || root == p || root == q) return root;
-    TreeNode* l = lowestCommonAncestor(root->left, p, q);
-    TreeNode* r = lowestCommonAncestor(root->right, p, q);
-    if (l && r) return root;                       // ⭐ found in both → this is the LCA
-    return l ? l : r;                              // propagate whichever exists
+    if (!root || root == p || root == q) return root;   // ⭐ found one, or empty
+
+    TreeNode* L = lowestCommonAncestor(root->left,  p, q);
+    TreeNode* R = lowestCommonAncestor(root->right, p, q);
+
+    if (L && R) return root;                    // ⭐⭐ they SPLIT here → LCA
+    return L ? L : R;                           // ⭐ propagate whichever was found
 }
 ```
-**Key insight:** Returns "the node I found, or the LCA if I found both." If both children report a find, the current node is the meeting point.
+
+```
+   ⭐⭐ WHY RETURNING EARLY AT p IS CORRECT
+
+   If p is an ANCESTOR of q, we return p without descending
+   further. Is that right? Yes — p is genuinely the LCA in
+   that case, since q lies inside p's subtree.
+
+   ⚠️ This relies on the problem's guarantee that BOTH nodes
+     exist in the tree. If they might not, you need a second
+     pass to verify presence.
+```
+
+## 📌 Pattern Card
+```
+SIGNAL   lowest common ancestor · "where do two paths diverge"
+KEY      BST → walk until they split (O(h), iterative)
+         general → ⭐ post-order; both children non-null = LCA
+RELATED  LCA III (parent pointers → the intersection trick)
+         Distance Between Nodes · Path Between Nodes
+```
 
 ---
 
-### 34. Convert Sorted Array to BST 🟢
-```cpp
-TreeNode* build(vector<int>& a, int lo, int hi) {
-    if (lo > hi) return nullptr;
-    int mid = lo + (hi - lo) / 2;
-    return new TreeNode(a[mid], build(a, lo, mid - 1), build(a, mid + 1, hi));
-}
-TreeNode* sortedArrayToBST(vector<int>& a) { return build(a, 0, a.size() - 1); }
+# 13. Construct Tree from Traversals
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Pre-order gives roots, in-order gives splits**
+
+```mermaid
+flowchart TD
+    A["preorder = [3,9,20,15,7]<br/>inorder = [9,3,15,20,7]"] --> B["⭐ preorder[0] = 3<br/>is ALWAYS the root"]
+    B --> C["⭐ Find 3 in inorder → index 1"]
+    C --> D["Everything LEFT of it (9)<br/>is the left subtree.<br/>Everything RIGHT (15,20,7)<br/>is the right subtree."]
+    D --> E["⭐ Sizes are now known,<br/>so preorder can be split too"]
+    E --> F["Recurse on both halves"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
-
-### 35. Convert Sorted List to BST 🟡
-```cpp
-ListNode* cur;
-TreeNode* build(int n) {                           // ⭐ inorder simulation, O(n)
-    if (n == 0) return nullptr;
-    TreeNode* left = build(n / 2);
-    TreeNode* root = new TreeNode(cur->val);
-    cur = cur->next;
-    root->left = left;
-    root->right = build(n - n / 2 - 1);
-    return root;
-}
-TreeNode* sortedListToBST(ListNode* head) {
-    int n = 0;
-    for (ListNode* p = head; p; p = p->next) ++n;
-    cur = head;
-    return build(n);
-}
 ```
-**Key insight:** Build in inorder so the list is consumed left-to-right — no need for random access, so it's O(n) not O(n log n).
+   preorder:  [ 3 | 9 | 20  15  7 ]
+                ▲   ▲   ▲
+              root  L   R (sizes come from the inorder split)
 
----
+   inorder:   [ 9 | 3 | 15  20  7 ]
+                ▲   ▲   ▲
+                L  root  R
+```
 
-### 36. BST Iterator 🟡
 ```cpp
-class BSTIterator {
-    stack<TreeNode*> st;
-    void pushLeft(TreeNode* n) { while (n) { st.push(n); n = n->left; } }
-public:
-    BSTIterator(TreeNode* root) { pushLeft(root); }
-    int next() {
-        TreeNode* n = st.top(); st.pop();
-        pushLeft(n->right);
-        return n->val;
+class Solution {
+    unordered_map<int,int> pos;                 // ⭐ value → index in inorder
+    int preIdx = 0;
+
+    TreeNode* build(vector<int>& pre, int lo, int hi) {
+        if (lo > hi) return nullptr;
+
+        int rootVal = pre[preIdx++];            // ⭐ consume the next root
+        TreeNode* root = new TreeNode(rootVal);
+
+        int mid = pos[rootVal];                 // ⭐ O(1) lookup, not an O(n) scan
+        root->left  = build(pre, lo, mid - 1);  // ⚠️ LEFT FIRST — preorder order
+        root->right = build(pre, mid + 1, hi);
+
+        return root;
     }
-    bool hasNext() { return !st.empty(); }
+
+public:
+    TreeNode* buildTree(vector<int>& preorder, vector<int>& inorder) {
+        for (int i = 0; i < (int)inorder.size(); ++i) pos[inorder[i]] = i;
+        return build(preorder, 0, inorder.size() - 1);
+    }
 };
 ```
-**Complexity:** amortized O(1) per `next`, O(h) space — a paused iterative inorder traversal.
 
----
+⚠️ **`root->left` must be built before `root->right`** — `preIdx` advances globally, and pre-order visits the entire left subtree before any of the right.
 
-### 37. Recover Binary Search Tree 🔴
-```cpp
-void recoverTree(TreeNode* root) {
-    TreeNode *first = nullptr, *second = nullptr, *prev = nullptr;
-    function<void(TreeNode*)> inorder = [&](TreeNode* n) {
-        if (!n) return;
-        inorder(n->left);
-        if (prev && prev->val > n->val) {           // ⭐ a descent in inorder
-            if (!first) first = prev;               // first violation: take prev
-            second = n;                             // second: take current
-        }
-        prev = n;
-        inorder(n->right);
-    };
-    inorder(root);
-    swap(first->val, second->val);
-}
+⭐ **The hash map turns O(n²) into O(n).** Scanning `inorder` for each root is the naive cost.
+
 ```
-**Key insight:** Inorder on a valid BST is strictly increasing. Two swapped nodes produce either two descents (take the first's `prev` and the second's `cur`) or one descent (adjacent swap).
+   ⭐ WHICH TRAVERSAL PAIRS UNIQUELY DETERMINE A TREE?
 
----
+     pre + in     ✅ yes
+     post + in    ✅ yes (build RIGHT first, consuming post backwards)
+     pre + post   ❌ NO — ambiguous for nodes with a single child
+                     ⭐ unless the tree is guaranteed FULL
 
-### 38. Range Sum of BST 🟢
-```cpp
-int rangeSumBST(TreeNode* root, int lo, int hi) {
-    if (!root) return 0;
-    if (root->val < lo) return rangeSumBST(root->right, lo, hi);   // ⭐ prune
-    if (root->val > hi) return rangeSumBST(root->left, lo, hi);
-    return root->val + rangeSumBST(root->left, lo, hi) + rangeSumBST(root->right, lo, hi);
-}
+   ⚠️ A favourite interview follow-up. In-order is the one that
+     supplies the SPLIT; without it you can't tell which side a
+     lone child belongs on.
 ```
 
 ---
 
-### 39. Minimum Absolute Difference in BST 🟢
-```cpp
-int getMinimumDifference(TreeNode* root) {
-    int best = INT_MAX;
-    TreeNode* prev = nullptr;
-    function<void(TreeNode*)> inorder = [&](TreeNode* n) {
-        if (!n) return;
-        inorder(n->left);
-        if (prev) best = min(best, n->val - prev->val);   // ⭐ adjacent in sorted order
-        prev = n;
-        inorder(n->right);
-    };
-    inorder(root);
-    return best;
-}
+# 14. Serialize and Deserialize
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Null markers are the whole problem**
+
+```mermaid
+flowchart TD
+    A["⚠️ Structure is lost without<br/>explicit null markers"] --> B["[1,2] and [1,null,2]<br/>would look identical"]
+    B --> C["⭐ FIX: emit '#' for every null child"]
+    C --> D["⭐ Then pre-order ALONE<br/>uniquely determines the tree"]
+    D --> E["Deserialize by consuming tokens<br/>in the SAME order"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
-
-### 40. Two Sum IV — Input is a BST 🟢
-```cpp
-bool findTarget(TreeNode* root, int k) {
-    unordered_set<int> seen;
-    function<bool(TreeNode*)> dfs = [&](TreeNode* n) -> bool {
-        if (!n) return false;
-        if (seen.count(k - n->val)) return true;
-        seen.insert(n->val);
-        return dfs(n->left) || dfs(n->right);
-    };
-    return dfs(root);
-}
 ```
-🎤 **Follow-up (O(h) space):** two BST iterators, one forward and one backward, converging like two pointers.
+   TREE            1
+                  / \
+                 2   3
+                    / \
+                   4   5
 
----
+   ⭐ SERIALIZED (pre-order with null markers):
+      1,2,#,#,3,4,#,#,5,#,#,
 
-## E. Construction & Serialization
-
-### 41. Construct Tree from Preorder and Inorder 🟡
-```cpp
-TreeNode* buildTree(vector<int>& pre, vector<int>& in) {
-    unordered_map<int,int> pos;
-    for (int i = 0; i < (int)in.size(); ++i) pos[in[i]] = i;
-    int p = 0;
-    function<TreeNode*(int,int)> build = [&](int lo, int hi) -> TreeNode* {
-        if (lo > hi) return nullptr;
-        int rootVal = pre[p++];                    // ⭐ preorder gives roots in order
-        int mid = pos[rootVal];
-        TreeNode* n = new TreeNode(rootVal);
-        n->left  = build(lo, mid - 1);             // ⭐ LEFT first (preorder order)
-        n->right = build(mid + 1, hi);
-        return n;
-    };
-    return build(0, in.size() - 1);
-}
-```
-**Complexity:** O(n) with the position map.
-
----
-
-### 42. Construct Tree from Inorder and Postorder 🟡
-```cpp
-TreeNode* buildTree(vector<int>& in, vector<int>& post) {
-    unordered_map<int,int> pos;
-    for (int i = 0; i < (int)in.size(); ++i) pos[in[i]] = i;
-    int p = post.size() - 1;
-    function<TreeNode*(int,int)> build = [&](int lo, int hi) -> TreeNode* {
-        if (lo > hi) return nullptr;
-        int rootVal = post[p--];
-        int mid = pos[rootVal];
-        TreeNode* n = new TreeNode(rootVal);
-        n->right = build(mid + 1, hi);             // ⭐ RIGHT first (reverse postorder)
-        n->left  = build(lo, mid - 1);
-        return n;
-    };
-    return build(0, in.size() - 1);
-}
+   ⭐ Reading it back: consume tokens left to right.
+     '#' → return null.
+     Otherwise → make a node, then recursively build
+     left and right from the following tokens.
 ```
 
----
-
-### 43. Construct BST from Preorder 🟡
-```cpp
-TreeNode* bstFromPreorder(vector<int>& pre) {
-    int i = 0;
-    function<TreeNode*(int)> build = [&](int bound) -> TreeNode* {
-        if (i == (int)pre.size() || pre[i] > bound) return nullptr;
-        TreeNode* n = new TreeNode(pre[i++]);
-        n->left  = build(n->val);                  // ⭐ left subtree bounded by root
-        n->right = build(bound);
-        return n;
-    };
-    return build(INT_MAX);
-}
-```
-**Complexity:** O(n) — the upper-bound parameter avoids searching for the split point.
-
----
-
-### 44. Serialize and Deserialize Binary Tree 🔴
 ```cpp
 class Codec {
-public:
-    string serialize(TreeNode* root) {
-        string s;
-        function<void(TreeNode*)> dfs = [&](TreeNode* n) {
-            if (!n) { s += "#,"; return; }         // ⭐ null markers make it unique
-            s += to_string(n->val) + ",";
-            dfs(n->left); dfs(n->right);
-        };
-        dfs(root);
-        return s;
+    void ser(TreeNode* n, string& out) {
+        if (!n) { out += "#,"; return; }        // ⭐ the null marker
+        out += to_string(n->val) + ",";
+        ser(n->left, out);
+        ser(n->right, out);
     }
+
+    TreeNode* des(istringstream& ss) {
+        string tok;
+        getline(ss, tok, ',');
+        if (tok == "#") return nullptr;         // ⭐ matches the marker
+
+        TreeNode* n = new TreeNode(stoi(tok));
+        n->left  = des(ss);                     // ⚠️ LEFT before RIGHT —
+        n->right = des(ss);                     //    must mirror serialization
+        return n;
+    }
+
+public:
+    string serialize(TreeNode* root) { string s; ser(root, s); return s; }
+
     TreeNode* deserialize(string data) {
-        int i = 0;
-        function<TreeNode*()> build = [&]() -> TreeNode* {
-            int j = data.find(',', i);
-            string tok = data.substr(i, j - i);
-            i = j + 1;
-            if (tok == "#") return nullptr;
-            TreeNode* n = new TreeNode(stoi(tok));
-            n->left = build(); n->right = build();
-            return n;
-        };
-        return build();
+        istringstream ss(data);
+        return des(ss);
     }
 };
 ```
-**Key insight:** Preorder with explicit null markers is uniquely decodable. Without markers, preorder alone is ambiguous — that's why the "two traversals" problems exist.
+
+⭐ **BFS serialization** (the LeetCode display format) also works and reads more naturally, but pre-order is shorter to write and recurses cleanly.
+
+🎤 **Follow-up: serialize a BST more compactly?** No null markers needed — pre-order plus the BST range invariant is enough, since the bounds tell you when a subtree ends. That roughly halves the output size.
 
 ---
 
-### 45. Serialize and Deserialize BST 🟡
+# 15. Path Sum I / II / III
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **III is the interesting one**
+
+## I — does a root-to-leaf path sum to target?
 ```cpp
-// A BST needs no null markers — the ordering property provides the structure
-string serialize(TreeNode* root) {
-    string s;
-    function<void(TreeNode*)> dfs = [&](TreeNode* n) {
+bool hasPathSum(TreeNode* root, int target) {
+    if (!root) return false;
+    if (!root->left && !root->right) return root->val == target;   // ⭐ LEAF check
+
+    int rem = target - root->val;
+    return hasPathSum(root->left, rem) || hasPathSum(root->right, rem);
+}
+```
+⚠️ **The leaf check must be "no children", not "null node".** Returning `target == 0` at a null node wrongly accepts a path that stops mid-tree.
+
+## II — return all such paths
+```cpp
+class Solution {
+    vector<vector<int>> out;
+    vector<int> path;
+
+    void dfs(TreeNode* n, int rem) {
         if (!n) return;
-        s += to_string(n->val) + ",";
-        dfs(n->left); dfs(n->right);
-    };
-    dfs(root);
-    return s;
-}
-TreeNode* deserialize(string data) {
-    vector<int> pre;
-    stringstream ss(data);
-    string tok;
-    while (getline(ss, tok, ',')) if (!tok.empty()) pre.push_back(stoi(tok));
-    int i = 0;
-    function<TreeNode*(int)> build = [&](int bound) -> TreeNode* {
-        if (i == (int)pre.size() || pre[i] > bound) return nullptr;
-        TreeNode* n = new TreeNode(pre[i++]);
-        n->left = build(n->val);
-        n->right = build(bound);
-        return n;
-    };
-    return build(INT_MAX);
-}
+
+        path.push_back(n->val);                 // ⭐ choose
+        rem -= n->val;
+
+        if (!n->left && !n->right && rem == 0) out.push_back(path);
+        dfs(n->left, rem);
+        dfs(n->right, rem);
+
+        path.pop_back();                        // ⭐⭐ UNDO — the backtracking core
+    }
+public:
+    vector<vector<int>> pathSum(TreeNode* root, int t) { dfs(root, t); return out; }
+};
+```
+⭐ **`push_back` / recurse / `pop_back`** is the backtracking skeleton reused throughout [Backtracking](10-greedy-backtracking-misc.md).
+
+## III — ⭐ any downward path, not just root-to-leaf
+
+```mermaid
+flowchart LR
+    A["🐌 DFS FROM EVERY NODE<br/><b>O(n²)</b>"] -->|"⭐ same idea as<br/>Subarray Sum Equals K"| B["🚀 PREFIX SUMS ALONG<br/>THE CURRENT PATH<br/><b>O(n)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["⭐ A root-to-node path is just an<br/>ARRAY — so prefix sums apply"] --> B["running = sum from root to here"]
+    B --> C["⭐ count[running − target] =<br/>how many ancestors start a<br/>valid path ending here"]
+    C --> D["⚠️ CRITICAL: decrement the count<br/>when LEAVING the node"]
+    D --> E["Otherwise sums from a sibling<br/>branch leak into this one"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:3px,color:#000
+```
+
+```cpp
+class Solution {
+    unordered_map<long long,int> cnt;
+    int target, ans = 0;
+
+    void dfs(TreeNode* n, long long running) {
+        if (!n) return;
+
+        running += n->val;
+        auto it = cnt.find(running - target);
+        if (it != cnt.end()) ans += it->second;
+
+        ++cnt[running];                         // ⭐ enter: register this prefix
+        dfs(n->left,  running);
+        dfs(n->right, running);
+        --cnt[running];                         // ⭐⭐ LEAVE: unregister it
+    }
+
+public:
+    int pathSum(TreeNode* root, int t) {
+        target = t;
+        cnt[0] = 1;                             // ⭐ the empty prefix
+        dfs(root, 0);
+        return ans;
+    }
+};
+```
+
+⚠️ **`--cnt[running]` on the way out is the entire difficulty.** Without it, a prefix from the left subtree is still visible while traversing the right subtree — producing paths that bend, which the problem forbids.
+
+## 📌 Pattern Card
+```
+SIGNAL   count paths with a target sum, path need not start at root
+KEY      ⭐ prefix sums along the ROOT-TO-NODE path
+         ⚠️ decrement the count when backtracking out of a node
+RELATED  Subarray Sum Equals K (the 1D version) · Longest Path with Sum
 ```
 
 ---
 
-### 46. Flatten Binary Tree to Linked List 🟡
+# 16. Flatten Binary Tree to Linked List
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The O(1) Morris-style version**
+
+> Flatten in place into a right-skewed list following **pre-order**.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ COLLECT PRE-ORDER<br/>into a vector, then relink<br/><b>O(n)</b> / <b>O(n)</b>"] --> B["⚡ REVERSE POST-ORDER<br/>right, left, node<br/><b>O(n)</b> / O(h)"]
+    B --> C["🚀 MORRIS-STYLE<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 3️⃣ Morris-style — ⭐ O(1) space
+
+```mermaid
+flowchart TD
+    A["at each node with a left child"] --> B["⭐ find the RIGHTMOST node<br/>of the left subtree —<br/>in pre-order it comes just<br/>BEFORE the right subtree"]
+    B --> C["⭐ attach the right subtree<br/>to that rightmost node"]
+    C --> D["move the left subtree<br/>to become the right"]
+    D --> E["set left = nullptr,<br/>advance to the new right"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   BEFORE          1
+                  / \
+                 2   5
+                / \   \
+               3   4   6
+
+   at node 1: the left subtree is (2,3,4); its RIGHTMOST node is 4
+              ⭐ attach 5's subtree to 4
+              move the left subtree over to the right
+
+   AFTER STEP 1    1
+                    \
+                     2
+                    / \
+                   3   4
+                        \
+                         5
+                          \
+                           6
+   ⭐ Continue at node 2, then 3, 4... → fully flattened
+```
+
 ```cpp
 void flatten(TreeNode* root) {
-    TreeNode* cur = root;
-    while (cur) {
-        if (cur->left) {
-            TreeNode* pred = cur->left;
-            while (pred->right) pred = pred->right;   // rightmost of left subtree
-            pred->right = cur->right;                 // ⭐ attach the right subtree
-            cur->right = cur->left;
-            cur->left = nullptr;
+    TreeNode* curr = root;
+
+    while (curr) {
+        if (curr->left) {
+            TreeNode* pre = curr->left;
+            while (pre->right) pre = pre->right;    // ⭐ rightmost of the left subtree
+
+            pre->right  = curr->right;              // ⭐ graft the right subtree on
+            curr->right = curr->left;               // left becomes right
+            curr->left  = nullptr;
         }
-        cur = cur->right;
+        curr = curr->right;
     }
 }
 ```
-**Complexity:** O(n) / O(1) — Morris-style threading.
+
+⭐ **Why it's O(n) despite the inner while loop:** each edge is traversed at most twice — once by the outer walk, once by a rightmost search. The same amortization argument as everywhere else in this library.
 
 ---
 
-### 47. Populating Next Right Pointers 🟡
+# 17. Populating Next Right Pointers
+🟡 ⚪ **Variation** — build level links using the links you already built.
+
 ```cpp
+// Perfect binary tree — O(1) space
 Node* connect(Node* root) {
     Node* leftmost = root;
-    while (leftmost && leftmost->left) {           // perfect tree assumption
+
+    while (leftmost && leftmost->left) {
         Node* head = leftmost;
         while (head) {
-            head->left->next = head->right;        // same parent
-            if (head->next) head->right->next = head->next->left;   // ⭐ across parents
+            head->left->next = head->right;          // ⭐ same parent
+            if (head->next)                           // ⭐ ACROSS parents —
+                head->right->next = head->next->left; //    uses the level above
             head = head->next;
         }
         leftmost = leftmost->left;
@@ -1068,99 +1104,361 @@ Node* connect(Node* root) {
     return root;
 }
 ```
-**Complexity:** O(n) / O(1) — uses the already-built `next` pointers of the level above instead of a queue.
+⭐ **The trick is bootstrapping:** the `next` pointers of level *k* are what let you walk level *k* to build the pointers of level *k+1*. A BFS queue would work too, but costs O(n) space.
+
+⚠️ **For a non-perfect tree (Populating II)**, use a dummy node per level with a moving tail pointer — the same [dummy-node](04-linked-lists.md) technique from linked lists.
 
 ---
 
-## F. Advanced
+# 18. Morris Traversal
 
-### 48. Binary Tree Cameras 🔴
+🔴 **Hard** · 🔵 Full ladder · ⭐ **In-order in O(1) space**
+
+## 💬 The idea: temporary threads
+
+```mermaid
+flowchart TD
+    A["⚠️ Normal in-order needs a stack<br/>to remember 'where do I return<br/>after finishing the left subtree?'"] --> B["⭐ THREADING: temporarily point the<br/>rightmost node of the left subtree<br/>BACK at the current node"]
+    B --> C["That thread IS the return address —<br/>stored in the tree, not on a stack"]
+    C --> D["⭐ On the second visit the thread<br/>already exists → remove it,<br/>emit the node, go right"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
-int cameras = 0;
-// 0 = needs cover, 1 = has camera, 2 = covered
-int dfs(TreeNode* n) {
-    if (!n) return 2;                              // ⭐ null counts as covered
-    int l = dfs(n->left), r = dfs(n->right);
-    if (l == 0 || r == 0) { ++cameras; return 1; } // a child is uncovered → place here
-    if (l == 1 || r == 1) return 2;                // a child has a camera → covered
-    return 0;                                      // both covered but I'm not
-}
-int minCameraCover(TreeNode* root) {
-    return (dfs(root) == 0 ? ++cameras : cameras);
+vector<int> inorderMorris(TreeNode* root) {
+    vector<int> out;
+    TreeNode* curr = root;
+
+    while (curr) {
+        if (!curr->left) {
+            out.push_back(curr->val);           // ⭐ no left → emit and go right
+            curr = curr->right;
+            continue;
+        }
+
+        // find the in-order PREDECESSOR
+        TreeNode* pre = curr->left;
+        while (pre->right && pre->right != curr) pre = pre->right;
+
+        if (!pre->right) {
+            pre->right = curr;                  // ⭐ CREATE the thread
+            curr = curr->left;
+        } else {
+            pre->right = nullptr;               // ⭐ REMOVE it — second visit
+            out.push_back(curr->val);           // ⭐ emit now: the left is done
+            curr = curr->right;
+        }
+    }
+    return out;
 }
 ```
-**Key insight:** Greedy bottom-up — place cameras as high as possible while still covering leaves. A three-state return encodes everything the parent needs.
+
+```
+   ⭐⭐ WHY `pre->right != curr` IN THE SEARCH LOOP
+
+   Without it, once the thread exists you'd loop forever
+   following it back to curr and out again.
+
+   That condition is exactly what distinguishes
+     "first visit — build the thread"
+   from
+     "second visit — the left subtree is finished".
+```
+
+⭐ **Trade-off worth stating:** O(1) space, but it **temporarily mutates the tree**. That makes it unsafe under concurrency and unusable on a const tree. Say this out loud — it's why Morris isn't the default despite being asymptotically better.
 
 ---
 
-### 49. House Robber III 🟡
+# 19. Trie (Prefix Tree)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The right structure for prefix queries**
+
+## 💬 Why a trie beats a hash set for prefixes
+
+```mermaid
+flowchart TD
+    A["hash set of words"] --> B["✅ O(1) exact lookup<br/>❌ 'does any word start with «pre»?'<br/>requires scanning ALL words"]
+    C["⭐ TRIE"] --> D["✅ prefix query is O(len)<br/>✅ shared prefixes stored ONCE<br/>✅ ordered traversal for autocomplete<br/>❌ more memory per node"]
+
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRIE for {"cat", "car", "card", "dog"}
+
+           (root)
+           /    \
+          c      d
+          |      |
+          a      o
+         / \     |
+        t   r    g ⭐
+        ⭐   |\
+            ⭐ d
+               ⭐
+
+   ⭐ = isEnd (a complete word ends here)
+
+   ⭐ "car" and "card" SHARE the path c-a-r —
+     that sharing is the whole point.
+```
+
 ```cpp
-pair<int,int> rob(TreeNode* n) {                   // {rob this node, skip this node}
-    if (!n) return {0, 0};
-    auto [rl, sl] = rob(n->left);
-    auto [rr, sr] = rob(n->right);
-    return { n->val + sl + sr,                     // rob → children must be skipped
-             max(rl, sl) + max(rr, sr) };          // skip → children are free
-}
-int rob(TreeNode* root) { auto [a, b] = rob(root); return max(a, b); }
+class Trie {
+    struct Node {
+        Node* kids[26] = {};
+        bool  isEnd = false;
+    };
+    Node* root = new Node();
+
+    Node* walk(const string& s) {               // ⭐ shared by search and prefix
+        Node* n = root;
+        for (char c : s) {
+            if (!n->kids[c - 'a']) return nullptr;
+            n = n->kids[c - 'a'];
+        }
+        return n;
+    }
+
+public:
+    void insert(const string& word) {
+        Node* n = root;
+        for (char c : word) {
+            if (!n->kids[c - 'a']) n->kids[c - 'a'] = new Node();
+            n = n->kids[c - 'a'];
+        }
+        n->isEnd = true;                        // ⭐ mark a complete word
+    }
+
+    bool search(const string& word) {
+        Node* n = walk(word);
+        return n && n->isEnd;                   // ⭐ must be a COMPLETE word
+    }
+
+    bool startsWith(const string& prefix) {
+        return walk(prefix) != nullptr;         // ⭐ mere existence is enough
+    }
+};
 ```
-**Key insight:** Tree DP — return a pair covering both states so the parent can choose.
+
+## 🎤 Word Search II — where a trie is genuinely necessary
+
+```mermaid
+flowchart TD
+    A["Find all dictionary words<br/>in a character grid"] --> B["❌ NAIVE: run DFS once per word<br/><b>O(W · R · C · 4^L)</b>"]
+    B --> C["⭐ TRIE: DFS the grid ONCE,<br/>walking the trie in parallel"]
+    C --> D["⭐ Prune the moment the current<br/>path stops being a valid prefix"]
+    D --> E["⭐ Also: delete matched words from<br/>the trie to avoid duplicates<br/>and prune further"]
+
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+⭐ **The trie turns "check W words separately" into "check all W words simultaneously."** That's the whole reason this is a trie problem.
+
+## 📌 Pattern Card
+```
+SIGNAL   prefix queries · autocomplete · multi-word matching
+KEY      ⭐ children array/map + isEnd flag
+         prune DFS the instant the prefix dies
+RELATED  Word Search II · Design Add & Search Words · Replace Words
+         Maximum XOR of Two Numbers (a BINARY trie!)
+```
 
 ---
 
-### 50. Distribute Coins in Binary Tree 🟡
+# 20. Segment Tree / Fenwick Tree
+
+🔴 **Hard** · 🔵 Full ladder · **Range queries with updates**
+
+## 💬 Which structure for which problem
+
+```mermaid
+flowchart TD
+    Q{"range queries +<br/>updates?"}
+    Q -->|"NO updates"| A["⭐ PREFIX SUM ARRAY<br/>O(n) build, O(1) query"]
+    Q -->|"updates, SUM only"| B["⭐ FENWICK (BIT)<br/>O(log n) both<br/>✅ tiny code, low memory"]
+    Q -->|"updates, ANY associative op<br/>(min/max/gcd/sum)"| C["⭐ SEGMENT TREE<br/>O(log n) both<br/>✅ far more general"]
+    Q -->|"range UPDATES too"| D["⭐ SEGMENT TREE<br/>+ LAZY PROPAGATION"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#b2dfdb,stroke:#00695c,stroke-width:2px,color:#000
+    style D fill:#e1bee7,stroke:#6a1b9a,color:#000
+```
+
+```
+   ⭐ SEGMENT TREE over [1, 3, 5, 7, 9, 11]
+
+                    [0..5] sum=36
+                   /            \
+          [0..2] sum=9      [3..5] sum=27
+          /      \            /      \
+     [0..1]=4   [2]=5   [3..4]=16   [5]=11
+     /    \                /   \
+   [0]=1 [1]=3         [3]=7  [4]=9
+
+   ⭐ Any range decomposes into O(log n) of these nodes.
+   ⭐ A point update touches exactly one root-to-leaf path.
+```
+
 ```cpp
-int moves = 0;
-int dfs(TreeNode* n) {                             // returns the net excess/deficit
-    if (!n) return 0;
-    int l = dfs(n->left), r = dfs(n->right);
-    moves += abs(l) + abs(r);                      // ⭐ coins crossing these edges
-    return n->val + l + r - 1;                     // keep 1, pass the rest up
-}
-int distributeCoins(TreeNode* root) { dfs(root); return moves; }
+class SegmentTree {
+    vector<int> t;
+    int n;
+
+    void build(vector<int>& a, int node, int lo, int hi) {
+        if (lo == hi) { t[node] = a[lo]; return; }
+        int mid = (lo + hi) / 2;
+        build(a, 2*node,     lo,      mid);
+        build(a, 2*node + 1, mid + 1, hi);
+        t[node] = t[2*node] + t[2*node + 1];    // ⭐ combine the children
+    }
+
+    int query(int node, int lo, int hi, int l, int r) {
+        if (r < lo || hi < l) return 0;          // ⭐ no overlap → identity
+        if (l <= lo && hi <= r) return t[node];  // ⭐ fully covered → done
+
+        int mid = (lo + hi) / 2;                 // partial → recurse both
+        return query(2*node,     lo,      mid, l, r)
+             + query(2*node + 1, mid + 1, hi,  l, r);
+    }
+
+    void update(int node, int lo, int hi, int idx, int val) {
+        if (lo == hi) { t[node] = val; return; }
+        int mid = (lo + hi) / 2;
+        if (idx <= mid) update(2*node,     lo,      mid, idx, val);
+        else            update(2*node + 1, mid + 1, hi,  idx, val);
+        t[node] = t[2*node] + t[2*node + 1];    // ⭐ recompute on the way up
+    }
+
+public:
+    SegmentTree(vector<int>& a) : n(a.size()) {
+        t.assign(4 * n, 0);                     // ⭐ 4n is the safe size bound
+        build(a, 1, 0, n - 1);
+    }
+    int  query(int l, int r)      { return query(1, 0, n - 1, l, r); }
+    void update(int idx, int val) { update(1, 0, n - 1, idx, val); }
+};
 ```
-**Key insight:** The number of coins that must traverse an edge is exactly the absolute excess of the subtree below it. Summing over all edges gives the answer.
+
+## ⭐ Fenwick Tree — much shorter, sums only
+
+```cpp
+class Fenwick {
+    vector<int> t;
+public:
+    Fenwick(int n) : t(n + 1, 0) {}
+
+    void add(int i, int delta) {                // ⭐ 1-indexed
+        for (; i < (int)t.size(); i += i & -i)  // ⭐ i & -i = lowest set bit
+            t[i] += delta;
+    }
+    int sum(int i) {                            // prefix sum [1..i]
+        int s = 0;
+        for (; i > 0; i -= i & -i) s += t[i];
+        return s;
+    }
+    int range(int l, int r) { return sum(r) - sum(l - 1); }
+};
+```
+
+```
+   ⭐⭐ WHAT `i & -i` DOES
+
+   It isolates the LOWEST SET BIT of i.
+
+     i = 12 = 1100₂  →  i & -i = 100₂ = 4
+     i =  6 = 0110₂  →  i & -i =  10₂ = 2
+
+   ⭐ t[i] stores the sum of the (i & -i) elements ending at i.
+     Adding that bit jumps to the next node covering i;
+     subtracting it walks the prefix decomposition.
+
+   ⭐ Both loops run in O(log n) — one step per set bit.
+```
+
+⭐ **When to reach for these in an interview:** the moment you see *"range query"* together with *"the array changes"*. Prefix sums die at the first update; a segment tree keeps both operations at O(log n).
 
 ---
 
-### Bonus: Trie
-> See [Patterns §17](00-patterns.md#pattern-17--trie) for the implementation. Common problems: Implement Trie, Word Search II, Add and Search Word, Longest Word in Dictionary, Replace Words, Maximum XOR of Two Numbers.
+## 📋 Trees Recall
+
+```mermaid
+mindmap
+  root(("Trees"))
+    Traversal Choice
+      PRE — pass info DOWN
+      IN — ⭐ BST gives SORTED
+      POST — combine children UP
+      BFS — ⭐ freeze q.size()
+    The Two-Values Pattern
+      ⭐ RETURN the extendable value
+      ⭐ UPDATE a global with the bent one
+      diameter · max path sum
+    BST Facts
+      ⭐ in-order is sorted
+      validate with RANGES not local checks
+      LCA = the first split point
+      augment with counts → O(h) kth
+    Construction
+      ⭐ pre gives roots, in gives splits
+      hash map → O(n) not O(n²)
+      ⚠️ pre+post is ambiguous
+    Serialization
+      ⭐ null markers are mandatory
+      pre-order, consume in the same order
+    Backtracking on Paths
+      push · recurse · ⭐ POP
+      ⭐ path prefix sums for Path Sum III
+      ⚠️ decrement when leaving
+    O(1) Space
+      ⭐ Morris threading
+      flatten via rightmost predecessor
+      ⚠️ mutates the tree temporarily
+    Specialized
+      Trie — prefix queries, prune DFS
+      Segment tree — any associative op
+      Fenwick — sums only, i &amp; −i
+```
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                      TREES — PATTERN RECALL                          ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "depth / height / balance"     → post-order, encode failure as −1    ║
+║ "longest path anywhere"        → ⭐ return straight, track bent       ║
+║ "level by level"               → ⭐ int sz = q.size() before the loop ║
+║ "validate a BST"               → ⭐ RANGES down, or in-order sorted   ║
+║ "kth smallest in a BST"        → in-order + early exit (augment for  ║
+║                                   repeated queries)                  ║
+║ "lowest common ancestor"       → ⭐ post-order; both non-null = LCA   ║
+║ "build from traversals"        → pre gives roots, in gives splits    ║
+║ "serialize a tree"             → ⭐ pre-order + null markers          ║
+║ "count paths with sum k"       → ⭐ prefix sums, decrement on exit    ║
+║ "O(1) space traversal"         → ⭐ Morris threading                  ║
+║ "prefix / autocomplete"        → Trie, prune the instant it dies     ║
+║ "range query + updates"        → segment tree (or Fenwick for sums)  ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   BST validation: local parent-child checks are NOT sufficient       ║
+║   BFS: q.size() inside the loop condition — freeze it first          ║
+║   diameter: confusing the returned value with the global one         ║
+║   max path sum: clamp negatives to 0, and seed best = INT_MIN        ║
+║   Path Sum III: forgetting --cnt[running] leaks across branches      ║
+║   build tree: left before right — preIdx advances globally           ║
+║   serialize: [1,2] vs [1,null,2] need markers to be distinguishable  ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
-## 📋 Section Summary
-
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║                     TREES — PATTERN RECALL                        ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ TEMPLATE: base case → recurse both children → combine             ║
-║   Ask: "what do I need FROM children, what do I RETURN to parent?"║
-╠═══════════════════════════════════════════════════════════════════╣
-║ ⭐ THE KEY PATTERN (diameter / max path sum / longest univalue):   ║
-║   answer at a node uses BOTH children                             ║
-║   value returned to parent uses ONE child                         ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ TRAVERSALS                                                        ║
-║   inorder on a BST = SORTED order → validate, kth, min-diff       ║
-║   preorder = roots first → construction, serialization            ║
-║   postorder = children first → deletion, bottom-up computation    ║
-║   BFS with `int sz = q.size()` → level-by-level                   ║
-║   Morris = O(1) space via temporary threads                       ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ BST                                                               ║
-║   validate → pass (lo, hi) BOUNDS down, not just child comparison ║
-║   delete → 0 children / 1 child splice / 2 children use successor ║
-║   LCA in BST → first node where p and q land on opposite sides    ║
-║   LCA general → return "found node, or LCA if both found"         ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ TRICKS                                                            ║
-║   parent map → tree becomes an undirected graph → BFS             ║
-║   prefix sum + hashmap works on ROOT-TO-NODE paths (undo on exit) ║
-║   tree DP → return a PAIR/STRUCT of states                        ║
-║   serialize with NULL MARKERS or preorder is ambiguous            ║
-║   balanced check → return -1 sentinel for early exit, O(n) not O(n²)║
-╚═══════════════════════════════════════════════════════════════════╝
-```
-
-**Next:** [Heaps & Intervals →](07-heaps-intervals.md)
+**Next:** [Heaps & Intervals →](07-heaps-intervals.md) · **Back:** [Stacks & Queues](05-stacks-queues.md)

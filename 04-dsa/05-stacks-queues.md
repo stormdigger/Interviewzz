@@ -1,883 +1,1133 @@
-# 🥞 Stacks & Queues — 30 Problems
+# 🥞 Stacks & Queues
 
-> The stack's superpower is the **monotonic stack** — it answers "next greater / previous smaller" for every element in O(n) total. That single pattern accounts for most stack problems in interviews.
+> A stack answers one question extraordinarily well: **"what was the most recent unresolved thing?"** That question is hiding inside parsing, nesting, spans, histograms, and every "next greater element" problem you'll ever see.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
-## 🧠 The Monotonic Stack
+## 🧠 Recognizing a Stack Problem
+
+```mermaid
+flowchart TD
+    Q{"What is the<br/>problem doing?"}
+    Q -->|"matching pairs,<br/>nesting, brackets"| A["⭐ STACK<br/>push open, pop on close"]
+    Q -->|"'next/previous<br/>greater/smaller'"| B["⭐ MONOTONIC STACK<br/>the single highest-value<br/>pattern in this chapter"]
+    Q -->|"evaluate an expression<br/>with precedence"| C["⭐ STACK of operands<br/>or defer with `last`"]
+    Q -->|"undo · backtrack ·<br/>DFS without recursion"| D["⭐ EXPLICIT STACK"]
+    Q -->|"min/max over a<br/>sliding window"| E["⭐ MONOTONIC DEQUE"]
+    Q -->|"process in arrival order,<br/>BFS, scheduling"| F["⭐ QUEUE"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#bbdefb,stroke:#1565c0,color:#000
+    style E fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style F fill:#ffe0b2,stroke:#ef6c00,color:#000
+```
+
+## ⭐ The Monotonic Stack Template — memorize this
 
 ```cpp
-// NEXT GREATER ELEMENT — stack holds indices with DECREASING values
+// "Next greater element to the right" for every index
 vector<int> nextGreater(vector<int>& a) {
     int n = a.size();
     vector<int> res(n, -1);
-    stack<int> st;
+    stack<int> st;                              // ⭐ INDICES, values DECREASING
+
     for (int i = 0; i < n; ++i) {
+        // ⭐ a[i] resolves everything smaller that was waiting
         while (!st.empty() && a[st.top()] < a[i]) {
-            res[st.top()] = a[i];                  // a[i] resolves everyone waiting
+            res[st.top()] = a[i];
             st.pop();
         }
         st.push(i);
     }
-    return res;
+    return res;                                 // leftovers keep -1
 }
 ```
 
 ```
-   THE FOUR VARIANTS — just change the comparison and direction
+   ⭐⭐ THE FOUR VARIANTS — ONLY THE COMPARISON CHANGES
 
-   ┌──────────────────────┬───────────┬──────────────────────┐
-   │ Want                 │ Direction │ Pop while            │
-   ├──────────────────────┼───────────┼──────────────────────┤
-   │ next greater         │  L → R    │ a[top] <  a[i]       │
-   │ next smaller         │  L → R    │ a[top] >  a[i]       │
-   │ previous greater     │  R → L    │ a[top] <  a[i]       │
-   │ previous smaller     │  R → L    │ a[top] >  a[i]       │
-   └──────────────────────┴───────────┴──────────────────────┘
+   ┌──────────────────────┬──────────────┬────────────────────┐
+   │ You want             │ Stack order  │ Pop while          │
+   ├──────────────────────┼──────────────┼────────────────────┤
+   │ next GREATER right   │ decreasing   │ a[top] <  a[i]     │
+   │ next SMALLER right   │ increasing   │ a[top] >  a[i]     │
+   │ prev GREATER left    │ decreasing   │ a[top] <= a[i]     │
+   │ prev SMALLER left    │ increasing   │ a[top] >= a[i]     │
+   └──────────────────────┴──────────────┴────────────────────┘
 
-   Use <= / >= instead of < / > to control duplicate handling.
-```
+   ⭐ For "previous X", either scan right-to-left, or read the
+     stack top BEFORE pushing during a left-to-right scan.
 
-🧠 **Intuition:** the stack holds elements "still waiting for an answer." When a larger element arrives, every waiting element smaller than it gets its answer at once and leaves permanently. Each index is pushed once and popped once → **O(n)**.
-
-**Signals that a problem is a monotonic stack problem:**
-```
-   "next/previous greater/smaller"
-   "how many days until..."
-   "largest rectangle"
-   "trapping water"
-   "remove k digits to make the smallest number"
-   "maximum of every window"  (monotonic DEQUE)
+   ⭐ WHY IT'S O(n): every index is pushed once and popped at
+     most once. Total operations ≤ 2n.
 ```
 
 ---
 
-## A. Classic Stack
+## 📑 Contents
 
-### 1. Valid Parentheses 🟢
-```cpp
-bool isValid(string s) {
-    stack<char> st;
-    unordered_map<char,char> pair{{')','('},{']','['},{'}','{'}};
-    for (char c : s) {
-        if (pair.count(c)) {
-            if (st.empty() || st.top() != pair[c]) return false;
-            st.pop();
-        } else st.push(c);
-    }
-    return st.empty();                             // ⭐ must be empty at the end
-}
-```
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-valid-parentheses) | Valid Parentheses | 🟢 | ⚪ Variation | see [Strings #67](01c-arrays-strings.md#67-valid-parentheses) |
+| [2](#2-min-stack) | Min Stack | 🟡 | 🔵 **Full** | O(1) all ops, O(1) extra with encoding |
+| [3](#3-implement-queue-using-stacks) | Queue using Stacks | 🟢 | 🔵 **Full** | ⭐ amortized O(1) |
+| [4](#4-implement-stack-using-queues) | Stack using Queues | 🟢 | ⚪ Variation | rotate on push |
+| [5](#5-next-greater-element-i--ii) | Next Greater Element I / II | 🟡 | 🔵 **Full** | O(n) monotonic stack |
+| [6](#6-daily-temperatures) | Daily Temperatures | 🟡 | ⚪ Variation | same, store the gap |
+| [7](#7-stock-span--online-stock-span) | Stock Span | 🟡 | ⚪ Variation | previous-greater |
+| [8](#8-largest-rectangle-in-histogram) | Largest Rectangle in Histogram | 🔴 | 🔵 **Full** | ⭐ O(n) the classic |
+| [9](#9-maximal-rectangle) | Maximal Rectangle | 🔴 | ⚪ Variation | per-row histogram |
+| [10](#10-trapping-rain-water-stack-view) | Trapping Rain Water | 🔴 | ⚪ Variation | see [Two Pointers #5](03-two-pointers-sliding-window.md#5-trapping-rain-water) |
+| [11](#11-remove-k-digits) | Remove K Digits | 🟡 | 🔵 **Full** | O(n) greedy monotonic |
+| [12](#12-remove-duplicate-letters) | Remove Duplicate Letters | 🔴 | ⚪ Variation | + "appears later" check |
+| [13](#13-132-pattern) | 132 Pattern | 🟡 | 🔵 **Full** | ⭐ scan right-to-left |
+| [14](#14-basic-calculator-i--parentheses) | Basic Calculator (parens) | 🔴 | 🔵 **Full** | stack of (result, sign) |
+| [15](#15-evaluate-reverse-polish-notation) | Evaluate RPN | 🟡 | ⚪ Variation | pure operand stack |
+| [16](#16-asteroid-collision) | Asteroid Collision | 🟡 | 🔵 **Full** | stack simulation |
+| [17](#17-simplify-path) | Simplify Path | 🟡 | ⚪ Variation | stack of directories |
+| [18](#18-decode-string) | Decode String | 🟡 | ⚪ Variation | see [Strings #66](01c-arrays-strings.md#66-decode-string) |
+| [19](#19-sliding-window-maximum) | Sliding Window Maximum | 🔴 | ⚪ Variation | see [Two Pointers #12](03-two-pointers-sliding-window.md#12-sliding-window-maximum) |
+| [20](#20-design-circular-queue) | Design Circular Queue | 🟡 | 🔵 **Full** | ring buffer, modular indices |
 
 ---
 
-### 2. Min Stack 🟡
+# 1. Valid Parentheses
+🟢 ⚪ **Fully covered** in [Strings #67](01c-arrays-strings.md#67-valid-parentheses) — push the *expected closer*, and check `st.empty()` at the end.
+
+---
+
+# 2. Min Stack
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Three levels of cleverness**
+
+> `push`, `pop`, `top`, `getMin` — **all O(1)**.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 SCAN ON getMin<br/><b>O(n)</b> per call"] --> B["⚡ PARALLEL MIN STACK<br/>store the min alongside<br/>every element<br/><b>O(1)</b> / <b>O(n)</b>"]
+    B --> C["⚡ MIN STACK, PUSH ONLY<br/>ON NEW MINIMA<br/><b>O(1)</b> / O(n) worst"]
+    C --> D["🚀 ENCODED DELTAS<br/><b>O(1)</b> / <b>O(1)</b> extra"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
+```
+
+## 2️⃣ Parallel Min Stack — ⭐ the answer to give
+
+#### 💬 Why you can't just track a single `min` variable
+
+```mermaid
+flowchart TD
+    A["Track one `min` variable"] --> B["push 5, 3, 7 → min = 3 ✅"]
+    B --> C["⚠️ Now POP the 3"]
+    C --> D["❌ What's the new min?<br/>You'd have to rescan — O(n)"]
+    D --> E["⭐ FIX: store the min<br/>AS OF each push, so popping<br/>restores the previous min for free"]
+
+    style C fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   PUSH 5, 3, 7, 2
+
+   values:  [ 5,  3,  7,  2 ]
+   mins:    [ 5,  3,  3,  2 ]
+              ▲   ▲   ▲   ▲
+              │   │   │   └─ min of everything so far
+              │   │   └───── 7 didn't beat 3, so 3 repeats
+              │   └───────── new minimum
+              └───────────── first element
+
+   ⭐ POP → both stacks shrink together, and mins.top()
+     is instantly correct again. No rescanning ever.
+```
+
 ```cpp
 class MinStack {
-    stack<pair<int,int>> st;                       // {value, min so far}
-public:
-    void push(int x) { st.push({x, st.empty() ? x : min(x, st.top().second)}); }
-    void pop()       { st.pop(); }
-    int top()        { return st.top().first; }
-    int getMin()     { return st.top().second; }
-};
+    stack<int> vals;
+    stack<int> mins;                            // ⭐ min AS OF each push
 
-// ⭐ O(1) extra space variant — store the ENCODED difference
-class MinStackOptimal {
-    stack<long long> st;
-    long long mn = 0;
 public:
     void push(int x) {
-        if (st.empty()) { st.push(0); mn = x; }
-        else {
-            st.push((long long)x - mn);            // store the delta
-            if (x < mn) mn = x;
-        }
+        vals.push(x);
+        mins.push(mins.empty() ? x : min(x, mins.top()));
     }
-    void pop() {
-        long long d = st.top(); st.pop();
-        if (d < 0) mn = mn - d;                    // restore the previous min
-    }
-    int top()    { long long d = st.top(); return d > 0 ? d + mn : mn; }
-    int getMin() { return mn; }
+    void pop()      { vals.pop(); mins.pop(); }  // ⭐ always in lockstep
+    int  top()      { return vals.top(); }
+    int  getMin()   { return mins.top(); }       // ⭐ O(1)
 };
 ```
 
----
+## 4️⃣ Encoded Deltas — ⭐ O(1) extra space
 
-### 3. Evaluate Reverse Polish Notation 🟡
+#### 💬 The trick
+When a new minimum arrives, push an *encoded* value instead of the real one. The encoding stores enough to recover the previous minimum on pop.
+
+```
+   ⭐⭐ THE ENCODING
+
+   On push(x) where x < min:
+       push (2·x − min)        ⚠️ this is STRICTLY LESS than x
+       min = x
+
+   On pop() where top < min:
+       ⭐ the top is encoded → the real value was `min`
+       min = 2·min − top        (recovers the previous min)
+
+   WHY (2x − min) < x  when x < min:
+       2x − min < x  ⟺  x < min  ✅ always true
+
+   ⭐ So "top < min" is a reliable flag that the entry is encoded.
+   ⚠️ Requires long long — 2x−min can overflow int.
+```
+
 ```cpp
-int evalRPN(vector<string>& tokens) {
+class MinStack {
     stack<long long> st;
-    for (auto& t : tokens) {
-        if (t.size() > 1 || isdigit(t[0])) { st.push(stoll(t)); continue; }
-        long long b = st.top(); st.pop();
-        long long a = st.top(); st.pop();
-        switch (t[0]) {
-            case '+': st.push(a + b); break;
-            case '-': st.push(a - b); break;       // ⭐ order matters
-            case '*': st.push(a * b); break;
-            case '/': st.push(a / b); break;       // C++ truncates toward zero
-        }
+    long long mn = 0;
+
+public:
+    void push(int x) {
+        if (st.empty()) { st.push(x); mn = x; return; }
+
+        if (x < mn) { st.push(2LL * x - mn); mn = x; }   // ⭐ encode
+        else        { st.push(x); }
     }
-    return st.top();
-}
+    void pop() {
+        if (st.top() < mn) mn = 2 * mn - st.top();       // ⭐ decode
+        st.pop();
+    }
+    int top()    { return st.top() < mn ? (int)mn : (int)st.top(); }
+    int getMin() { return (int)mn; }
+};
 ```
-⚠️ `t.size() > 1 || isdigit(t[0])` correctly identifies negative numbers like `"-5"`.
 
----
+⭐ **Present approach 2 first, then offer this as the follow-up.** Leading with the encoding looks like memorization; deriving it looks like insight.
 
-### 4. Basic Calculator (with parentheses) 🔴
-```cpp
-int calculate(string s) {
-    stack<int> st;
-    int result = 0, num = 0, sign = 1;
-    for (char c : s) {
-        if (isdigit(c)) num = num * 10 + (c - '0');
-        else if (c == '+') { result += sign * num; num = 0; sign = 1; }
-        else if (c == '-') { result += sign * num; num = 0; sign = -1; }
-        else if (c == '(') {
-            st.push(result); st.push(sign);        // ⭐ save the outer context
-            result = 0; sign = 1;
-        } else if (c == ')') {
-            result += sign * num; num = 0;
-            result *= st.top(); st.pop();          // apply the saved sign
-            result += st.top(); st.pop();          // add the saved result
-        }
-    }
-    return result + sign * num;
-}
+## 📌 Pattern Card
+```
+SIGNAL   O(1) auxiliary query alongside stack operations
+KEY      store the derived value AS OF each push, in lockstep
+RELATED  Max Stack · Min Queue (two-stack) · All O(1) Data Structure
 ```
 
 ---
 
-### 5. Basic Calculator II (* and /, no parens) 🟡
-```cpp
-int calculate(string s) {
-    stack<int> st;
-    int num = 0;
-    char op = '+';
-    for (int i = 0; i < (int)s.size(); ++i) {
-        char c = s[i];
-        if (isdigit(c)) num = num * 10 + (c - '0');
-        if ((!isdigit(c) && c != ' ') || i == (int)s.size() - 1) {
-            if (op == '+') st.push(num);
-            else if (op == '-') st.push(-num);
-            else if (op == '*') { int t = st.top(); st.pop(); st.push(t * num); }
-            else                { int t = st.top(); st.pop(); st.push(t / num); }
-            op = c; num = 0;
-        }
-    }
-    int r = 0;
-    while (!st.empty()) { r += st.top(); st.pop(); }
-    return r;
-}
-```
-**Key insight:** Push additive terms; resolve multiplicative operators immediately against the stack top. Summing at the end handles precedence correctly.
+# 3. Implement Queue using Stacks
 
----
+🟢 **Easy to state, the amortization is the point** · 🔵 Full ladder
 
-### 6. Decode String 🟡
-> `"3[a2[c]]"` → `"accaccacc"`
+## 💬 The idea
 
-```cpp
-string decodeString(string s) {
-    stack<int> nums;
-    stack<string> strs;
-    string cur;
-    int num = 0;
-    for (char c : s) {
-        if (isdigit(c)) num = num * 10 + (c - '0');
-        else if (c == '[') { nums.push(num); strs.push(cur); num = 0; cur.clear(); }
-        else if (c == ']') {
-            string repeated;
-            for (int i = 0; i < nums.top(); ++i) repeated += cur;
-            nums.pop();
-            cur = strs.top() + repeated;           // ⭐ prepend the saved prefix
-            strs.pop();
-        } else cur += c;
-    }
-    return cur;
-}
+```mermaid
+flowchart TD
+    A["⭐ TWO stacks:<br/>`in` and `out`"] --> B["push → always onto `in`"]
+    B --> C["pop/peek → take from `out`"]
+    C --> D{"is `out` empty?"}
+    D -->|"yes"| E["⭐ POUR everything from<br/>`in` into `out`<br/>— reversing the order"]
+    D -->|"no"| F["just pop from `out`"]
+    E --> F
+
+    N["⚠️ Only pour when `out` is EMPTY.<br/>Pouring early scrambles the order."] -.-> D
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style E fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style N fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
 ```
 
----
+```
+   PUSH 1, 2, 3
 
-### 7. Simplify Path 🟡
-```cpp
-string simplifyPath(string path) {
-    vector<string> st;
-    stringstream ss(path);
-    string part;
-    while (getline(ss, part, '/')) {
-        if (part.empty() || part == ".") continue;
-        if (part == "..") { if (!st.empty()) st.pop_back(); }
-        else st.push_back(part);
-    }
-    string out;
-    for (auto& p : st) out += "/" + p;
-    return out.empty() ? "/" : out;
-}
+   in:  [1, 2, 3]     out: []
+              ▲top
+
+   POP → out is empty → ⭐ POUR
+
+   in:  []            out: [3, 2, 1]
+                                  ▲top  ⭐ FIFO order restored!
+
+   pop → 1 ✅   pop → 2 ✅
+   push 4 → in: [4],  out: [3]
+   pop → 3 (from out) ✅  ⭐ still correct — don't pour yet
 ```
 
----
-
-### 8. Remove All Adjacent Duplicates 🟢
-```cpp
-string removeDuplicates(string s) {
-    string st;
-    for (char c : s) {
-        if (!st.empty() && st.back() == c) st.pop_back();
-        else st.push_back(c);
-    }
-    return st;
-}
-```
-**Key insight:** A `string` used as a stack is both faster and simpler than `stack<char>` here.
-
----
-
-### 9. Remove All Adjacent Duplicates II (k copies) 🟡
-```cpp
-string removeDuplicates(string s, int k) {
-    vector<pair<char,int>> st;                     // {char, run length}
-    for (char c : s) {
-        if (!st.empty() && st.back().first == c) {
-            if (++st.back().second == k) st.pop_back();
-        } else st.push_back({c, 1});
-    }
-    string out;
-    for (auto& [c, n] : st) out += string(n, c);
-    return out;
-}
-```
-
----
-
-### 10. Minimum Remove to Make Valid Parentheses 🟡
-```cpp
-string minRemoveToMakeValid(string s) {
-    vector<int> st;                                // indices of unmatched '('
-    vector<bool> remove(s.size(), false);
-    for (int i = 0; i < (int)s.size(); ++i) {
-        if (s[i] == '(') st.push_back(i);
-        else if (s[i] == ')') {
-            if (st.empty()) remove[i] = true;      // unmatched ')'
-            else st.pop_back();
-        }
-    }
-    for (int i : st) remove[i] = true;             // leftover unmatched '('
-    string out;
-    for (int i = 0; i < (int)s.size(); ++i) if (!remove[i]) out += s[i];
-    return out;
-}
-```
-
----
-
-### 11. Score of Parentheses 🟡
-```cpp
-int scoreOfParentheses(string s) {
-    stack<int> st;
-    st.push(0);
-    for (char c : s) {
-        if (c == '(') st.push(0);
-        else {
-            int v = st.top(); st.pop();
-            st.top() += max(2 * v, 1);             // ⭐ "()" = 1, "(X)" = 2X
-        }
-    }
-    return st.top();
-}
-```
-
----
-
-### 12. Longest Valid Parentheses 🔴
-```cpp
-int longestValidParentheses(string s) {
-    stack<int> st;
-    st.push(-1);                                   // ⭐ sentinel: base index
-    int best = 0;
-    for (int i = 0; i < (int)s.size(); ++i) {
-        if (s[i] == '(') st.push(i);
-        else {
-            st.pop();
-            if (st.empty()) st.push(i);            // new base
-            else best = max(best, i - st.top());
-        }
-    }
-    return best;
-}
-```
-**Key insight:** The stack holds the index just *before* the current valid run. The `-1` sentinel makes the length arithmetic uniform.
-
----
-
-## B. Monotonic Stack
-
-### 13. Next Greater Element I 🟢
-```cpp
-vector<int> nextGreaterElement(vector<int>& q, vector<int>& a) {
-    unordered_map<int,int> nge;
-    stack<int> st;
-    for (int x : a) {
-        while (!st.empty() && st.top() < x) { nge[st.top()] = x; st.pop(); }
-        st.push(x);
-    }
-    vector<int> out;
-    for (int x : q) out.push_back(nge.count(x) ? nge[x] : -1);
-    return out;
-}
-```
-
----
-
-### 14. Next Greater Element II (circular) 🟡
-```cpp
-vector<int> nextGreaterElements(vector<int>& a) {
-    int n = a.size();
-    vector<int> res(n, -1);
-    stack<int> st;
-    for (int i = 0; i < 2 * n; ++i) {              // ⭐ two passes simulate a circle
-        int idx = i % n;
-        while (!st.empty() && a[st.top()] < a[idx]) { res[st.top()] = a[idx]; st.pop(); }
-        if (i < n) st.push(idx);                   // only push during the first pass
-    }
-    return res;
-}
-```
-
----
-
-### 15. Daily Temperatures 🟡
-```cpp
-vector<int> dailyTemperatures(vector<int>& t) {
-    int n = t.size();
-    vector<int> res(n, 0);
-    stack<int> st;
-    for (int i = 0; i < n; ++i) {
-        while (!st.empty() && t[st.top()] < t[i]) {
-            res[st.top()] = i - st.top();          // ⭐ distance, not value
-            st.pop();
-        }
-        st.push(i);
-    }
-    return res;
-}
-```
-
----
-
-### 16. Largest Rectangle in Histogram 🔴
-> Given bar heights, find the area of the largest rectangle that fits inside the histogram.
-
-#### 💬 Think of it like this
-Flip the question around. Instead of asking "where's the biggest rectangle?", ask about **each bar individually**: *if this bar's height were the rectangle's height, how wide could the rectangle get?*
-
-It can extend left until it hits a bar shorter than itself, and right until it hits a bar shorter than itself. Anything shorter blocks it — the rectangle can't be that tall there.
-
-So for every bar you need two things: the index of the **previous smaller** bar, and the index of the **next smaller** bar. The width is the gap between them.
-
-That's exactly what a monotonic stack computes — and beautifully, it finds *both* boundaries in a single pass.
-
-#### 📊 Watching it on `[2, 1, 5, 6, 2, 3]`
-
-```
-   heights:  2  1  5  6  2  3
-             ▆  ▃  █  █  ▆  ▇
-
-   For the bar of height 5 at index 2:
-     ← blocked by height 1 at index 1
-     → blocked by height 2 at index 4
-     width = 4 − 1 − 1 = 2,  area = 5 × 2 = 10
-
-   For the bar of height 6 at index 3:
-     ← blocked by 5 (index 2),  → blocked by 2 (index 4)
-     width = 1,  area = 6
-
-   ⭐ For the bar of height 1 at index 1:
-     ← nothing shorter to the left,  → nothing shorter to the right
-     width = 6,  area = 6
-
-   ⭐ THE ANSWER IS 10 — the [5,6] pair at height 5.
-```
-
-#### How the stack finds both boundaries at once
-
-```
-   The stack holds indices whose heights are INCREASING.
-   Think of it as "bars still waiting to find their right edge."
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ i=0, h=2:  stack empty → push.        stack: [0]             │
-   ├──────────────────────────────────────────────────────────────┤
-   │ i=1, h=1:  1 < h[0]=2 → ⭐ bar 0 is BLOCKED here.             │
-   │            POP index 0 (height 2).                           │
-   │              right edge = i = 1                              │
-   │              left edge  = new stack top = none → -1          │
-   │              width = 1 − (−1) − 1 = 1,  area = 2×1 = 2       │
-   │            push 1.                    stack: [1]             │
-   ├──────────────────────────────────────────────────────────────┤
-   │ i=2, h=5:  5 > 1 → nothing blocked. push.  stack: [1,2]      │
-   │ i=3, h=6:  6 > 5 → push.                   stack: [1,2,3]    │
-   ├──────────────────────────────────────────────────────────────┤
-   │ i=4, h=2:  2 < 6 → POP index 3 (height 6)                    │
-   │              right = 4, left = stack top = 2                 │
-   │              width = 4 − 2 − 1 = 1,  area = 6                │
-   │            2 < 5 → POP index 2 (height 5)                    │
-   │              right = 4, left = stack top = 1                 │
-   │              width = 4 − 1 − 1 = 2,  area = ⭐ 10  BEST       │
-   │            2 > 1 → push.               stack: [1,4]          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ i=5, h=3:  3 > 2 → push.               stack: [1,4,5]        │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ⭐ SENTINEL h=0 appended → pops everything remaining,         │
-   │   giving each leftover bar its right edge at the end.        │
-   └──────────────────────────────────────────────────────────────┘
-
-   ANSWER = 10
-```
-
-#### The two insights that make this click
-
-```
-   ⭐ 1. WHEN A BAR IS POPPED, BOTH ITS BOUNDARIES ARE KNOWN.
-        The bar `i` that triggered the pop is its NEXT SMALLER.
-        The new stack top is its PREVIOUS SMALLER.
-        One pass, both edges.
-
-   ⭐ 2. THE SENTINEL (appending height 0) IS ESSENTIAL.
-        Without it, bars still on the stack at the end never
-        get popped and never get measured. A height of 0 is
-        smaller than everything, so it flushes the stack.
-
-   ⚠️ Note `width = right − left − 1`, using the stack top AFTER
-     popping. That's the index of the previous smaller bar, and
-     the rectangle sits strictly between the two boundaries.
-```
-
-```cpp
-int largestRectangleArea(vector<int>& h) {
-    h.push_back(0);                                // ⭐ sentinel flushes the stack
-    stack<int> st;
-    int best = 0;
-    for (int i = 0; i < (int)h.size(); ++i) {
-        while (!st.empty() && h[st.top()] >= h[i]) {
-            int height = h[st.top()]; st.pop();
-            int left = st.empty() ? -1 : st.top();
-            best = max(best, height * (i - left - 1));
-        }
-        st.push(i);
-    }
-    h.pop_back();
-    return best;
-}
-```
-**Complexity:** O(n).
-**Key insight:** For each bar, the maximal rectangle *using it as the height* extends left to the previous smaller bar and right to the next smaller bar. The monotonic stack finds both boundaries in one pass — when bar `i` pops bar `j`, `i` is `j`'s next-smaller and the new stack top is `j`'s previous-smaller.
-
----
-
-### 17. Maximal Rectangle 🔴
-```cpp
-int maximalRectangle(vector<vector<char>>& m) {
-    if (m.empty()) return 0;
-    int C = m[0].size(), best = 0;
-    vector<int> h(C, 0);
-    for (auto& row : m) {
-        for (int j = 0; j < C; ++j) h[j] = (row[j] == '1') ? h[j] + 1 : 0;
-        best = max(best, largestRectangleArea(h));  // ⭐ reduce 2D to 1D
-    }
-    return best;
-}
-```
-**Complexity:** O(R·C).
-**Key insight:** Each row becomes a histogram of consecutive 1s above it. Reduction to a solved problem — the most valuable move in problem solving.
-
----
-
-### 18. Trapping Rain Water (stack version) 🔴
-```cpp
-int trap(vector<int>& h) {
-    stack<int> st;
-    int water = 0;
-    for (int i = 0; i < (int)h.size(); ++i) {
-        while (!st.empty() && h[st.top()] < h[i]) {
-            int bottom = h[st.top()]; st.pop();
-            if (st.empty()) break;
-            int width = i - st.top() - 1;
-            int bounded = min(h[st.top()], h[i]) - bottom;
-            water += width * bounded;              // ⭐ fills HORIZONTAL layers
-        }
-        st.push(i);
-    }
-    return water;
-}
-```
-**Key insight:** The stack version accumulates water in horizontal slabs; the two-pointer version (Two Pointers §7) does vertical columns. Both are O(n); two pointers uses O(1) space.
-
----
-
-### 19. Sum of Subarray Minimums 🟡
-```cpp
-int sumSubarrayMins(vector<int>& a) {
-    const long long MOD = 1e9 + 7;
-    int n = a.size();
-    vector<int> left(n), right(n);                 // counts of extension
-    stack<int> st;
-
-    for (int i = 0; i < n; ++i) {                  // previous smaller (strict)
-        while (!st.empty() && a[st.top()] > a[i]) st.pop();
-        left[i] = st.empty() ? i + 1 : i - st.top();
-        st.push(i);
-    }
-    while (!st.empty()) st.pop();
-    for (int i = n - 1; i >= 0; --i) {             // next smaller-or-equal
-        while (!st.empty() && a[st.top()] >= a[i]) st.pop();
-        right[i] = st.empty() ? n - i : st.top() - i;
-        st.push(i);
-    }
-
-    long long total = 0;
-    for (int i = 0; i < n; ++i)
-        total = (total + (long long)a[i] * left[i] % MOD * right[i]) % MOD;
-    return total;
-}
-```
-**Key insight:** Instead of enumerating subarrays, count for each element **how many subarrays it is the minimum of**: `left[i] × right[i]`. The strict/non-strict asymmetry (`>` one way, `>=` the other) prevents double-counting equal values.
-
----
-
-### 20. Remove K Digits 🟡
-```cpp
-string removeKdigits(string num, int k) {
-    string st;
-    for (char c : num) {
-        while (k && !st.empty() && st.back() > c) { st.pop_back(); --k; }
-        st.push_back(c);
-    }
-    st.resize(st.size() - k);                      // ⭐ still have removals left
-    int i = 0;
-    while (i < (int)st.size() && st[i] == '0') ++i;   // strip leading zeros
-    string out = st.substr(i);
-    return out.empty() ? "0" : out;
-}
-```
-**Key insight:** Greedy — removing a digit that's larger than its successor always reduces the number. A monotonically non-decreasing stack achieves this.
-
----
-
-### 21. Create Maximum Number 🔴
-```cpp
-vector<int> maxSubsequence(vector<int>& a, int k) {
-    vector<int> st;
-    int drop = a.size() - k;
-    for (int x : a) {
-        while (drop && !st.empty() && st.back() < x) { st.pop_back(); --drop; }
-        st.push_back(x);
-    }
-    st.resize(k);
-    return st;
-}
-bool greaterVec(vector<int>& a, int i, vector<int>& b, int j) {
-    while (i < (int)a.size() && j < (int)b.size() && a[i] == b[j]) { ++i; ++j; }
-    return j == (int)b.size() || (i < (int)a.size() && a[i] > b[j]);
-}
-vector<int> maxNumber(vector<int>& n1, vector<int>& n2, int k) {
-    vector<int> best;
-    for (int i = max(0, k - (int)n2.size()); i <= min(k, (int)n1.size()); ++i) {
-        auto a = maxSubsequence(n1, i), b = maxSubsequence(n2, k - i);
-        vector<int> merged;
-        int p = 0, q = 0;
-        while (p < (int)a.size() || q < (int)b.size())
-            merged.push_back(greaterVec(a, p, b, q) ? a[p++] : b[q++]);
-        if (merged > best) best = merged;
-    }
-    return best;
-}
-```
-
----
-
-### 22. Remove Duplicate Letters 🟡
-```cpp
-string removeDuplicateLetters(string s) {
-    int cnt[26] = {};
-    bool inStack[26] = {};
-    for (char c : s) cnt[c - 'a']++;
-
-    string st;
-    for (char c : s) {
-        cnt[c - 'a']--;
-        if (inStack[c - 'a']) continue;            // already placed
-        while (!st.empty() && st.back() > c && cnt[st.back() - 'a'] > 0) {
-            inStack[st.back() - 'a'] = false;      // ⭐ safe: it appears again later
-            st.pop_back();
-        }
-        st.push_back(c);
-        inStack[c - 'a'] = true;
-    }
-    return st;
-}
-```
-**Key insight:** Pop a larger character only if it appears again later — otherwise removing it would lose it permanently.
-
----
-
-### 23. 132 Pattern 🟡
-```cpp
-bool find132pattern(vector<int>& a) {
-    stack<int> st;
-    int third = INT_MIN;                           // the "2" in the 1-3-2 pattern
-    for (int i = a.size() - 1; i >= 0; --i) {      // ⭐ scan right to left
-        if (a[i] < third) return true;             // found the "1"
-        while (!st.empty() && st.top() < a[i]) { third = st.top(); st.pop(); }
-        st.push(a[i]);
-    }
-    return false;
-}
-```
-**Key insight:** Scanning right-to-left, maintain the largest value that has some larger value to its right. That's the "2"; then any smaller element found later (to the left) is the "1".
-
----
-
-## C. Queues & Deques
-
-### 24. Implement Queue using Stacks 🟢
 ```cpp
 class MyQueue {
     stack<int> in, out;
-    void transfer() { if (out.empty()) while (!in.empty()) { out.push(in.top()); in.pop(); } }
+
+    void pour() {                               // ⭐ only when `out` is empty
+        if (out.empty())
+            while (!in.empty()) { out.push(in.top()); in.pop(); }
+    }
+
 public:
     void push(int x) { in.push(x); }
-    int pop()  { transfer(); int v = out.top(); out.pop(); return v; }
-    int peek() { transfer(); return out.top(); }
+
+    int pop()  { pour(); int v = out.top(); out.pop(); return v; }
+    int peek() { pour(); return out.top(); }
     bool empty() { return in.empty() && out.empty(); }
 };
 ```
-**Complexity:** **Amortized O(1)** — each element is moved between stacks at most once.
+
+```
+   ⭐⭐ THE AMORTIZED O(1) ARGUMENT — the real question here
+
+   A single pop can cost O(n) when a pour happens.
+   But every element is moved AT MOST TWICE in its lifetime:
+     once from `in` to `out`, once out of `out`.
+
+   Over n operations, the total work is ≤ 2n.
+   ⭐ Amortized O(1) per operation. ∎
+
+   This is the same accounting argument as vector growth and
+   the monotonic stack — worth being able to state cleanly.
+```
+
+⚠️ **Pouring on every pop** (rather than only when `out` is empty) makes it genuinely O(n) per operation *and* breaks the ordering.
 
 ---
 
-### 25. Implement Stack using Queues 🟢
+# 4. Implement Stack using Queues
+🟢 ⚪ **Variation of #3** — but the asymmetry is interesting.
+
+```mermaid
+flowchart LR
+    A["⭐ Only ONE queue is needed"] --> B["push(x): enqueue x, then<br/>ROTATE the queue size−1 times"]
+    B --> C["⭐ The new element ends up<br/>at the FRONT → LIFO order"]
+    C --> D["push is O(n), pop is O(1)"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
 ```cpp
 class MyStack {
     queue<int> q;
 public:
     void push(int x) {
         q.push(x);
-        for (int i = 0; i < (int)q.size() - 1; ++i) { q.push(q.front()); q.pop(); }
-    }                                              // ⭐ rotate so the new element is front
-    int pop()  { int v = q.front(); q.pop(); return v; }
+        for (int i = 0; i < (int)q.size() - 1; ++i) {   // ⭐ rotate
+            q.push(q.front());
+            q.pop();
+        }
+    }
     int top()  { return q.front(); }
+    int pop()  { int v = q.front(); q.pop(); return v; }
     bool empty() { return q.empty(); }
 };
 ```
 
+```
+   ⭐ THE ASYMMETRY WORTH NOTING
+
+   Queue-from-stacks:  amortized O(1) for everything
+   Stack-from-queue:   O(n) push, and NO amortization saves it —
+                       every push genuinely costs O(n)
+
+   ⭐ Why? A stack's LIFO order is "unnatural" for a queue, so
+     it must be re-established on every single insertion. Two
+     stacks, by contrast, naturally compose into FIFO because
+     reversing twice restores the original order.
+```
+
 ---
 
-### 26. Sliding Window Maximum 🔴
+# 5. Next Greater Element I / II
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The template problem**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 FOR EACH i, SCAN RIGHT<br/><b>O(n²)</b>"] -->|"⭐ elements waiting for<br/>an answer form a<br/>DECREASING sequence"| B["🚀 MONOTONIC STACK<br/><b>O(n)</b> / O(n)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 💬 The insight that makes it linear
+
+```mermaid
+flowchart TD
+    A["Elements still waiting for their<br/>'next greater' sit on the stack"] --> B["⭐ They must be in DECREASING order"]
+    B --> C["Why? If a[i] &lt; a[j] with i &lt; j and<br/>both are waiting, then a[j] would<br/>ALREADY have answered a[i]"]
+    C --> D["⭐ So when a new value arrives,<br/>it resolves a CONTIGUOUS RUN<br/>from the top of the stack"]
+    D --> E["Each element is answered exactly<br/>once and then leaves forever"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  a = [2, 1, 2, 4, 3]
+
+   ┌───┬──────┬──────────────┬──────────────────────────────┐
+   │ i │ a[i] │ stack (vals) │ action                       │
+   ├───┼──────┼──────────────┼──────────────────────────────┤
+   │ 0 │  2   │ [2]          │ push                         │
+   │ 1 │  1   │ [2,1]        │ 1 < 2 → push (decreasing ✅) │
+   │ 2 │  2   │ [2,2]        │ ⭐ 2 > 1 → res[1]=2, pop     │
+   │   │      │              │ 2 == 2 → push (not >)        │
+   │ 3 │  4   │ [4]          │ ⭐ 4 resolves BOTH 2s → pop  │
+   │ 4 │  3   │ [4,3]        │ 3 < 4 → push                 │
+   └───┴──────┴──────────────┴──────────────────────────────┘
+   leftovers (4 and 3) get −1 ✅
+```
+
 ```cpp
-vector<int> maxSlidingWindow(vector<int>& a, int k) {
-    deque<int> dq;                                 // indices, values DECREASING
-    vector<int> out;
-    for (int i = 0; i < (int)a.size(); ++i) {
-        if (!dq.empty() && dq.front() <= i - k) dq.pop_front();
-        while (!dq.empty() && a[dq.back()] <= a[i]) dq.pop_back();
-        dq.push_back(i);
-        if (i >= k - 1) out.push_back(a[dq.front()]);
+// I — the query array is a SUBSET of nums2
+vector<int> nextGreaterElement(vector<int>& nums1, vector<int>& nums2) {
+    unordered_map<int,int> nge;                 // ⭐ value → its next greater
+    stack<int> st;
+
+    for (int x : nums2) {
+        while (!st.empty() && st.top() < x) { nge[st.top()] = x; st.pop(); }
+        st.push(x);
     }
+
+    vector<int> out;
+    for (int x : nums1) out.push_back(nge.count(x) ? nge[x] : -1);
     return out;
 }
-```
 
----
-
-### 27. Shortest Subarray with Sum at Least K 🔴
-> Works with **negative** numbers, unlike the sliding window version.
-
-```cpp
-int shortestSubarray(vector<int>& a, int k) {
+// II — the array is CIRCULAR
+vector<int> nextGreaterElements(vector<int>& a) {
     int n = a.size();
-    vector<long long> pre(n + 1, 0);
-    for (int i = 0; i < n; ++i) pre[i+1] = pre[i] + a[i];
+    vector<int> res(n, -1);
+    stack<int> st;                              // indices
 
-    deque<int> dq;                                 // indices, prefix INCREASING
-    int best = n + 1;
-    for (int i = 0; i <= n; ++i) {
-        while (!dq.empty() && pre[i] - pre[dq.front()] >= k) {
-            best = min(best, i - dq.front());
-            dq.pop_front();                        // ⭐ can never be better later
+    for (int i = 0; i < 2 * n; ++i) {           // ⭐ two passes simulate the wrap
+        int idx = i % n;
+        while (!st.empty() && a[st.top()] < a[idx]) {
+            res[st.top()] = a[idx];
+            st.pop();
         }
-        while (!dq.empty() && pre[dq.back()] >= pre[i]) dq.pop_back();  // dominated
-        dq.push_back(i);
+        if (i < n) st.push(idx);                // ⭐ only PUSH during pass 1
     }
-    return best == n + 1 ? -1 : best;
+    return res;
 }
 ```
-**Key insight:** Two invariants. Front-popping: once a prefix satisfies the sum, any later `i` gives a longer subarray, so discard it. Back-popping: if `pre[j] >= pre[i]` with `j < i`, then `j` is dominated — `i` is both a smaller prefix and closer.
 
----
+⭐ **`if (i < n) st.push(idx)` is the key line in the circular version.** The second pass exists only to *resolve* leftovers, not to add new ones — pushing again would produce duplicate answers.
 
-### 28. Design Circular Queue 🟡
-```cpp
-class MyCircularQueue {
-    vector<int> buf;
-    int head = 0, count = 0, cap;
-public:
-    MyCircularQueue(int k) : buf(k), cap(k) {}
-    bool enQueue(int v) {
-        if (count == cap) return false;
-        buf[(head + count) % cap] = v;             // ⭐ modular indexing
-        ++count;
-        return true;
-    }
-    bool deQueue() {
-        if (!count) return false;
-        head = (head + 1) % cap; --count;
-        return true;
-    }
-    int Front() { return count ? buf[head] : -1; }
-    int Rear()  { return count ? buf[(head + count - 1) % cap] : -1; }
-    bool isEmpty() { return count == 0; }
-    bool isFull()  { return count == cap; }
-};
+## 📌 Pattern Card
 ```
-**Key insight:** Storing `count` rather than a tail index disambiguates full from empty, which a head/tail-only design cannot.
-
----
-
-### 29. Design Hit Counter 🟡
-```cpp
-class HitCounter {
-    deque<pair<int,int>> q;                        // {timestamp, count}
-    int total = 0;
-    void evict(int t) {
-        while (!q.empty() && q.front().first <= t - 300) { total -= q.front().second; q.pop_front(); }
-    }
-public:
-    void hit(int t) {
-        evict(t);
-        if (!q.empty() && q.back().first == t) ++q.back().second;
-        else q.push_back({t, 1});
-        ++total;
-    }
-    int getHits(int t) { evict(t); return total; }
-};
+SIGNAL   "next/previous greater/smaller element"
+KEY      ⭐ monotonic stack of INDICES; pop while the new value wins
+         circular → loop 2n, push only in the first half
+RELATED  Daily Temperatures · Stock Span · Largest Rectangle · 132 Pattern
 ```
 
 ---
 
-### 30. Asteroid Collision 🟡
+# 6. Daily Temperatures
+🟡 ⚪ **Variation of #5** — store the *distance* instead of the value.
+
+```cpp
+vector<int> dailyTemperatures(vector<int>& t) {
+    vector<int> res(t.size(), 0);               // ⭐ 0 = no warmer day ahead
+    stack<int> st;                              // indices, decreasing temps
+
+    for (int i = 0; i < (int)t.size(); ++i) {
+        while (!st.empty() && t[st.top()] < t[i]) {
+            res[st.top()] = i - st.top();       // ⭐ the GAP, not the value
+            st.pop();
+        }
+        st.push(i);
+    }
+    return res;
+}
+```
+⭐ **Storing indices instead of values** is exactly what makes this variation free.
+
+---
+
+# 7. Stock Span / Online Stock Span
+🟡 ⚪ **Variation of #5** — *previous* greater, and it must work **online** (streaming).
+
+```mermaid
+flowchart LR
+    A["span = how many consecutive<br/>days back had price ≤ today"] --> B["⭐ = distance to the<br/>PREVIOUS GREATER element"]
+    B --> C["⭐ Pop and ABSORB their spans —<br/>the popped days are already known<br/>to be ≤ today"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+class StockSpanner {
+    stack<pair<int,int>> st;                    // {price, span}
+public:
+    int next(int price) {
+        int span = 1;
+        while (!st.empty() && st.top().first <= price) {
+            span += st.top().second;            // ⭐ ABSORB the popped span
+            st.pop();
+        }
+        st.push({price, span});
+        return span;
+    }
+};
+```
+⭐ **Absorbing spans is what makes it work online** — you never need to look at the original array again, only at the compressed summaries on the stack.
+
+---
+
+# 8. Largest Rectangle in Histogram
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **The most important stack problem there is**
+
+> Bars of width 1 and given heights. Find the largest axis-aligned rectangle.
+
+```
+                    ▓
+              ▓     ▓
+        ▓  ░░▓░░░░░▓░░
+        ▓  ░░▓  ▓  ▓░░       ⭐ best = height 2 × width 5 = 10
+     ▓  ▓  ░░▓  ▓  ▓░░
+    [2, 1, 5, 6, 2, 3]
+```
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL PAIRS (i,j)<br/>+ find the min in each<br/><b>O(n³)</b>"] --> B["⚡ ALL STARTS<br/>+ running min<br/><b>O(n²)</b>"]
+    B -->|"for each bar, find its<br/>span directly"| C["⚡ PREV/NEXT SMALLER<br/>two stack passes<br/><b>O(n)</b> / O(n)"]
+    C -->|"fuse into<br/>ONE pass"| D["🚀 SINGLE MONOTONIC STACK<br/><b>O(n)</b> / O(n)"]
+    B -->|"recurse on<br/>the minimum"| E["⚡ DIVIDE &amp; CONQUER<br/><b>O(n log n)</b> avg<br/>⚠️ O(n²) worst"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style E fill:#e1bee7,stroke:#6a1b9a,color:#000
+```
+
+## 💬 Reframing the problem
+
+```mermaid
+flowchart TD
+    A["⭐ Every maximal rectangle has a<br/>bar that is its SHORTEST bar"] --> B["So: for each bar i, ask<br/>'how far can a rectangle of<br/>height h[i] extend?'"]
+    B --> C["LEFT limit = the first bar to the<br/>left that is SHORTER than h[i]"]
+    B --> D["RIGHT limit = the first bar to the<br/>right that is SHORTER than h[i]"]
+    C --> E["⭐ area = h[i] × (right − left − 1)"]
+    D --> E
+    E --> F["⭐ Both limits are exactly what a<br/>monotonic stack computes"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐ FOR h = [2, 1, 5, 6, 2, 3], take bar i=2 (height 5)
+
+     left limit:  index 1 (height 1 < 5)
+     right limit: index 4 (height 2 < 5)
+     width = 4 − 1 − 1 = 2
+     area  = 5 × 2 = 10
+
+   Take bar i=1 (height 1):
+     left limit:  −1 (nothing shorter)
+     right limit: 6 (past the end)
+     width = 6 − (−1) − 1 = 6
+     area  = 1 × 6 = 6
+
+   ⭐ The maximum over all bars is the answer.
+```
+
+## 4️⃣ Single Monotonic Stack — ⭐ OPTIMAL
+
+```mermaid
+flowchart TD
+    A["stack holds indices with<br/>INCREASING heights"] --> B{"h[i] &lt; h[stack.top()] ?"}
+    B -->|"YES"| C["⭐ We just found the RIGHT limit<br/>for the bar on top"]
+    C --> D["pop it: height = h[popped]"]
+    D --> E["⭐ LEFT limit = the NEW stack top<br/>(everything between was taller)"]
+    E --> F["width = i − newTop − 1<br/>area = height × width"]
+    B -->|"NO"| G["push i — still waiting<br/>for a shorter bar"]
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+int largestRectangleArea(vector<int>& h) {
+    h.push_back(0);                             // ⭐⭐ SENTINEL — forces a
+                                                //    flush of the whole stack
+    stack<int> st;                              // indices, INCREASING heights
+    int best = 0;
+
+    for (int i = 0; i < (int)h.size(); ++i) {
+        while (!st.empty() && h[st.top()] > h[i]) {
+            int height = h[st.top()]; st.pop();
+
+            // ⭐ left limit is the new top; if empty, the bar extends to 0
+            int width = st.empty() ? i : i - st.top() - 1;
+            best = max(best, height * width);
+        }
+        st.push(i);
+    }
+
+    h.pop_back();                               // ⭐ restore the caller's data
+    return best;
+}
+```
+
+```
+   ⭐⭐ WHY `width = i − st.top() − 1` AFTER POPPING
+
+   After popping, the new stack top is the first bar to the
+   LEFT that is shorter than the popped bar — because everything
+   between them was taller and has already been popped.
+
+   So the rectangle spans strictly between them:
+       (st.top(), i)  exclusive on both ends
+       width = i − st.top() − 1
+
+   ⚠️ If the stack becomes EMPTY, no shorter bar exists to the
+     left, so the rectangle extends all the way to index 0
+     → width = i.
+```
+
+⭐ **The trailing `0` sentinel** is what guarantees every bar gets popped and measured. Without it, a monotonically increasing histogram like `[1,2,3]` leaves everything on the stack unmeasured.
+
+## 📌 Pattern Card
+```
+SIGNAL   "largest rectangle/area bounded by heights"
+KEY      ⭐ for each bar, find prev-smaller and next-smaller
+         one monotonic INCREASING stack + a 0 sentinel
+RELATED  Maximal Rectangle · Trapping Rain Water · Sum of Subarray Minimums
+```
+
+---
+
+# 9. Maximal Rectangle
+🔴 ⚪ **Variation of #8** — reduce 2D to 1D, exactly like [Max Sum Rectangle](01b-arrays-strings.md#45-max-sum-rectangle-in-2d-matrix).
+
+```mermaid
+flowchart TD
+    A["binary matrix"] --> B["⭐ For each row, build a HISTOGRAM:<br/>heights[j] = consecutive 1s<br/>ending at this row"]
+    B --> C["⭐ Run Largest Rectangle<br/>on that histogram"]
+    C --> D["Take the max over all rows"]
+    D --> E(["<b>O(R·C)</b>"])
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   MATRIX               HEIGHTS after each row
+   1 0 1 0 0      →     [1, 0, 1, 0, 0]   max area 1
+   1 0 1 1 1      →     [2, 0, 2, 1, 1]   max area 3
+   1 1 1 1 1      →     [3, 1, 3, 2, 2]   ⭐ max area 6
+   1 0 0 1 0      →     [4, 0, 0, 3, 0]   max area 4
+                                          ⭐ ANSWER: 6
+```
+
+```cpp
+int maximalRectangle(vector<vector<char>>& m) {
+    if (m.empty()) return 0;
+    int C = m[0].size(), best = 0;
+    vector<int> h(C, 0);
+
+    for (auto& row : m) {
+        for (int j = 0; j < C; ++j)
+            h[j] = (row[j] == '1') ? h[j] + 1 : 0;   // ⭐ a 0 RESETS the column
+
+        best = max(best, largestRectangleArea(h));
+    }
+    return best;
+}
+```
+⭐ **`h[j] = 0` on a zero cell** is the whole reduction — the column's run is broken, so any rectangle must start fresh below it.
+
+---
+
+# 10. Trapping Rain Water (Stack View)
+🔴 ⚪ **The stack solution is covered** alongside three others in [Two Pointers #5](03-two-pointers-sliding-window.md#5-trapping-rain-water).
+
+⭐ **The contrast worth remembering:** Largest Rectangle uses an **increasing** stack and pops on a *smaller* bar; Trapping Rain Water uses a **decreasing** stack and pops on a *larger* bar. Same machinery, mirrored comparison.
+
+---
+
+# 11. Remove K Digits
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Greedy + monotonic stack**
+
+> Remove exactly `k` digits to make the smallest possible number.
+
+## 💬 The greedy rule
+
+```mermaid
+flowchart TD
+    A["⭐ Scan left to right.<br/>Whenever a digit is SMALLER<br/>than the one before it..."] --> B["...removing that predecessor<br/>strictly reduces the number"]
+    B --> C["⭐ Why? A more significant digit<br/>getting smaller beats ANY<br/>improvement further right"]
+    C --> D["So: pop while stack.top() &gt; digit<br/>and k remains"]
+    D --> E["⚠️ Leftover k → remove from<br/>the END (already increasing)"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+```
+
+```
+   TRACE  num = "1432219", k = 3
+
+   ┌───┬────────┬──────────────────────────────────┬───┐
+   │ d │ stack  │ action                           │ k │
+   ├───┼────────┼──────────────────────────────────┼───┤
+   │ 1 │ 1      │ push                             │ 3 │
+   │ 4 │ 14     │ 4 > 1 → push                     │ 3 │
+   │ 3 │ 13     │ ⭐ 3 < 4 → pop 4                 │ 2 │
+   │ 2 │ 12     │ ⭐ 3 > 2 → pop 3                 │ 1 │
+   │ 2 │ 122    │ 2 == 2 → push                    │ 1 │
+   │ 1 │ 1211→121│⭐ 1 < 2 → pop 2                  │ 0 │
+   │ 9 │ 1219   │ k exhausted → just push          │ 0 │
+   └───┴────────┴──────────────────────────────────┴───┘
+   ⭐ ANSWER: "1219"
+```
+
+```cpp
+string removeKdigits(string num, int k) {
+    string st;                                  // ⭐ a string IS a stack here
+
+    for (char d : num) {
+        while (k && !st.empty() && st.back() > d) { st.pop_back(); --k; }
+        st.push_back(d);
+    }
+
+    while (k--) st.pop_back();                  // ⭐ leftover k: trim the END
+
+    // ⚠️ strip leading zeros
+    int i = 0;
+    while (i < (int)st.size() && st[i] == '0') ++i;
+    string out = st.substr(i);
+
+    return out.empty() ? "0" : out;             // ⚠️ "" is not a valid number
+}
+```
+
+⭐ **Why the leftover `k` is removed from the end:** if `k` remains after the scan, the stack is already non-decreasing, so the largest digits are at the back — removing those is optimal.
+
+---
+
+# 12. Remove Duplicate Letters
+🔴 ⚪ **Variation of #11** — the same greedy pop, with one extra guard.
+
+```mermaid
+flowchart LR
+    A["pop while stack.top() &gt; c"] --> B["⭐ PLUS: only pop if that<br/>character APPEARS AGAIN later"]
+    B --> C["⭐ PLUS: skip c entirely<br/>if it's already in the stack"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
+```cpp
+string removeDuplicateLetters(string s) {
+    int last[26] = {}, inStack[26] = {};
+    for (int i = 0; i < (int)s.size(); ++i) last[s[i] - 'a'] = i;   // ⭐ last index
+
+    string st;
+    for (int i = 0; i < (int)s.size(); ++i) {
+        char c = s[i];
+        if (inStack[c - 'a']) continue;         // ⭐ already placed → skip
+
+        // ⭐ pop only if that character will reappear later
+        while (!st.empty() && st.back() > c && last[st.back() - 'a'] > i) {
+            inStack[st.back() - 'a'] = 0;
+            st.pop_back();
+        }
+        st.push_back(c);
+        inStack[c - 'a'] = 1;
+    }
+    return st;
+}
+```
+⭐ **`last[st.back()] > i` is the safety check** — popping a character that never reappears would lose it permanently, violating "every letter appears exactly once."
+
+---
+
+# 13. 132 Pattern
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Scanning backwards is the trick**
+
+> Does there exist `i < j < k` with `a[i] < a[k] < a[j]`?
+
+## 💬 Why scan right-to-left
+
+```mermaid
+flowchart TD
+    A["We need a[i] &lt; a[k] &lt; a[j]<br/>with i &lt; j &lt; k"] --> B["⚠️ Scanning forward, the '2'<br/>(a[k]) hasn't been seen yet<br/>when we're choosing '3'"]
+    B --> C["⭐ Scan RIGHT to LEFT and treat<br/>the current element as the '1'"]
+    C --> D["⭐ Maintain a DECREASING stack of<br/>candidates for the '3', and track<br/>`third` = the best '2' popped so far"]
+    D --> E{"a[i] &lt; third ?"}
+    E -->|"yes"| F(["✅ pattern found"])
+
+    style B fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ THE KEY INVARIANT
+
+   `third` holds the LARGEST value we have popped — and every
+   popped value had something bigger to its right (the popper).
+
+   So `third` is a valid "2" with a known "3" to its right.
+   ⭐ We only need to find any element to the LEFT that is
+     smaller than `third`.
+```
+
+```cpp
+bool find132pattern(vector<int>& a) {
+    stack<int> st;                              // candidates for the "3"
+    long long third = LLONG_MIN;                // ⭐ best valid "2" so far
+
+    for (int i = a.size() - 1; i >= 0; --i) {   // ⭐ RIGHT to LEFT
+        if (a[i] < third) return true;          // ⭐ a[i] is the "1" → found
+
+        while (!st.empty() && st.top() < a[i]) {
+            third = st.top();                   // ⭐ popped value becomes the "2"
+            st.pop();
+        }
+        st.push(a[i]);                          // a[i] is a candidate "3"
+    }
+    return false;
+}
+```
+
+⭐ **`third` only ever increases**, because the stack is decreasing and we pop from the top — each new `third` is larger than the last. That's what keeps the check a single comparison.
+
+---
+
+# 14. Basic Calculator I (Parentheses)
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Stack of (result, sign)**
+
+> Evaluate `"(1+(4+5+2)-3)+(6+8)"` = 23. Only `+`, `-`, and parentheses.
+
+```mermaid
+flowchart TD
+    A["scan left to right"] --> B{"character"}
+    B -->|"digit"| C["accumulate the number"]
+    B -->|"+ or −"| D["result += sign × num<br/>set the new sign"]
+    B -->|"⭐ ("| E["PUSH result and sign<br/>then RESET both<br/>— start a fresh sub-expression"]
+    B -->|"⭐ )"| F["result = poppedResult<br/>+ poppedSign × result"]
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ WHY PUSH THE SIGN TOO
+
+   In  "5 − (3 + 2)"  the minus applies to the ENTIRE
+   parenthesized result, not just to the 3.
+
+   Pushing the sign at '(' and applying it at ')' distributes
+   the negation correctly with no extra bookkeeping.
+```
+
+```cpp
+int calculate(string s) {
+    stack<int> st;                              // alternating result, sign
+    int result = 0, num = 0, sign = 1;
+
+    for (char c : s) {
+        if (isdigit((unsigned char)c)) {
+            num = num * 10 + (c - '0');
+        } else if (c == '+' || c == '-') {
+            result += sign * num;
+            num = 0;
+            sign = (c == '+') ? 1 : -1;
+        } else if (c == '(') {
+            st.push(result);                    // ⭐ save the outer context
+            st.push(sign);
+            result = 0; sign = 1;               // ⭐ fresh sub-expression
+        } else if (c == ')') {
+            result += sign * num;
+            num = 0;
+
+            result *= st.top(); st.pop();       // ⭐ apply the saved sign
+            result += st.top(); st.pop();       // ⭐ add the saved result
+            sign = 1;
+        }
+    }
+    return result + sign * num;                 // ⭐ flush the last number
+}
+```
+
+⭐ **The pop order is the reverse of the push order** — sign first, then result. Getting this backwards is a classic bug.
+
+🎤 **Basic Calculator III** adds `*` and `/` inside parentheses — combine this with the `last`-deferral technique from [Basic Calculator II](01c-arrays-strings.md#65-basic-calculator-ii).
+
+---
+
+# 15. Evaluate Reverse Polish Notation
+🟡 ⚪ **Variation** — RPN needs no precedence rules at all, which is why it exists.
+
+```cpp
+int evalRPN(vector<string>& tokens) {
+    stack<long long> st;
+
+    for (auto& t : tokens) {
+        if (t.size() > 1 || isdigit((unsigned char)t[0])) {   // ⚠️ "-5" is a number
+            st.push(stoll(t));
+            continue;
+        }
+
+        long long b = st.top(); st.pop();       // ⭐ SECOND operand pops FIRST
+        long long a = st.top(); st.pop();
+
+        switch (t[0]) {
+            case '+': st.push(a + b); break;
+            case '-': st.push(a - b); break;
+            case '*': st.push(a * b); break;
+            case '/': st.push(a / b); break;    // ⭐ C++ truncates toward zero ✅
+        }
+    }
+    return (int)st.top();
+}
+```
+⚠️ **Operand order matters for `-` and `/`.** The top of the stack is the *right* operand.
+
+⚠️ **`t.size() > 1 || isdigit(t[0])`** — a bare `"-"` is an operator, but `"-5"` is a number. Checking length first handles both.
+
+---
+
+# 16. Asteroid Collision
+
+🟡 **Medium** · 🔵 Full ladder · **Stack simulation with tricky control flow**
+
+> Positive = moving right, negative = moving left. Collisions destroy the smaller; equal sizes destroy both.
+
+```mermaid
+flowchart TD
+    A["for each asteroid"] --> B{"moving RIGHT (positive)?"}
+    B -->|"yes"| C["⭐ push — it can never<br/>collide with anything behind it"]
+    B -->|"no, moving LEFT"| D{"stack top is<br/>moving RIGHT?"}
+    D -->|"no"| E["push — same direction,<br/>no collision"]
+    D -->|"yes → COLLISION"| F{"compare sizes"}
+    F -->|"top smaller"| G["pop, ⭐ keep checking<br/>the next one"]
+    F -->|"equal"| H["pop, and the incoming<br/>one dies too"]
+    F -->|"top bigger"| I["the incoming one dies"]
+    G --> D
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style F fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
+```
+   ⭐ COLLISIONS ONLY HAPPEN IN ONE CONFIGURATION
+
+     stack top moving RIGHT (+)  and  incoming moving LEFT (−)
+
+     → →   ✅ no collision (same direction)
+     ← ←   ✅ no collision
+     ← →   ✅ no collision (moving APART)
+     ⭐ → ←   💥 COLLISION
+```
+
 ```cpp
 vector<int> asteroidCollision(vector<int>& a) {
     vector<int> st;
+
     for (int x : a) {
         bool alive = true;
-        while (alive && x < 0 && !st.empty() && st.back() > 0) {  // ⭐ collision
-            if (st.back() < -x) st.pop_back();                    // stack one explodes
-            else if (st.back() == -x) { st.pop_back(); alive = false; }  // both
-            else alive = false;                                   // incoming explodes
+
+        // ⭐ collision only when top is + and x is −
+        while (alive && x < 0 && !st.empty() && st.back() > 0) {
+            if (st.back() < -x) {
+                st.pop_back();                  // top dies, keep checking
+            } else if (st.back() == -x) {
+                st.pop_back();                  // ⭐ BOTH die
+                alive = false;
+            } else {
+                alive = false;                  // incoming dies
+            }
         }
         if (alive) st.push_back(x);
     }
     return st;
 }
 ```
-**Key insight:** A collision only happens when a right-mover (positive, on the stack) meets a left-mover (negative, incoming). Every other pairing never meets.
+
+⚠️ **The `alive` flag is necessary** because a `break` would skip the push, but the equal-size case must *also* skip the push — two different exit conditions with the same outcome.
 
 ---
 
-### Bonus: Exclusive Time of Functions 🟡
-```cpp
-vector<int> exclusiveTime(int n, vector<string>& logs) {
-    vector<int> res(n, 0);
-    stack<int> st;
-    int prev = 0;
-    for (auto& log : logs) {
-        int p1 = log.find(':'), p2 = log.rfind(':');
-        int id = stoi(log.substr(0, p1));
-        string type = log.substr(p1 + 1, p2 - p1 - 1);
-        int t = stoi(log.substr(p2 + 1));
+# 17. Simplify Path
+🟡 ⚪ **Variation** — a stack of directory names.
 
-        if (type == "start") {
-            if (!st.empty()) res[st.top()] += t - prev;
-            st.push(id);
-            prev = t;
-        } else {
-            res[st.top()] += t - prev + 1;         // ⭐ end is INCLUSIVE
-            st.pop();
-            prev = t + 1;
-        }
+```cpp
+string simplifyPath(string path) {
+    vector<string> st;
+    stringstream ss(path);
+    string token;
+
+    while (getline(ss, token, '/')) {
+        if (token.empty() || token == ".") continue;        // ⭐ ignore
+        if (token == "..") { if (!st.empty()) st.pop_back(); }  // ⭐ go up
+        else st.push_back(token);
     }
-    return res;
+
+    string out;
+    for (auto& d : st) out += "/" + d;
+    return out.empty() ? "/" : out;             // ⚠️ root is "/", not ""
 }
 ```
+⭐ **`getline` with `/` as the delimiter** handles `//` and trailing slashes automatically — they produce empty tokens, which the first check skips.
 
 ---
 
-### Bonus: Basic Calculator III (all operators + parens) 🔴
+# 18. Decode String
+🟡 ⚪ **Fully covered** in [Strings #66](01c-arrays-strings.md#66-decode-string) — two stacks, one for counts and one for prefixes.
+
+---
+
+# 19. Sliding Window Maximum
+🔴 ⚪ **Fully covered** in [Two Pointers #12](03-two-pointers-sliding-window.md#12-sliding-window-maximum) — the monotonic **deque**, which is the two-ended cousin of everything in this chapter.
+
+---
+
+# 20. Design Circular Queue
+
+🟡 **Medium** · 🔵 Full ladder · **Ring buffer**
+
+## ⚠️ The full-vs-empty ambiguity
+
+```mermaid
+flowchart TD
+    A["A ring buffer with head and tail"] --> B["⚠️ head == tail means<br/>EMPTY... or FULL?<br/>Both look identical!"]
+    B --> C["FIX 1: keep an explicit<br/>`count` ⭐ simplest"]
+    B --> D["FIX 2: waste one slot —<br/>full means (tail+1)%n == head"]
+    B --> E["FIX 3: track a `full` boolean"]
+
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#bbdefb,stroke:#1565c0,color:#000
+```
+
 ```cpp
-int calculate(string s) {
-    int i = 0;
-    function<int()> parse = [&]() -> int {
-        stack<int> st;
-        int num = 0;
-        char op = '+';
-        while (i < (int)s.size()) {
-            char c = s[i++];
-            if (isdigit(c)) num = num * 10 + (c - '0');
-            else if (c == '(') num = parse();       // ⭐ recurse
-            if ((!isdigit(c) && c != ' ') || i == (int)s.size()) {
-                if (op == '+') st.push(num);
-                else if (op == '-') st.push(-num);
-                else if (op == '*') { int t = st.top(); st.pop(); st.push(t * num); }
-                else if (op == '/') { int t = st.top(); st.pop(); st.push(t / num); }
-                op = c; num = 0;
-                if (c == ')') break;                // return to the caller
-            }
-        }
-        int r = 0;
-        while (!st.empty()) { r += st.top(); st.pop(); }
-        return r;
-    };
-    return parse();
-}
+class MyCircularQueue {
+    vector<int> buf;
+    int head = 0, count = 0, cap;               // ⭐ explicit count
+
+public:
+    MyCircularQueue(int k) : buf(k), cap(k) {}
+
+    bool enQueue(int v) {
+        if (isFull()) return false;
+        buf[(head + count) % cap] = v;          // ⭐ modular wrap
+        ++count;
+        return true;
+    }
+    bool deQueue() {
+        if (isEmpty()) return false;
+        head = (head + 1) % cap;                // ⭐ advance, don't shift
+        --count;
+        return true;
+    }
+    int  Front() { return isEmpty() ? -1 : buf[head]; }
+    int  Rear()  { return isEmpty() ? -1 : buf[(head + count - 1) % cap]; }
+    bool isEmpty() { return count == 0; }
+    bool isFull()  { return count == cap; }
+};
+```
+
+⭐ **Ring buffers are everywhere in real systems** — audio pipelines, network packet queues, Kafka partitions, and the `RingBuffer` at the heart of LMAX Disruptor. The `% cap` arithmetic is the whole idea: reuse the same memory forever with no allocation.
+
+---
+
+## 📋 Stacks & Queues Recall
+
+```mermaid
+mindmap
+  root(("Stacks<br/>&amp; Queues"))
+    Monotonic Stack
+      ⭐ the highest-value pattern here
+      next/prev greater/smaller
+      store INDICES, not values
+      sentinel to flush leftovers
+      amortized O(n): push once, pop once
+    Largest Rectangle
+      ⭐ each bar's span = prev/next smaller
+      increasing stack + 0 sentinel
+      2D → per-row histogram
+    Greedy + Stack
+      pop while top is worse
+      ⚠️ guard: will it reappear?
+      leftover k → trim the end
+    Parsing
+      push the EXPECTED closer
+      ⭐ push (result, sign) at '('
+      RPN needs no precedence
+      two stacks for nesting
+    Auxiliary State
+      min stack in lockstep
+      ⭐ delta encoding for O(1) space
+      absorb spans for online queries
+    Queues
+      ⭐ two stacks → amortized O(1)
+      one queue → O(n) push, no fix
+      ring buffer: count kills ambiguity
+```
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                STACKS & QUEUES — PATTERN RECALL                      ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "matching / nesting"           → stack, push the expected closer     ║
+║ "next greater / smaller"       → ⭐ MONOTONIC STACK of indices        ║
+║ "how many days until..."       → same, store the index GAP           ║
+║ "largest rectangle"            → ⭐ increasing stack + 0 sentinel     ║
+║ "maximal rectangle in a grid"  → per-row histogram, then the above   ║
+║ "smallest number after k dels" → greedy: pop while top > current     ║
+║ "pattern a[i] < a[k] < a[j]"   → ⭐ scan RIGHT to LEFT, track `third` ║
+║ "expression with parentheses"  → ⭐ push (result, sign) at '('        ║
+║ "O(1) getMin alongside a stack"→ parallel min stack, in lockstep     ║
+║ "queue from stacks"            → ⭐ pour ONLY when `out` is empty     ║
+║ "max of every k-window"        → monotonic DEQUE                     ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   histogram: forgetting the trailing 0 sentinel leaves bars unmeasured║
+║   histogram: width is i − st.top() − 1, and i when the stack empties ║
+║   circular NGE: push only during the FIRST pass                      ║
+║   queue-from-stacks: pouring early destroys FIFO order               ║
+║   RPN: the stack top is the RIGHT operand — order matters for − and /║
+║   remove dup letters: only pop if the char REAPPEARS later           ║
+║   Calculator I: pop sign BEFORE result — reverse of the push order   ║
+╚══════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 📋 Section Summary
-
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║               STACKS & QUEUES — PATTERN RECALL                    ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ MONOTONIC STACK — the highest-value pattern here                  ║
-║   "next greater"     L→R, pop while a[top] < a[i]                 ║
-║   "next smaller"     L→R, pop while a[top] > a[i]                 ║
-║   "previous X"       same, but scan R→L                           ║
-║   ⭐ each index pushed once + popped once → O(n)                   ║
-║   ⭐ sentinel (0 or -1) flushes the stack at the end               ║
-║                                                                   ║
-║ APPLICATIONS                                                      ║
-║   largest rectangle  → prev smaller + next smaller = the span     ║
-║   maximal rectangle  → per-row histogram, reuse the above         ║
-║   trapping water     → stack = horizontal layers                  ║
-║                        two pointers = vertical columns, O(1) space║
-║   sum of subarray min→ count "how many subarrays am I the min of" ║
-║   remove k digits    → greedy monotonic non-decreasing stack      ║
-║                                                                   ║
-║ MONOTONIC DEQUE — sliding window max/min in O(n)                  ║
-║   also: shortest subarray sum ≥ k WITH NEGATIVES (prefix+deque)   ║
-║                                                                   ║
-║ PARENTHESES: stack of indices; -1 sentinel for longest-valid      ║
-║ EXPRESSIONS: push additive terms, resolve * and / immediately     ║
-║ QUEUE FROM STACKS: two stacks, amortized O(1)                     ║
-╚═══════════════════════════════════════════════════════════════════╝
-```
-
-**Next:** [Trees →](06-trees.md)
+**Next:** [Trees →](06-trees.md) · **Back:** [Linked Lists](04-linked-lists.md)

@@ -1,128 +1,151 @@
-# 🧮 Dynamic Programming — 60 Problems
+# 🧮 Dynamic Programming
 
-> DP scares people because it's taught backwards. Nobody invents a table out of thin air. **You write the obvious brute-force recursion, notice it recomputes the same things, and cache them.** That's it. This book teaches it in that order.
+> DP scares people because it's taught backwards. Nobody invents a table out of thin air. **You write the obvious brute-force recursion, notice it recomputes the same things, and cache them.** That's it.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
 ## 🧠 What DP Actually Is
 
-#### 💬 The plain-language version
+```mermaid
+flowchart TD
+    A["fib(5)"] --> B["fib(4)"]
+    A --> C["fib(3)"]
+    B --> D["fib(3)"]
+    B --> E["fib(2)"]
+    D --> F["fib(2)"]
+    D --> G["fib(1)"]
 
-Suppose I ask you to compute `fib(50)` with the obvious recursion. You'd write `fib(n) = fib(n-1) + fib(n-2)`. Correct — but catastrophically slow. Why?
-
-```
-                        fib(5)
-                    ┌─────┴─────┐
-                 fib(4)       fib(3)      ← fib(3) appears here
-              ┌────┴───┐    ┌───┴───┐
-           fib(3)   fib(2) fib(2) fib(1)  ← and AGAIN here
-          ┌──┴──┐
-       fib(2) fib(1)                       ← fib(2) computed 3 separate times
-
-   fib(50) recomputes fib(30) about 800,000 times.
-```
-
-You're solving the same subproblem again and again. The fix is embarrassingly simple: **write the answer down the first time, and look it up after that.** That's dynamic programming. Everything else is bookkeeping.
-
-#### The two requirements
-
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ 1. OPTIMAL SUBSTRUCTURE                                      │
-   │    The best answer for a big problem is built from           │
-   │    best answers to smaller problems.                         │
-   │                                                              │
-   │    ✅ Shortest path: best route A→C through B                 │
-   │       = best A→B + best B→C                                  │
-   │    ❌ LONGEST simple path: doesn't work — the best A→B        │
-   │       might use up nodes that B→C needed                     │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 2. OVERLAPPING SUBPROBLEMS                                   │
-   │    The same subproblem comes up more than once.              │
-   │                                                              │
-   │    If subproblems DON'T overlap, caching helps nothing —     │
-   │    that's just divide & conquer (e.g. merge sort).           │
-   └──────────────────────────────────────────────────────────────┘
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style C fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,color:#000
 ```
 
-### The recipe — follow it every single time
-
 ```
-   ┌─ STEP 1 ─────────────────────────────────────────────────────┐
-   │ Write the BRUTE FORCE recursion. Don't think about DP yet.    │
-   │ Just: "to solve this, what smaller problems do I need?"       │
-   ├─ STEP 2 ─────────────────────────────────────────────────────┤
-   │ Identify the STATE — what arguments actually change?          │
-   │ Those become your table dimensions.                           │
-   │   one changing value  → dp[i]                                 │
-   │   two changing values → dp[i][j]                              │
-   ├─ STEP 3 ─────────────────────────────────────────────────────┤
-   │ Add MEMOIZATION. Same code + a cache array. Now it's DP.      │
-   │ ⭐ You can stop here. This is a complete, correct solution.    │
-   ├─ STEP 4 ─────────────────────────────────────────────────────┤
-   │ (Optional) Flip to BOTTOM-UP. Same recurrence, but fill the   │
-   │ table in dependency order with loops instead of recursion.    │
-   ├─ STEP 5 ─────────────────────────────────────────────────────┤
-   │ (Optional) OPTIMIZE SPACE. If dp[i] only reads dp[i-1],       │
-   │ you don't need the whole array — just a couple of variables.  │
-   └───────────────────────────────────────────────────────────────┘
+   ⭐ fib(3) is computed TWICE above. fib(50) recomputes
+     fib(30) about 800,000 times.
+
+   The fix: write the answer down the first time, look it up
+   after that. That's the whole idea. Everything else is
+   bookkeeping.
 ```
 
-🎤 **In an interview, say this out loud:** *"Let me start with the brute force recursion, then identify the repeated states and memoize."* That narration alone signals you understand DP rather than having memorized tables.
-
-### Top-down vs bottom-up
+## ⭐ The Two Requirements
 
 ```
-   TOP-DOWN (memoization)              BOTTOM-UP (tabulation)
-   ─────────────────────               ──────────────────────
-   Recursion + cache array             Loops filling a table
-   Mirrors your natural thinking       Needs you to know the fill order
-   Only computes states you NEED       Computes every state
-   Recursion stack overhead            No stack, usually faster
-   Easier to write correctly ⭐         Easier to space-optimize ⭐
+   ① OPTIMAL SUBSTRUCTURE
+      The best answer to a big problem is built from best
+      answers to smaller problems.
+      ✅ shortest path A→C via B = best(A→B) + best(B→C)
+      ❌ LONGEST simple path — doesn't compose this way
 
-   → Write top-down first. Convert if asked, or if the recursion
-     depth is a problem.
+   ② OVERLAPPING SUBPROBLEMS
+      The same subproblem recurs. If subproblems never repeat,
+      caching buys nothing — that's just divide & conquer.
+```
+
+## ⭐ The Recipe — follow it every time
+
+```mermaid
+flowchart TD
+    S1["① Write the BRUTE-FORCE recursion.<br/>Don't think about DP yet."] --> S2
+    S2["② Identify the STATE — which arguments<br/>actually change? Those become<br/>your table's dimensions."] --> S3
+    S3["③ Add MEMOIZATION.<br/>⭐ Same code + a cache. You can<br/>STOP here — it's correct and complete."] --> S4
+    S4["④ optional: flip to BOTTOM-UP —<br/>same recurrence, loops instead<br/>of recursion, dependency order"] --> S5
+    S5["⑤ optional: OPTIMIZE SPACE —<br/>if dp[i] only reads dp[i−1],<br/>keep variables, not an array"]
+
+    style S1 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style S3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style S5 fill:#b2dfdb,stroke:#00695c,stroke-width:2px,color:#000
+```
+
+🎤 **Say this out loud in an interview:** *"Let me start with the brute-force recursion, then find the repeated states and memoize."* That narration signals understanding, not memorized tables.
+
+```cpp
+// TOP-DOWN (memoization)              // BOTTOM-UP (tabulation)
+unordered_map<int,int> memo;           vector<int> dp(n+1);
+int f(int n) {                         dp[0] = base;
+    if (n <= 1) return n;              for (int i = 1; i <= n; ++i)
+    if (memo.count(n)) return memo[n];     dp[i] = dp[i-1] + dp[i-2];
+    return memo[n] = f(n-1)+f(n-2);    return dp[n];
+}
 ```
 
 ---
 
-## A. 1D Linear DP
+## 📑 Contents
 
-### 1. Climbing Stairs 🟢
-> You can climb 1 or 2 steps at a time. How many distinct ways to reach step `n`?
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-climbing-stairs--fibonacci-family) | Climbing Stairs / Fibonacci | 🟢 | 🔵 **Full** | O(n)/O(1) |
+| [2](#2-house-robber-i--ii) | House Robber I / II | 🟡 | 🔵 **Full** | O(n)/O(1) |
+| [3](#3-coin-change) | Coin Change | 🟡 | 🔵 **Full** | ⭐ unbounded knapsack |
+| [4](#4-coin-change-ii) | Coin Change II | 🟡 | ⚪ Variation | count, order matters |
+| [5](#5-0-1-knapsack) | 0/1 Knapsack | 🟡 | 🔵 **Full** | ⭐ the loop-direction rule |
+| [6](#6-partition-equal-subset-sum) | Partition Equal Subset Sum | 🟡 | ⚪ Variation | knapsack in disguise |
+| [7](#7-target-sum) | Target Sum | 🟡 | ⚪ Variation | knapsack via algebra |
+| [8](#8-longest-increasing-subsequence) | Longest Increasing Subsequence | 🟡 | 🔵 **Full** | O(n log n) patience sorting |
+| [9](#9-longest-common-subsequence) | Longest Common Subsequence | 🟡 | 🔵 **Full** | O(nm) 2D grid |
+| [10](#10-edit-distance) | Edit Distance | 🔴 | ⚪ Variation | LCS grid, 3 operations |
+| [11](#11-longest-palindromic-subsequence) | Longest Palindromic Subsequence | 🟡 | ⚪ Variation | LCS with reverse |
+| [12](#12-word-break) | Word Break | 🟡 | ⚪ Variation | see [Strings #70](01c-arrays-strings.md#70-word-break) |
+| [13](#13-decode-ways) | Decode Ways | 🟡 | 🔵 **Full** | O(n)/O(1) |
+| [14](#14-unique-paths-i--ii) | Unique Paths I / II | 🟡 | 🔵 **Full** | O(RC) grid DP |
+| [15](#15-minimum-path-sum) | Minimum Path Sum | 🟡 | ⚪ Variation | same grid, min not count |
+| [16](#16-maximal-square) | Maximal Square | 🟡 | 🔵 **Full** | ⭐ min of 3 neighbors |
+| [17](#17-best-time-to-buy-sell-stock-ii-iii-iv) | Buy/Sell Stock II/III/IV | 🔴 | 🔵 **Full** | ⭐ state machine |
+| [18](#18-best-time-to-buy-sell-stock-with-cooldown) | Stock with Cooldown | 🟡 | ⚪ Variation | 3-state machine |
+| [19](#19-longest-common-substring) | Longest Common Substring | 🟡 | ⚪ Variation | LCS reset-on-mismatch |
+| [20](#20-palindrome-partitioning-ii) | Palindrome Partitioning II | 🔴 | 🔵 **Full** | ⭐ precompute + 1D DP |
+| [21](#21-burst-balloons) | Burst Balloons | 🔴 | 🔵 **Full** | ⭐ interval DP, think LAST |
+| [22](#22-matrix-chain-multiplication) | Matrix Chain Multiplication | 🔴 | ⚪ Variation | interval DP, split point |
+| [23](#23-regular-expression--wildcard-matching) | Regex / Wildcard Matching | 🔴 | 🔵 **Full** | 2D DP with `*` handling |
+| [24](#24-dungeon-game) | Dungeon Game | 🔴 | 🔵 **Full** | ⭐ DP from the END |
+| [25](#25-perfect-squares) | Perfect Squares | 🟡 | ⚪ Variation | unbounded knapsack |
+| [26](#26-longest-increasing-path-in-matrix) | Longest Increasing Path in Matrix | 🔴 | 🔵 **Full** | ⭐ DFS + memo on a DAG |
+| [27](#27-maximum-profit-in-job-scheduling) | Max Profit in Job Scheduling | 🔴 | 🔵 **Full** | sort + binary search + DP |
+| [28](#28-partition-to-k-equal-sum-subsets) | Partition to K Equal Sum Subsets | 🟡 | ⚪ Variation | backtracking + memo |
 
-#### 💬 Think of it like this
-Stand on step `n` and look backwards. How did you get here? There are only two possibilities: you took a single step from `n-1`, or a double step from `n-2`. There is no third option.
+---
 
-So every way of reaching `n-1` becomes a way of reaching `n` (just add one more step), and likewise for `n-2`. The total is simply the sum:
+# 1. Climbing Stairs / Fibonacci Family
 
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The prototype every other DP problem generalizes**
+
+> Reach step n, moving 1 or 2 steps at a time. How many distinct ways?
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 PLAIN RECURSION<br/><b>O(2ⁿ)</b>"] --> B["⚡ MEMOIZED<br/><b>O(n)</b> / O(n)"]
+    B --> C["⚡ BOTTOM-UP TABLE<br/><b>O(n)</b> / O(n)"]
+    C --> D["🚀 TWO VARIABLES<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-   ways(n) = ways(n-1) + ways(n-2)
-```
 
-That's the Fibonacci sequence. The base cases are `ways(0) = 1` (you're already there — one way, do nothing) and `ways(1) = 1`.
+## 💬 The recurrence
+```mermaid
+flowchart TD
+    A["⭐ To reach step n, your LAST move<br/>was either a 1-step or a 2-step"] --> B["ways(n) = ways(n−1) + ways(n−2)"]
+    B --> C["⭐ Literally Fibonacci"]
 
-#### 📊 Building the table
-
-```
-   n:        0    1    2    3    4    5
-            ┌────┬────┬────┬────┬────┬────┐
-   ways:    │ 1  │ 1  │ 2  │ 3  │ 5  │ 8  │
-            └────┴────┴────┴────┴────┴────┘
-                   └──┬──┘  ▲
-                      └─────┘  each cell = sum of the two before it
-
-   Verify n=3 by hand:  1+1+1,  1+2,  2+1   →  3 ways ✅
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```cpp
-// Space-optimized: we only ever look back two cells, so two variables suffice
 int climbStairs(int n) {
-    int prev2 = 1, prev1 = 1;
-    for (int i = 2; i <= n; ++i) {
+    if (n <= 2) return n;
+    int prev2 = 1, prev1 = 2;                   // ⭐ ways(1), ways(2)
+    for (int i = 3; i <= n; ++i) {
         int cur = prev1 + prev2;
         prev2 = prev1;
         prev1 = cur;
@@ -130,1702 +153,1275 @@ int climbStairs(int n) {
     return prev1;
 }
 ```
-**Complexity:** O(n) time, O(1) space.
+
+⭐ **This exact skeleton — "last move determines the recurrence, roll two variables forward"** — reappears in House Robber, Decode Ways, and the stock problems. Recognize it once, apply it everywhere.
+
+## 📌 Pattern Card
+```
+SIGNAL   count ways / reach a target via small steps
+KEY      dp[i] = combine dp[i-1], dp[i-2], ... based on last move
+         ⭐ roll to O(1) space when only the last few states matter
+RELATED  House Robber · Decode Ways · Min Cost Climbing Stairs
+```
 
 ---
 
-### 2. House Robber 🟡
-> Houses in a row, each with money. You can't rob two adjacent houses. Maximize your take.
+# 2. House Robber I / II
 
-#### 💬 Think of it like this
-Walk up to house `i` and face a genuine choice:
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The take-or-skip decision**
 
-- **Rob it.** You get `nums[i]`, but house `i-1` is now off-limits, so your best possible total is `nums[i] + best(i-2)`.
-- **Skip it.** You get nothing here, but house `i-1` was allowed, so your total is `best(i-1)`.
+> Adjacent houses can't both be robbed. Maximize total.
 
-You have no other options, so take whichever is larger. That's the entire algorithm:
+## 💬 The recurrence
 
-```
-   best(i) = max( nums[i] + best(i-2),   best(i-1) )
-                  └─── rob ───┘          └─ skip ─┘
-```
+```mermaid
+flowchart TD
+    A["at house i, TWO choices"] --> B["⭐ ROB it: val[i] + best(i−2)<br/>— must skip i−1"]
+    A --> C["⭐ SKIP it: best(i−1)"]
+    B --> D["dp[i] = max(rob, skip)"]
+    C --> D
 
-#### 📊 Tracing `[2, 7, 9, 3, 1]`
-
-```
-   house:      0     1     2     3     4
-   money:      2     7     9     3     1
-              ┌─────┬─────┬─────┬─────┬─────┐
-   best:      │  2  │  7  │ 11  │ 11  │ 12  │
-              └─────┴─────┴─────┴─────┴─────┘
-
-   i=0:  only house → 2
-   i=1:  max(rob 7, skip→2)              = 7
-   i=2:  max(9 + best(0)=2 → 11,  7)     = 11   ⭐ robbed houses 0 and 2
-   i=3:  max(3 + best(1)=7 → 10,  11)    = 11   ⭐ skipped, keeping 0+2
-   i=4:  max(1 + best(2)=11 → 12, 11)    = 12   ⭐ robbed 0, 2, and 4
-
-   ANSWER = 12    (houses 0 + 2 + 4  =  2 + 9 + 1)
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 ```cpp
-int rob(vector<int>& nums) {
-    int prev2 = 0;   // best up to i-2
-    int prev1 = 0;   // best up to i-1
-    for (int x : nums) {
-        int cur = max(prev1, prev2 + x);   // skip  vs  rob
+int rob(vector<int>& a) {
+    int prev2 = 0, prev1 = 0;                   // ⭐ dp[i-2], dp[i-1]
+    for (int x : a) {
+        int cur = max(prev1, prev2 + x);
         prev2 = prev1;
         prev1 = cur;
     }
     return prev1;
 }
 ```
-**Complexity:** O(n) / O(1).
+
+## House Robber II — circular houses
+```mermaid
+flowchart TD
+    A["⭐ Houses form a CIRCLE —<br/>house 0 and house n−1 are adjacent"] --> B["Can't easily forbid both<br/>in one DP pass"]
+    B --> C["⭐ FIX: run the LINEAR version TWICE<br/>— once excluding house 0,<br/>once excluding house n−1"]
+    C --> D["Take the max of both"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+```cpp
+int robCircular(vector<int>& a) {
+    int n = a.size();
+    if (n == 1) return a[0];                    // ⚠️ edge case
+
+    vector<int> a1(a.begin(), a.end() - 1);      // exclude last
+    vector<int> a2(a.begin() + 1, a.end());      // exclude first
+    return max(rob(a1), rob(a2));
+}
+```
+⭐ **"Break the circular constraint by running the linear solution twice, excluding each endpoint once"** is a reusable trick for any circular-array DP.
 
 ---
 
-### 3. House Robber II (circular street) 🟡
-> Same, but the houses form a **circle** — the first and last are now adjacent.
+# 3. Coin Change
 
-#### 💬 Think of it like this
-The circle adds exactly one new constraint: you cannot rob both the first *and* the last house.
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Unbounded knapsack — coins reusable**
 
-Rather than inventing a whole new algorithm, notice that any valid answer falls into one of two cases:
-- It **excludes the last house** → the problem is just the linear version on `houses[0 .. n-2]`
-- It **excludes the first house** → the linear version on `houses[1 .. n-1]`
+> Fewest coins to make `amount`. Unlimited supply of each denomination.
 
-Every valid solution fits one of those (a solution robbing neither first nor last is covered by both). So run the linear solver twice and take the better result.
+## 🗺️ Approach Ladder
 
-```
-   Circle:  [2, 7, 9, 3, 1]
+```mermaid
+flowchart LR
+    A["🐌 TRY EVERY COMBINATION<br/><b>O(amount^coins)</b>"] --> B["⚡ MEMOIZED RECURSION<br/><b>O(amount · coins)</b>"]
+    B --> C["🚀 BOTTOM-UP DP<br/><b>O(amount · coins)</b> / O(amount)"]
 
-   Case A — drop the last:   [2, 7, 9, 3]      → linear rob → 11
-   Case B — drop the first:      [7, 9, 3, 1]  → linear rob → 11
-
-   ANSWER = max(11, 11) = 11
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-```cpp
-int robLinear(vector<int>& a, int lo, int hi) {
-    int prev2 = 0, prev1 = 0;
-    for (int i = lo; i <= hi; ++i) {
-        int cur = max(prev1, prev2 + a[i]);
-        prev2 = prev1; prev1 = cur;
-    }
-    return prev1;
-}
-int rob(vector<int>& nums) {
-    int n = nums.size();
-    if (n == 1) return nums[0];                    // edge case: circle of one
-    return max(robLinear(nums, 0, n - 2),          // exclude last
-               robLinear(nums, 1, n - 1));         // exclude first
-}
+```mermaid
+flowchart TD
+    A["dp[a] = min coins to make amount a"] --> B["⭐ for each coin c ≤ a:<br/>dp[a] = min(dp[a], dp[a−c] + 1)"]
+    B --> C["dp[0] = 0 ⭐ base case"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-**Key insight:** *Reduce a new problem to one you've already solved.* This is one of the most valuable moves in all of problem solving.
-
----
-
-### 4. Min Cost Climbing Stairs 🟢
-```cpp
-int minCostClimbingStairs(vector<int>& cost) {
-    int prev2 = 0, prev1 = 0;                      // you may start at step 0 or 1 free
-    for (int i = 2; i <= (int)cost.size(); ++i) {
-        int cur = min(prev1 + cost[i-1],           // arrive from one step below
-                      prev2 + cost[i-2]);          // arrive from two steps below
-        prev2 = prev1; prev1 = cur;
-    }
-    return prev1;
-}
-```
-
----
-
-### 5. Longest Increasing Subsequence 🟡
-> Find the length of the longest strictly increasing subsequence (elements need not be contiguous).
-
-#### 💬 Approach 1 — the O(n²) DP
-Define `dp[i]` = *the length of the longest increasing subsequence that **ends exactly at** index `i`*.
-
-That "ends exactly at" framing is the crucial part. It makes the recurrence natural: to extend a subsequence and land on `i`, the previous element must be at some `j < i` with `nums[j] < nums[i]`. Look at every such `j` and take the best.
-
-```
-   nums:  [10, 9, 2, 5, 3, 7, 101, 18]
-          ┌───┬───┬───┬───┬───┬───┬────┬────┐
-   dp:    │ 1 │ 1 │ 1 │ 2 │ 2 │ 3 │  4 │  4 │
-          └───┴───┴───┴───┴───┴───┴────┴────┘
-                       ▲       ▲
-                       │       └─ [2,3,7]  length 3
-                       └───────── [2,5]    length 2
-
-   ANSWER = max over the whole dp array = 4   (e.g. 2,3,7,101)
-```
-
-```cpp
-int lengthOfLIS(vector<int>& nums) {
-    int n = nums.size();
-    vector<int> dp(n, 1);                          // every element alone is length 1
-    int best = 1;
-    for (int i = 1; i < n; ++i) {
-        for (int j = 0; j < i; ++j)
-            if (nums[j] < nums[i]) dp[i] = max(dp[i], dp[j] + 1);
-        best = max(best, dp[i]);
-    }
-    return best;
-}
-```
-
-#### 💬 Approach 2 — the O(n log n) patience trick
-
-This one is genuinely clever and worth understanding properly.
-
-Keep an array `tails` where `tails[k]` holds **the smallest possible ending value of any increasing subsequence of length k+1** seen so far.
-
-Why the *smallest*? Because a subsequence ending in a small number is easier to extend later. Among all length-3 subsequences, the one ending in 7 is strictly more useful than one ending in 90.
-
-For each new number, binary search for where it belongs:
-- If it's bigger than everything → it extends the longest run. Append it.
-- Otherwise → it replaces the first element that is ≥ it, improving that length's ending value.
-
-```
-   nums = [10, 9, 2, 5, 3, 7, 101, 18]
-
-   10  →  tails = [10]                 new length 1
-    9  →  tails = [9]                  9 < 10, better ending for length 1
-    2  →  tails = [2]                  better still
-    5  →  tails = [2, 5]               extends! now length 2 exists
-    3  →  tails = [2, 3]               3 < 5, better ending for length 2
-    7  →  tails = [2, 3, 7]            extends! length 3
-  101  →  tails = [2, 3, 7, 101]       extends! length 4
-   18  →  tails = [2, 3, 7, 18]        18 < 101, better ending for length 4
-
-   ANSWER = tails.size() = 4
-```
-
-⚠️ **Important:** `tails` is **not** an actual subsequence — `[2,3,7,18]` happens to be one here, but in general the contents are a mix. Only its *length* is meaningful.
-
-```cpp
-int lengthOfLIS(vector<int>& nums) {
-    vector<int> tails;
-    for (int x : nums) {
-        auto it = lower_bound(tails.begin(), tails.end(), x);   // first >= x
-        if (it == tails.end()) tails.push_back(x);              // extend
-        else *it = x;                                           // improve
-    }
-    return tails.size();
-}
-```
-**Complexity:** O(n log n) / O(n).
-
----
-
-### 6. Maximum Subarray (Kadane) 🟡
-> Contiguous subarray with the largest sum.
-
-#### 💬 Think of it like this
-Walk left to right carrying a running sum. At each element ask one question: **"is the baggage I'm carrying helping me?"**
-
-If your running sum is negative, it is actively hurting — anything you attach it to gets smaller. So drop it and start fresh from the current element. If it's positive, keep it and add the current element.
-
-```
-   nums:  [-2,  1, -3,  4, -1,  2,  1, -5,  4]
-
-   i=0   cur = -2                       best = -2
-   i=1   max(1, -2+1=-1) = 1  ⭐ restart best =  1
-   i=2   max(-3, 1-3=-2) = -2           best =  1
-   i=3   max(4, -2+4=2)  = 4  ⭐ restart best =  4
-   i=4   max(-1, 4-1=3)  = 3            best =  4
-   i=5   max(2, 3+2=5)   = 5            best =  5
-   i=6   max(1, 5+1=6)   = 6            best =  6  ⭐ [4,-1,2,1]
-   i=7   max(-5, 6-5=1)  = 1            best =  6
-   i=8   max(4, 1+4=5)   = 5            best =  6
-
-   ANSWER = 6
-```
-
-```cpp
-int maxSubArray(vector<int>& nums) {
-    int cur = nums[0], best = nums[0];
-    for (int i = 1; i < (int)nums.size(); ++i) {
-        cur = max(nums[i], cur + nums[i]);   // restart  vs  extend
-        best = max(best, cur);
-    }
-    return best;
-}
-```
-
----
-
-### 7. Maximum Product Subarray 🟡
-> Largest **product** of a contiguous subarray.
-
-#### 💬 Why sums and products differ
-With sums, a big negative running total is simply bad. With products, a big **negative** running total is potentially *fantastic* — multiply it by another negative and it becomes a big positive.
-
-So tracking only the maximum is not enough. You must also track the **minimum**, because today's minimum can become tomorrow's maximum. And when the current number is negative, the roles swap.
-
-```
-   nums = [2, 3, -2, 4]
-
-   i=0   mx = 2      mn = 2       best = 2
-   i=1   mx = 6      mn = 3       best = 6
-   i=2   x = -2 is negative → SWAP first: mx=3, mn=6
-         mx = max(-2, 3·-2=-6)  = -2
-         mn = min(-2, 6·-2=-12) = -12   ⭐ keep this, it could flip
-         best = 6
-   i=3   mx = max(4, -2·4=-8)   = 4
-         mn = min(4, -12·4=-48) = -48
-         best = 6
-
-   ANSWER = 6
-```
-
-```cpp
-int maxProduct(vector<int>& nums) {
-    int mx = nums[0], mn = nums[0], best = nums[0];
-    for (int i = 1; i < (int)nums.size(); ++i) {
-        int x = nums[i];
-        if (x < 0) swap(mx, mn);           // ⭐ a negative flips the roles
-        mx = max(x, mx * x);
-        mn = min(x, mn * x);
-        best = max(best, mx);
-    }
-    return best;
-}
-```
-
----
-
-### 8. Decode Ways 🟡
-> `'A'`→1 … `'Z'`→26. How many ways can a digit string be decoded?
-
-#### 💬 Think of it like this
-Same shape as climbing stairs, but with validity rules. Standing at position `i`, ask:
-- Can the single digit `s[i]` be a letter? Only if it isn't `'0'`. If so, add `dp[i-1]`.
-- Can the two digits `s[i-1..i]` form a letter? Only if that pair is between 10 and 26. If so, add `dp[i-2]`.
-
-```
-   s = "226"
-
-   i=0  ""       dp = 1     (empty string: one way — decode nothing)
-   i=1  "2"      dp = 1     "B"
-   i=2  "22"     dp = 2     "BB"  or  "V"
-   i=3  "226"    dp = 3     single '6' valid → +dp[2]=2  ("BBF","VF")
-                            pair "26" valid  → +dp[1]=1  ("BZ")
-   ANSWER = 3
-
-   ⚠️ "06" → 0 ways.  A leading zero can never start a letter,
-      and "06" is not a valid pair (must be 10–26).
-```
-
-```cpp
-int numDecodings(string s) {
-    if (s.empty() || s[0] == '0') return 0;
-    int prev2 = 1, prev1 = 1;                      // dp[0]=1 (empty), dp[1]=1
-    for (int i = 1; i < (int)s.size(); ++i) {
-        int cur = 0;
-        if (s[i] != '0') cur += prev1;                          // single digit
-        int two = (s[i-1] - '0') * 10 + (s[i] - '0');
-        if (two >= 10 && two <= 26) cur += prev2;               // valid pair
-        prev2 = prev1; prev1 = cur;
-        if (cur == 0) return 0;                                 // dead end
-    }
-    return prev1;
-}
-```
-
----
-
-### 9. Word Break 🟡
-> Can `s` be segmented into a sequence of dictionary words?
-
-#### 💬 Think of it like this
-Define `dp[i]` = *"can the first `i` characters be fully segmented?"*
-
-To decide `dp[i]`, try every possible position `j` for the start of the **last** word. If the prefix up to `j` was segmentable (`dp[j]` is true) **and** the chunk `s[j..i)` is in the dictionary, then `dp[i]` is true.
-
-```
-   s = "leetcode",  dict = {"leet", "code"}
-
-   index:  0   1   2   3   4   5   6   7   8
-           │ l │ e │ e │ t │ c │ o │ d │ e │
-           ▲               ▲               ▲
-          dp[0]=T        dp[4]=T         dp[8]=T
-          (empty)      "leet" ∈ dict   "code" ∈ dict
-                       and dp[0]=T     and dp[4]=T
-
-   dp:  [T, F, F, F, T, F, F, F, T]
-                                   └── ANSWER = true
-```
-
-```cpp
-bool wordBreak(string s, vector<string>& dict) {
-    unordered_set<string> d(dict.begin(), dict.end());
-    int n = s.size();
-    vector<bool> dp(n + 1, false);
-    dp[0] = true;                                  // empty prefix is segmentable
-    for (int i = 1; i <= n; ++i)
-        for (int j = 0; j < i; ++j)
-            if (dp[j] && d.count(s.substr(j, i - j))) { dp[i] = true; break; }
-    return dp[n];
-}
-```
-**Complexity:** O(n²·L).
-
----
-
-### 10. Jump Game 🟡
-```cpp
-bool canJump(vector<int>& nums) {
-    int reach = 0;
-    for (int i = 0; i < (int)nums.size(); ++i) {
-        if (i > reach) return false;               // ⭐ can't even get here
-        reach = max(reach, i + nums[i]);
-    }
-    return true;
-}
-```
-**Key insight:** This is *greedy*, not DP — track only the furthest index reachable so far. Mentioning that you recognized DP isn't needed scores points.
-
----
-
-### 11. Jump Game II (minimum jumps) 🟡
-#### 💬 Think of it like this
-This is BFS over "levels," done with two pointers instead of a queue. From your current jump range you can reach some furthest point — that entire span is "one jump away." When you exhaust the current range, you've been forced into another jump.
-
-```
-   nums = [2, 3, 1, 1, 4]
-
-   ┌──── jump 1 range ────┐
-   [2,   3,   1,   1,   4]
-    ▲    └────┬────┘
-   start   reachable in 1 jump: indices 1..2
-           from those, furthest reachable = max(1+3, 2+1) = 4
-
-   ┌──────── jump 2 range ────────┐
-   [2,   3,   1,   1,   4]
-              └──────┬──────┘
-                indices 3..4 — target reached!
-
-   ANSWER = 2
-```
-
-```cpp
-int jump(vector<int>& nums) {
-    int jumps = 0, curEnd = 0, farthest = 0;
-    for (int i = 0; i < (int)nums.size() - 1; ++i) {
-        farthest = max(farthest, i + nums[i]);
-        if (i == curEnd) { ++jumps; curEnd = farthest; }   // ⭐ forced to jump
-    }
-    return jumps;
-}
-```
-
----
-
-### 12. Best Time to Buy and Sell Stock with Cooldown 🟡
-#### 💬 State machines in DP
-When "what you're allowed to do next depends on what you just did," model it as **states** and track the best value for each.
-
-```
-   Three states, and the legal moves between them:
-
-        ┌──────────┐  buy   ┌──────────┐
-        │   FREE   │───────▶│   HELD   │
-        │ (no stock│        │ (holding │
-        │  can buy)│        │  stock)  │
-        └────▲─────┘        └────┬─────┘
-             │                   │ sell
-             │ cooldown ends     ▼
-             │              ┌──────────┐
-             └──────────────│   SOLD   │
-                            │(must rest│
-                            │ one day) │
-                            └──────────┘
-```
-
-```cpp
-int maxProfit(vector<int>& prices) {
-    int free = 0, held = INT_MIN, sold = 0;
-    for (int p : prices) {
-        int prevSold = sold;
-        sold = held + p;                 // sell today
-        held = max(held, free - p);      // keep holding, or buy today
-        free = max(free, prevSold);      // stay free, or cooldown finished
-    }
-    return max(free, sold);              // never end while still holding
-}
-```
-
----
-
-## B. 2D Grid DP
-
-### 13. Unique Paths 🟡
-> Robot at the top-left of an `m×n` grid can only move right or down. How many paths to the bottom-right?
-
-#### 💬 Think of it like this
-Stand on any cell and look backwards. You could only have arrived from **above** or from **the left**. Nowhere else. So the number of ways to reach this cell is simply the sum of the ways to reach those two cells.
-
-Fill the top row and left column with 1 (only one straight-line path to each), then let the sums cascade.
-
-#### 📊 A 3×4 grid filling in
-
-```
-        c=0   c=1   c=2   c=3
-       ┌─────┬─────┬─────┬─────┐
-  r=0  │  1  │  1  │  1  │  1  │   top row: only one way (keep going right)
-       ├─────┼─────┼─────┼─────┤
-  r=1  │  1  │  2  │  3  │  4  │
-       ├─────┼─────┼─────┼─────┤
-  r=2  │  1  │  3  │  6  │ 10  │ ← ANSWER
-       └─────┴─────┴─────┴─────┘
-
-   How cell (2,2) = 6 is formed:
-
-            (1,2)=3
-               │
-               ▼
-   (2,1)=3 ──▶ (2,2) = 3 + 3 = 6
-```
-
-```cpp
-int uniquePaths(int m, int n) {
-    vector<int> dp(n, 1);                          // the top row
-    for (int r = 1; r < m; ++r)
-        for (int c = 1; c < n; ++c)
-            dp[c] += dp[c-1];                      // ⭐ dp[c] is "above", dp[c-1] is "left"
-    return dp[n-1];
-}
-```
-**Space trick:** we only need one row. When we reach `dp[c]`, it still holds the *previous* row's value (that's "above"), and `dp[c-1]` was already updated this row (that's "left"). One array does the job.
-
----
-
-### 14. Unique Paths II (with obstacles) 🟡
-```cpp
-int uniquePathsWithObstacles(vector<vector<int>>& g) {
-    int m = g.size(), n = g[0].size();
-    vector<long long> dp(n, 0);
-    dp[0] = (g[0][0] == 0);
-    for (int r = 0; r < m; ++r)
-        for (int c = 0; c < n; ++c) {
-            if (g[r][c] == 1) dp[c] = 0;           // ⭐ obstacle: zero ways through
-            else if (c > 0) dp[c] += dp[c-1];
-        }
-    return dp[n-1];
-}
-```
-
----
-
-### 15. Minimum Path Sum 🟡
-```cpp
-int minPathSum(vector<vector<int>>& g) {
-    int m = g.size(), n = g[0].size();
-    vector<int> dp(n, INT_MAX);
-    dp[0] = 0;
-    for (int r = 0; r < m; ++r) {
-        dp[0] += g[r][0];                          // leftmost column accumulates
-        for (int c = 1; c < n; ++c)
-            dp[c] = min(dp[c], dp[c-1]) + g[r][c]; // ⭐ min(from above, from left)
-    }
-    return dp[n-1];
-}
-```
-
----
-
-### 16. Triangle (minimum path sum) 🟡
-#### 💬 Why go bottom-up here
-Working top-down forces you to handle edge cells specially — the leftmost and rightmost entries of each row have only one parent. Working **bottom-up**, every cell has exactly two children below it, so there are no special cases at all.
-
-```
-        [2]                bottom-up:
-       [3,4]               row 2:  [6, 5, 7]
-      [6,5,7]              row 1:  3+min(6,5)=8   4+min(5,7)=9   → [8, 9]
-     [4,1,8,3]             row 0:  2+min(8,9)=10                 → [10]
-
-                           ANSWER = 10   (path 2→3→5→1)
-```
-
-```cpp
-int minimumTotal(vector<vector<int>>& t) {
-    vector<int> dp = t.back();                     // start from the last row
-    for (int r = t.size() - 2; r >= 0; --r)
-        for (int c = 0; c <= r; ++c)
-            dp[c] = t[r][c] + min(dp[c], dp[c+1]);
-    return dp[0];
-}
-```
-
----
-
-### 17. Maximal Square 🟡
-> Largest square of `1`s in a binary matrix.
-
-#### 💬 The key realization
-Let `dp[r][c]` = *the side length of the largest square whose **bottom-right corner** is at (r,c)*.
-
-For a square of side `k` to end here, you need three overlapping squares of side `k-1` immediately above, to the left, and diagonally up-left. The limiting one is the smallest — so take `min` of the three and add 1.
-
-```
-   Why min of THREE?
-
-   ┌───┬───┐        To place a 3×3 square ending at ●,
-   │ ↖ │ ↑ │        all three of these must already
-   ├───┼───┤        support a 2×2 square:
-   │ ← │ ● │            ↖ up-left    ↑ above    ← left
-   └───┴───┘
-                    If any one is smaller, it caps you.
-
-   grid              dp
-   1 1 1 0           1 1 1 0
-   1 1 1 0    →      1 2 2 0
-   1 1 1 0           1 2 3 0   ⭐ side 3 → area 9
-   0 0 0 0           0 0 0 0
-```
-
-```cpp
-int maximalSquare(vector<vector<char>>& m) {
-    int R = m.size(), C = m[0].size(), best = 0;
-    vector<int> dp(C + 1, 0);
-    int prevDiag = 0;                              // holds dp[r-1][c-1]
-    for (int r = 1; r <= R; ++r) {
-        prevDiag = 0;
-        for (int c = 1; c <= C; ++c) {
-            int tmp = dp[c];                       // save dp[r-1][c] before overwriting
-            if (m[r-1][c-1] == '1') {
-                dp[c] = min({dp[c], dp[c-1], prevDiag}) + 1;
-                best = max(best, dp[c]);
-            } else dp[c] = 0;
-            prevDiag = tmp;
-        }
-    }
-    return best * best;
-}
-```
-
----
-
-### 18. Dungeon Game 🔴
-#### 💬 Why this one must run backwards
-Your instinct is to go left-to-right tracking accumulated health. That fails, because the *minimum starting health* depends on what's still ahead, not on what's behind. A path that looks great early can require enormous starting health because of a monster at the end.
-
-So compute backwards: `dp[r][c]` = *the minimum health you need **on entering** this cell to survive to the exit*.
-
-```cpp
-int calculateMinimumHP(vector<vector<int>>& d) {
-    int R = d.size(), C = d[0].size();
-    vector<vector<int>> dp(R + 1, vector<int>(C + 1, INT_MAX));
-    dp[R][C-1] = dp[R-1][C] = 1;                   // need at least 1 HP at the exit
-    for (int r = R - 1; r >= 0; --r)
-        for (int c = C - 1; c >= 0; --c) {
-            int need = min(dp[r+1][c], dp[r][c+1]) - d[r][c];
-            dp[r][c] = max(1, need);               // ⭐ never drop below 1 HP
-        }
-    return dp[0][0];
-}
-```
-
----
-
-## C. Knapsack Family
-
-### The two knapsacks — know the difference cold
-
-```
-   0/1 KNAPSACK                    UNBOUNDED KNAPSACK
-   Each item used AT MOST ONCE     Each item reusable INFINITELY
-   ────────────────────────        ──────────────────────────
-   for (item : items)              for (item : items)
-     for (w = W; w >= item; --w)     for (w = item; w <= W; ++w)
-                    ▲                              ▲
-              ⭐ BACKWARD                     ⭐ FORWARD
-
-   WHY the direction flips:
-
-   Backward: when we read dp[w - item], it has NOT been
-             touched this round → it's from the PREVIOUS item
-             → the item is used at most once. ✅
-
-   Forward:  when we read dp[w - item], it MAY have been
-             updated this round → it may already include
-             this item → the item can be reused. ✅
-
-   Getting this backwards is the single most common DP bug.
-```
-
-### 19. Coin Change (minimum coins) 🟡
-> Fewest coins summing to `amount`. Coins are reusable.
-
-#### 💬 Think of it like this
-Define `dp[a]` = *fewest coins to make amount `a`*. To make amount `a`, the last coin you added was some coin `c`. Before that you had `a - c`, which took `dp[a-c]` coins. So `dp[a] = dp[a-c] + 1`. Try every coin and keep the best.
-
-```
-   coins = [1, 2, 5],  amount = 11
-
-   a:      0   1   2   3   4   5   6   7   8   9  10  11
-         ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
-   dp:   │ 0 │ 1 │ 1 │ 2 │ 2 │ 1 │ 2 │ 2 │ 3 │ 3 │ 2 │ 3 │
-         └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
-
-   dp[11] built from:
-     use coin 1 → dp[10] + 1 = 2 + 1 = 3   ⭐ best
-     use coin 2 → dp[9]  + 1 = 3 + 1 = 4
-     use coin 5 → dp[6]  + 1 = 2 + 1 = 3   ⭐ tie
-
-   ANSWER = 3   (5 + 5 + 1)
-```
-
-⚠️ **Greedy fails here.** With coins `[1, 3, 4]` and amount 6, greedy takes 4+1+1 = 3 coins, but the optimum is 3+3 = 2 coins. That's precisely why DP is required.
 
 ```cpp
 int coinChange(vector<int>& coins, int amount) {
-    vector<int> dp(amount + 1, amount + 1);        // amount+1 acts as "infinity"
+    vector<int> dp(amount + 1, INT_MAX);
     dp[0] = 0;
+
     for (int a = 1; a <= amount; ++a)
         for (int c : coins)
-            if (c <= a) dp[a] = min(dp[a], dp[a - c] + 1);
-    return dp[amount] > amount ? -1 : dp[amount];
+            if (c <= a && dp[a - c] != INT_MAX)
+                dp[a] = min(dp[a], dp[a - c] + 1);
+
+    return dp[amount] == INT_MAX ? -1 : dp[amount];
 }
 ```
 
+⚠️ **The `dp[a-c] != INT_MAX` guard** prevents overflow from `INT_MAX + 1`.
+
 ---
 
-### 20. Coin Change II (count combinations) 🟡
-> How many **distinct combinations** make up `amount`? Order doesn't matter.
+# 4. Coin Change II
+🟡 ⚪ **Variation of #3** — count *ways*, not minimum coins. ⭐ **Loop order changes the answer.**
 
-#### 💬 The loop order decides the meaning — this is the subtle part
+```mermaid
+flowchart TD
+    A["⚠️ Combinations vs Permutations —<br/>loop ORDER determines which"] --> B["⭐ COIN outer, AMOUNT inner:<br/>counts COMBINATIONS<br/>(order doesn't matter)"]
+    A --> C["⭐ AMOUNT outer, COIN inner:<br/>counts PERMUTATIONS<br/>(order matters)"]
 
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style C fill:#ffe0b2,stroke:#ef6c00,color:#000
 ```
-   COINS OUTER, amount inner  →  COMBINATIONS  (order doesn't matter)
-   for (c : coins)                {1,2} and {2,1} counted ONCE
-     for (a = c; a <= amount; ++a)
-
-   AMOUNT OUTER, coins inner →  PERMUTATIONS  (order matters)
-   for (a = 1; a <= amount; ++a)  {1,2} and {2,1} counted TWICE
-     for (c : coins)
-
-   ⭐ Coins-outer means we finish considering coin 1 entirely
-      before ever touching coin 2 — so a combination is always
-      built in non-decreasing coin order, and can't be recounted.
-```
-
 ```cpp
 int change(int amount, vector<int>& coins) {
-    vector<unsigned long long> dp(amount + 1, 0);
-    dp[0] = 1;                                     // one way to make 0: take nothing
-    for (int c : coins)                            // ⭐ COINS OUTER
+    vector<int> dp(amount + 1, 0);
+    dp[0] = 1;
+
+    for (int c : coins)                         // ⭐ COIN outer → combinations
         for (int a = c; a <= amount; ++a)
             dp[a] += dp[a - c];
     return dp[amount];
 }
 ```
+```
+   ⭐⭐ WHY THE LOOP ORDER MATTERS
+
+   coin-outer: by the time we process coin c, dp[a] already
+   reflects all ways using ONLY coins processed so far — so
+   [1,2] and [2,1] are never counted as different, because 2
+   is only ever added AFTER 1 has been fully incorporated.
+
+   amount-outer, coin-inner: dp[a] is rebuilt from scratch at
+   each amount using ALL coins, so [1,2] and [2,1] both get
+   counted — that's PERMUTATIONS (used by Combination Sum IV).
+```
 
 ---
 
-### 21. Combination Sum IV (permutations) 🟡
+# 5. 0/1 Knapsack
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The loop-direction rule that trips everyone up**
+
+> Each item usable **at most once**. Maximize value within a weight capacity.
+
+## 💬 The 2D recurrence, then the space optimization
+
+```mermaid
+flowchart TD
+    A["dp[i][w] = best value using items<br/>0..i within capacity w"] --> B{"item i fits<br/>(weight[i] ≤ w)?"}
+    B -->|"no"| C["dp[i][w] = dp[i−1][w]<br/>— can't take it"]
+    B -->|"yes"| D["⭐ dp[i][w] = max(<br/>  skip: dp[i−1][w],<br/>  take: dp[i−1][w−weight[i]] + value[i]<br/>)"]
+
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ COLLAPSING TO 1D — THE RULE THAT MATTERS
+
+   dp[i][w] only ever reads dp[i-1][...], so one row suffices
+   IF you update it in the right direction.
+
+   0/1 knapsack (each item ONCE):
+     ⭐ iterate w DESCENDING (right to left)
+     Reading dp[w - weight[i]] must see the OLD (i-1) value,
+     not one already updated in this same item's pass.
+
+   Unbounded knapsack (Coin Change, items REUSABLE):
+     ⭐ iterate w ASCENDING (left to right)
+     Reading the NEW value is exactly what allows reuse.
+
+   ⚠️ Getting this backwards is THE classic knapsack bug —
+     it silently turns 0/1 into unbounded or vice versa.
+```
+
 ```cpp
-int combinationSum4(vector<int>& nums, int target) {
-    vector<unsigned long long> dp(target + 1, 0);
-    dp[0] = 1;
-    for (int t = 1; t <= target; ++t)              // ⭐ TARGET OUTER → permutations
-        for (int x : nums)
-            if (x <= t) dp[t] += dp[t - x];
-    return dp[target];
+int knapsack01(vector<int>& wt, vector<int>& val, int cap) {
+    vector<int> dp(cap + 1, 0);
+
+    for (int i = 0; i < (int)wt.size(); ++i)
+        for (int w = cap; w >= wt[i]; --w)      // ⭐⭐ DESCENDING — 0/1
+            dp[w] = max(dp[w], dp[w - wt[i]] + val[i]);
+
+    return dp[cap];
 }
 ```
-Despite the name "combination," this problem actually counts **permutations** — hence the flipped loop order.
+
+## 📌 Pattern Card
+```
+SIGNAL   choose a subset within a capacity to optimize value
+KEY      2D dp[item][capacity] → collapse to 1D
+         ⭐ 0/1: loop capacity DESCENDING · unbounded: ASCENDING
+RELATED  Partition Equal Subset Sum · Target Sum · Coin Change
+```
 
 ---
 
-### 22. Partition Equal Subset Sum 🟡
-> Can the array be split into two subsets of equal sum?
-
-#### 💬 Reduce it to something known
-If the total sum is odd, it's immediately impossible. Otherwise, splitting into two equal halves is the same as asking: **"can I pick a subset that sums to exactly `total/2`?"** — because whatever's left over automatically forms the other half.
-
-That's a classic 0/1 knapsack: each number is an item, used at most once.
+# 6. Partition Equal Subset Sum
+🟡 ⚪ **Variation of #5** — 0/1 knapsack where the "value" you're optimizing is existence, not maximization.
 
 ```cpp
-bool canPartition(vector<int>& nums) {
-    int total = accumulate(nums.begin(), nums.end(), 0);
-    if (total % 2) return false;                   // odd → impossible
-    int target = total / 2;
+bool canPartition(vector<int>& a) {
+    int sum = accumulate(a.begin(), a.end(), 0);
+    if (sum % 2) return false;                  // ⭐ odd total can't split evenly
 
+    int target = sum / 2;
     vector<bool> dp(target + 1, false);
-    dp[0] = true;                                  // sum 0 always achievable
-    for (int x : nums)
-        for (int s = target; s >= x; --s)          // ⭐ BACKWARD (0/1: use once)
-            dp[s] = dp[s] || dp[s - x];
+    dp[0] = true;
+
+    for (int x : a)
+        for (int w = target; w >= x; --w)       // ⭐ 0/1 → descending
+            dp[w] = dp[w] || dp[w - x];
+
     return dp[target];
 }
 ```
+⭐ **"Can we hit exactly this sum using a subset"** is 0/1 knapsack with a boolean instead of a max.
 
 ---
 
-### 23. Target Sum 🟡
-#### 💬 The algebra that turns this into knapsack
-You assign `+` or `−` to every number. Let `P` be the numbers you make positive and `N` the ones you make negative.
+# 7. Target Sum
+🟡 ⚪ **Variation of #5** — reframed via algebra into knapsack.
 
+```mermaid
+flowchart TD
+    A["assign + or − to each number<br/>to reach target"] --> B["⭐ let P = sum of + numbers,<br/>N = sum of − numbers"]
+    B --> C["P − N = target<br/>P + N = totalSum"]
+    C --> D["⭐ solve: P = (target + totalSum) / 2"]
+    D --> E["Now: count subsets summing to P<br/>— exactly Partition Equal Subset Sum"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-   P − N = target                    and    P + N = total
-   ─────────────────────────────────────────────────────
-   Add the two equations:  2P = target + total
-                            P = (target + total) / 2
-
-   → "Count subsets summing to (target+total)/2"
-   → a plain 0/1 knapsack counting problem ✅
-```
-
 ```cpp
-int findTargetSumWays(vector<int>& nums, int target) {
-    int total = accumulate(nums.begin(), nums.end(), 0);
-    if (abs(target) > total || (target + total) % 2) return 0;
-    int s = (target + total) / 2;
+int findTargetSumWays(vector<int>& a, int target) {
+    int sum = accumulate(a.begin(), a.end(), 0);
+    if (abs(target) > sum || (sum + target) % 2) return 0;   // ⚠️ infeasible
 
-    vector<int> dp(s + 1, 0);
+    int P = (sum + target) / 2;
+    vector<int> dp(P + 1, 0);
     dp[0] = 1;
-    for (int x : nums)
-        for (int j = s; j >= x; --j)               // ⭐ BACKWARD
-            dp[j] += dp[j - x];
-    return dp[s];
+
+    for (int x : a)
+        for (int w = P; w >= x; --w)
+            dp[w] += dp[w - x];
+    return dp[P];
 }
 ```
+⭐ **Recognizing the algebraic reduction is the entire difficulty** — the DP itself is identical to problem 6.
 
 ---
 
-### 24. Last Stone Weight II 🟡
+# 8. Longest Increasing Subsequence
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **O(n²) → O(n log n) via patience sorting**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 ALL SUBSEQUENCES<br/><b>O(2ⁿ)</b>"] --> B["⚡ DP: dp[i] = LIS ending at i<br/><b>O(n²)</b> / O(n)"]
+    B --> C["🚀 PATIENCE SORTING<br/>+ binary search<br/><b>O(n log n)</b> / O(n)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+## 2️⃣ dp[i] = LIS ending at index i — O(n²)
 ```cpp
-int lastStoneWeightII(vector<int>& stones) {
-    int total = accumulate(stones.begin(), stones.end(), 0);
-    int half = total / 2;
-    vector<bool> dp(half + 1, false);
-    dp[0] = true;
-    for (int x : stones)
-        for (int s = half; s >= x; --s) dp[s] = dp[s] || dp[s - x];
-    for (int s = half; s >= 0; --s)
-        if (dp[s]) return total - 2 * s;           // ⭐ minimize the gap
-    return 0;
-}
-```
-**Key insight:** Smashing stones is really splitting them into two piles; the result is the difference between the piles. Minimizing that difference means getting one pile as close to `total/2` as possible.
-
----
-
-### 25. Ones and Zeroes (2D knapsack) 🟡
-```cpp
-int findMaxForm(vector<string>& strs, int m, int n) {
-    vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));
-    for (auto& s : strs) {
-        int zeros = count(s.begin(), s.end(), '0');
-        int ones = s.size() - zeros;
-        for (int i = m; i >= zeros; --i)           // ⭐ BOTH dimensions backward
-            for (int j = n; j >= ones; --j)
-                dp[i][j] = max(dp[i][j], dp[i - zeros][j - ones] + 1);
-    }
-    return dp[m][n];
-}
-```
-
----
-
-### 26. Perfect Squares 🟡
-```cpp
-int numSquares(int n) {
-    vector<int> dp(n + 1, INT_MAX);
-    dp[0] = 0;
-    for (int i = 1; i <= n; ++i)
-        for (int j = 1; j * j <= i; ++j)
-            dp[i] = min(dp[i], dp[i - j*j] + 1);
-    return dp[n];
-}
-```
-
----
-
-### 27. Rod Cutting / Integer Break 🟡
-```cpp
-int integerBreak(int n) {
-    vector<int> dp(n + 1, 0);
-    dp[1] = 1;
-    for (int i = 2; i <= n; ++i)
-        for (int j = 1; j < i; ++j)
-            dp[i] = max({dp[i], j * (i - j), j * dp[i - j]});
-                              //  ▲              ▲
-                              //  split in 2     split further
-    return dp[n];
-}
-```
-
----
-
-## D. Two-Sequence DP
-
-#### 💬 The universal shape
-Whenever a problem involves **two strings or arrays**, the state is almost always `dp[i][j]` = *"the answer considering the first `i` characters of A and the first `j` of B."*
-
-The recurrence is a two-way fork:
-
-```
-   ┌────────────────────────────────────────────────┐
-   │  if A[i-1] == B[j-1]:                          │
-   │      characters MATCH → consume both,           │
-   │      answer builds on dp[i-1][j-1]              │
-   │                                                 │
-   │  else:                                          │
-   │      no match → try skipping one from A         │
-   │      (dp[i-1][j]) or one from B (dp[i][j-1])    │
-   │      and take the better/cheaper option         │
-   └────────────────────────────────────────────────┘
-
-   The three cells you always read:
-
-        dp[i-1][j-1]  ──▶  dp[i-1][j]
-             │                  │
-             ▼                  ▼
-        dp[i][j-1]    ──▶  dp[i][j]  ← computing this
-```
-
-### 28. Longest Common Subsequence 🟡
-
-```
-   text1 = "abcde",  text2 = "ace"
-
-         ""   a    c    e
-      ┌────┬────┬────┬────┐
-   "" │  0 │  0 │  0 │  0 │
-      ├────┼────┼────┼────┤
-   a  │  0 │  1 │  1 │  1 │   'a'=='a' → 1 + diagonal(0)
-      ├────┼────┼────┼────┤
-   b  │  0 │  1 │  1 │  1 │   no match → max(left, up)
-      ├────┼────┼────┼────┤
-   c  │  0 │  1 │  2 │  2 │   'c'=='c' → 1 + diagonal(1)
-      ├────┼────┼────┼────┤
-   d  │  0 │  1 │  2 │  2 │
-      ├────┼────┼────┼────┤
-   e  │  0 │  1 │  2 │  3 │   'e'=='e' → 1 + diagonal(2)
-      └────┴────┴────┴────┘
-                        └── ANSWER = 3  ("ace")
-```
-
-```cpp
-int longestCommonSubsequence(string a, string b) {
-    int m = a.size(), n = b.size();
-    vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));
-    for (int i = 1; i <= m; ++i)
-        for (int j = 1; j <= n; ++j)
-            dp[i][j] = (a[i-1] == b[j-1])
-                     ? dp[i-1][j-1] + 1                 // match: extend the diagonal
-                     : max(dp[i-1][j], dp[i][j-1]);     // no match: best of skipping one
-    return dp[m][n];
-}
-```
-
----
-
-### 29. Edit Distance 🔴
-> Minimum insert / delete / replace operations to turn word A into word B.
-
-#### 💬 Think of it like this
-Look at the last character of each word.
-
-- **If they match**, they cost nothing — just align them and solve the smaller problem.
-- **If they don't**, you must pay 1 operation, and you have exactly three choices:
-
-```
-   Converting  "horse" → "ros"
-
-   ┌──────────────────────────────────────────────────────┐
-   │ REPLACE   change A's last char to B's last char      │
-   │           → dp[i-1][j-1] + 1     (diagonal)          │
-   ├──────────────────────────────────────────────────────┤
-   │ DELETE    remove A's last char                       │
-   │           → dp[i-1][j]   + 1     (from above)        │
-   ├──────────────────────────────────────────────────────┤
-   │ INSERT    add B's last char to A                     │
-   │           → dp[i][j-1]   + 1     (from the left)     │
-   └──────────────────────────────────────────────────────┘
-
-         ""   r    o    s
-      ┌────┬────┬────┬────┐
-   "" │  0 │  1 │  2 │  3 │  ← turning "" into "ros" = 3 inserts
-      ├────┼────┼────┼────┤
-   h  │  1 │  1 │  2 │  3 │
-      ├────┼────┼────┼────┤
-   o  │  2 │  2 │  1 │  2 │  ← 'o'=='o', free diagonal move
-      ├────┼────┼────┼────┤
-   r  │  3 │  2 │  2 │  2 │
-      ├────┼────┼────┼────┤
-   s  │  4 │  3 │  3 │  2 │
-      ├────┼────┼────┼────┤
-   e  │  5 │  4 │  4 │  3 │  ← ANSWER = 3
-      └────┴────┴────┴────┘
-
-   The 3 ops: horse → rorse (replace h→r)
-                    → rose  (delete r)
-                    → ros   (delete e)
-```
-
-```cpp
-int minDistance(string a, string b) {
-    int m = a.size(), n = b.size();
-    vector<vector<int>> dp(m + 1, vector<int>(n + 1));
-    for (int i = 0; i <= m; ++i) dp[i][0] = i;     // delete everything
-    for (int j = 0; j <= n; ++j) dp[0][j] = j;     // insert everything
-
-    for (int i = 1; i <= m; ++i)
-        for (int j = 1; j <= n; ++j)
-            dp[i][j] = (a[i-1] == b[j-1])
-                     ? dp[i-1][j-1]                              // free match
-                     : 1 + min({dp[i-1][j-1],   // replace
-                                dp[i-1][j],     // delete
-                                dp[i][j-1]});   // insert
-    return dp[m][n];
-}
-```
-
----
-
-### 30. Distinct Subsequences 🔴
-```cpp
-int numDistinct(string s, string t) {
-    int m = s.size(), n = t.size();
-    vector<unsigned long long> dp(n + 1, 0);
-    dp[0] = 1;
-    for (int i = 1; i <= m; ++i)
-        for (int j = n; j >= 1; --j)               // ⭐ backward: dp[j-1] must be old
-            if (s[i-1] == t[j-1]) dp[j] += dp[j-1];
-    return dp[n];
-}
-```
-
----
-
-### 31. Interleaving String 🟡
-```cpp
-bool isInterleave(string a, string b, string c) {
-    int m = a.size(), n = b.size();
-    if (m + n != (int)c.size()) return false;
-    vector<vector<bool>> dp(m + 1, vector<bool>(n + 1, false));
-    dp[0][0] = true;
-    for (int i = 0; i <= m; ++i)
-        for (int j = 0; j <= n; ++j) {
-            if (i && dp[i-1][j] && a[i-1] == c[i+j-1]) dp[i][j] = true;
-            if (j && dp[i][j-1] && b[j-1] == c[i+j-1]) dp[i][j] = true;
-        }
-    return dp[m][n];
-}
-```
-
----
-
-### 32. Regular Expression Matching 🔴
-> Support `.` (any single char) and `*` (zero or more of the preceding element).
-
-```cpp
-bool isMatch(string s, string p) {
-    int m = s.size(), n = p.size();
-    vector<vector<bool>> dp(m + 1, vector<bool>(n + 1, false));
-    dp[0][0] = true;
-    for (int j = 1; j <= n; ++j)                   // patterns like a*b*c* match ""
-        if (p[j-1] == '*') dp[0][j] = dp[0][j-2];
-
-    for (int i = 1; i <= m; ++i)
-        for (int j = 1; j <= n; ++j) {
-            if (p[j-1] == '*') {
-                dp[i][j] = dp[i][j-2];             // ⭐ use the star ZERO times
-                if (p[j-2] == '.' || p[j-2] == s[i-1])
-                    dp[i][j] = dp[i][j] || dp[i-1][j];   // ⭐ use it ONE MORE time
-            } else if (p[j-1] == '.' || p[j-1] == s[i-1]) {
-                dp[i][j] = dp[i-1][j-1];
-            }
-        }
-    return dp[m][n];
-}
-```
-**Key insight:** `*` has exactly two behaviours — consume nothing (skip the pair `x*`, look back 2), or consume one more character (stay on the pattern, advance in the string). Handle both and OR them.
-
----
-
-### 33. Wildcard Matching 🔴
-```cpp
-bool isMatch(string s, string p) {
-    int m = s.size(), n = p.size();
-    vector<vector<bool>> dp(m + 1, vector<bool>(n + 1, false));
-    dp[0][0] = true;
-    for (int j = 1; j <= n; ++j) if (p[j-1] == '*') dp[0][j] = dp[0][j-1];
-    for (int i = 1; i <= m; ++i)
-        for (int j = 1; j <= n; ++j) {
-            if (p[j-1] == '*')
-                dp[i][j] = dp[i-1][j] || dp[i][j-1];   // ⭐ match one more, or none
-            else if (p[j-1] == '?' || p[j-1] == s[i-1])
-                dp[i][j] = dp[i-1][j-1];
-        }
-    return dp[m][n];
-}
-```
-
----
-
-### 34. Longest Palindromic Subsequence 🟡
-```cpp
-int longestPalindromeSubseq(string s) {
-    int n = s.size();
-    vector<vector<int>> dp(n, vector<int>(n, 0));
-    for (int i = n - 1; i >= 0; --i) {             // ⭐ i descending, j ascending
-        dp[i][i] = 1;
-        for (int j = i + 1; j < n; ++j)
-            dp[i][j] = (s[i] == s[j])
-                     ? dp[i+1][j-1] + 2            // both ends match
-                     : max(dp[i+1][j], dp[i][j-1]);
-    }
-    return dp[0][n-1];
-}
-```
-**Alternative framing:** it's simply `LCS(s, reverse(s))`.
-
----
-
-### 35. Shortest Common Supersequence 🔴
-```cpp
-string shortestCommonSupersequence(string a, string b) {
-    int m = a.size(), n = b.size();
-    vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));
-    for (int i = 1; i <= m; ++i)
-        for (int j = 1; j <= n; ++j)
-            dp[i][j] = (a[i-1] == b[j-1]) ? dp[i-1][j-1] + 1
-                                          : max(dp[i-1][j], dp[i][j-1]);
-
-    string out;                                    // ⭐ walk BACKWARDS through the table
-    int i = m, j = n;
-    while (i && j) {
-        if (a[i-1] == b[j-1]) { out += a[--i]; --j; }
-        else if (dp[i-1][j] > dp[i][j-1]) out += a[--i];
-        else out += b[--j];
-    }
-    while (i) out += a[--i];
-    while (j) out += b[--j];
-    reverse(out.begin(), out.end());
-    return out;
-}
-```
-**Key insight:** Reconstructing the actual answer (not just its length) means walking the DP table backwards from the final cell.
-
----
-
-## E. Interval DP
-
-#### 💬 The shape
-For interval DP the state is a **range** `dp[i][j]`, and you decide a *split point* or a *last operation* inside it. You must fill by increasing range length, because a big range depends on smaller ranges inside it.
-
-```
-   for (len = 2; len <= n; ++len)          ⭐ length OUTERMOST
-     for (i = 0; i + len - 1 < n; ++i) {
-       j = i + len - 1;
-       for (k = i; k < j; ++k)             the split point
-         dp[i][j] = best(dp[i][k], dp[k+1][j], cost)
-     }
-```
-
-### 36. Burst Balloons 🔴
-> Bursting balloon `i` earns `nums[left] * nums[i] * nums[right]`. Maximize total coins.
-
-#### 💬 The trick that makes this solvable
-Your instinct is to ask "which balloon do I burst **first**?" — but that fails, because bursting changes who the neighbours are, so the subproblems aren't independent.
-
-Flip it: ask **"which balloon do I burst LAST in this range?"** If balloon `k` is last, then everything left of `k` and everything right of `k` were already burst independently — and when `k` finally pops, its neighbours are exactly the fixed boundaries of the range. The subproblems become independent.
-
-```
-   Range (i, j) exclusive, k is the LAST to burst inside:
-
-   [i] ....... [k] ....... [j]
-    ▲    ▲      ▲     ▲     ▲
-    │  solved   │  solved   │
-    │  first    │  first    │
-    └───────────┴───────────┘
-        when k finally pops, its neighbours are i and j
-        (everything between is already gone)
-
-   dp[i][j] = max over k of:
-              dp[i][k] + nums[i]*nums[k]*nums[j] + dp[k][j]
-```
-
-```cpp
-int maxCoins(vector<int>& nums) {
-    int n = nums.size();
-    vector<int> a(n + 2, 1);                       // ⭐ pad with 1s at both ends
-    for (int i = 0; i < n; ++i) a[i+1] = nums[i];
-    n += 2;
-
-    vector<vector<int>> dp(n, vector<int>(n, 0));
-    for (int len = 2; len < n; ++len)              // range length
-        for (int i = 0; i + len < n; ++i) {
-            int j = i + len;
-            for (int k = i + 1; k < j; ++k)        // k = LAST balloon burst
-                dp[i][j] = max(dp[i][j], dp[i][k] + a[i]*a[k]*a[j] + dp[k][j]);
-        }
-    return dp[0][n-1];
-}
-```
-**Complexity:** O(n³).
-
----
-
-### 37. Matrix Chain Multiplication 🔴
-```cpp
-int matrixChain(vector<int>& dims) {               // dims has n+1 entries for n matrices
-    int n = dims.size() - 1;
-    vector<vector<int>> dp(n, vector<int>(n, 0));
-    for (int len = 2; len <= n; ++len)
-        for (int i = 0; i + len - 1 < n; ++i) {
-            int j = i + len - 1;
-            dp[i][j] = INT_MAX;
-            for (int k = i; k < j; ++k)            // split between k and k+1
-                dp[i][j] = min(dp[i][j],
-                    dp[i][k] + dp[k+1][j] + dims[i]*dims[k+1]*dims[j+1]);
-        }
-    return dp[0][n-1];
-}
-```
-
----
-
-### 38. Palindrome Partitioning II 🔴
-```cpp
-int minCut(string s) {
-    int n = s.size();
-    vector<vector<bool>> pal(n, vector<bool>(n, false));
-    vector<int> dp(n + 1);
-    for (int i = 0; i <= n; ++i) dp[i] = i - 1;    // worst case: cut everywhere
+int lengthOfLIS_On2(vector<int>& a) {
+    int n = a.size();
+    vector<int> dp(n, 1);
+    int best = 1;
 
     for (int i = 0; i < n; ++i)
-        for (int j = 0; j <= i; ++j)
-            if (s[j] == s[i] && (i - j < 2 || pal[j+1][i-1])) {
-                pal[j][i] = true;
-                dp[i+1] = min(dp[i+1], dp[j] + 1);
-            }
-    return dp[n];
-}
-```
+        for (int j = 0; j < i; ++j)
+            if (a[j] < a[i]) dp[i] = max(dp[i], dp[j] + 1);   // ⭐ extend
 
----
-
-### 39. Stone Game 🟡
-```cpp
-bool stoneGame(vector<int>& piles) {
-    int n = piles.size();
-    vector<vector<int>> dp(n, vector<int>(n, 0));
-    for (int i = 0; i < n; ++i) dp[i][i] = piles[i];
-    for (int len = 2; len <= n; ++len)
-        for (int i = 0; i + len - 1 < n; ++i) {
-            int j = i + len - 1;
-            dp[i][j] = max(piles[i] - dp[i+1][j],  // ⭐ take left, opponent faces (i+1,j)
-                           piles[j] - dp[i][j-1]); //    take right
-        }
-    return dp[0][n-1] > 0;
-}
-```
-**Key insight:** `dp[i][j]` = *my score minus my opponent's* on this range. Subtracting the opponent's optimal result models perfect play by both sides in one line.
-
----
-
-### 40. Minimum Cost to Cut a Stick 🔴
-```cpp
-int minCost(int n, vector<int>& cuts) {
-    cuts.push_back(0); cuts.push_back(n);
-    sort(cuts.begin(), cuts.end());
-    int m = cuts.size();
-    vector<vector<int>> dp(m, vector<int>(m, 0));
-    for (int len = 2; len < m; ++len)
-        for (int i = 0; i + len < m; ++i) {
-            int j = i + len;
-            dp[i][j] = INT_MAX;
-            for (int k = i + 1; k < j; ++k)        // k = FIRST cut in this segment
-                dp[i][j] = min(dp[i][j], dp[i][k] + dp[k][j] + cuts[j] - cuts[i]);
-        }
-    return dp[0][m-1];
-}
-```
-
----
-
-## F. Bitmask DP
-
-#### 💬 When to reach for it
-When `n ≤ 20` and you need to track **which subset** of items you've used, encode the subset as bits of an integer. Bit `i` set means item `i` is used.
-
-```
-   n = 4 items,  mask = 1011 (binary) = 11 (decimal)
-
-   bit:    3  2  1  0
-   value:  1  0  1  1
-           │  │  │  └── item 0 used ✅
-           │  │  └───── item 1 used ✅
-           │  └──────── item 2 NOT used ❌
-           └─────────── item 3 used ✅
-
-   2²⁰ = about 1 million states — comfortably feasible.
-   2³⁰ = a billion — no longer feasible. That's why n ≤ 20.
-```
-
-### 41. Travelling Salesman (Held-Karp) 🔴
-```cpp
-int tsp(vector<vector<int>>& dist) {
-    int n = dist.size();
-    vector<vector<int>> dp(1 << n, vector<int>(n, INT_MAX / 2));
-    dp[1][0] = 0;                                  // start at city 0, only it visited
-
-    for (int mask = 1; mask < (1 << n); ++mask)
-        for (int u = 0; u < n; ++u) {
-            if (!(mask & (1 << u))) continue;      // u must be in the visited set
-            for (int v = 0; v < n; ++v) {
-                if (mask & (1 << v)) continue;     // v already visited
-                int nm = mask | (1 << v);
-                dp[nm][v] = min(dp[nm][v], dp[mask][u] + dist[u][v]);
-            }
-        }
-
-    int best = INT_MAX;
-    for (int u = 1; u < n; ++u)
-        best = min(best, dp[(1 << n) - 1][u] + dist[u][0]);   // return home
+    for (int x : dp) best = max(best, x);
     return best;
 }
 ```
-**Complexity:** O(2ⁿ · n²) — vastly better than O(n!) brute force.
+
+## 3️⃣ Patience Sorting — ⭐ OPTIMAL
+
+#### 💬 The idea (not the standard dp[i] table at all)
+```mermaid
+flowchart TD
+    A["⭐ Maintain an array `tails`:<br/>tails[k] = the SMALLEST possible<br/>tail value of an increasing<br/>subsequence of length k+1"] --> B["For each new number x:"]
+    B --> C{"x &gt; every tail?"}
+    C -->|"yes"| D["⭐ APPEND — extends the LIS by 1"]
+    C -->|"no"| E["⭐ REPLACE the first tail ≥ x<br/>— keeps future extension<br/>possibilities open"]
+    D --> F["⭐ tails.size() IS the LIS length<br/>— tails itself is NOT necessarily<br/>a real subsequence"]
+    E --> F
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  [10, 9, 2, 5, 3, 7, 101, 18]
+
+   x=10:  tails=[10]
+   x=9:   replace → tails=[9]
+   x=2:   replace → tails=[2]
+   x=5:   append  → tails=[2,5]
+   x=3:   replace 5 → tails=[2,3]     ⭐ 3 keeps more room than 5 did
+   x=7:   append  → tails=[2,3,7]
+   x=101: append  → tails=[2,3,7,101]
+   x=18:  replace 101 → tails=[2,3,7,18]
+
+   ⭐ ANSWER: length 4  (real LIS: [2,3,7,18] or [2,3,7,101])
+
+   ⭐⭐ WHY REPLACING IS SAFE (not cheating)
+     tails is not claimed to BE a valid subsequence — only its
+     LENGTH matters. Replacing a tail with a smaller value never
+     shrinks future potential; it can only help.
+```
+
+```cpp
+int lengthOfLIS(vector<int>& a) {
+    vector<int> tails;
+    for (int x : a) {
+        auto it = lower_bound(tails.begin(), tails.end(), x);   // ⭐ first ≥ x
+        if (it == tails.end()) tails.push_back(x);              // append
+        else *it = x;                                          // replace
+    }
+    return tails.size();
+}
+```
+⭐ **`lower_bound` for strictly increasing; `upper_bound` for non-decreasing.** A one-character change adapts this to the "longest non-decreasing subsequence" variant.
+
+## 📌 Pattern Card
+```
+SIGNAL   longest increasing/decreasing subsequence
+KEY      O(n²): dp[i] extends from any smaller predecessor
+         ⭐ O(n log n): tails[] + binary search (patience sorting)
+RELATED  Russian Doll Envelopes · Longest Chain of Pairs · Box Stacking
+```
 
 ---
 
-### 42. Partition to K Equal Sum Subsets 🔴
-```cpp
-bool canPartitionKSubsets(vector<int>& nums, int k) {
-    int total = accumulate(nums.begin(), nums.end(), 0);
-    if (total % k) return false;
-    int target = total / k, n = nums.size();
-    sort(nums.rbegin(), nums.rend());              // ⭐ big items first → prune faster
-    if (nums[0] > target) return false;
+# 9. Longest Common Subsequence
 
-    vector<int> dp(1 << n, -1);                    // dp[mask] = current bucket fill
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The 2D grid template**
+
+## 💬 The recurrence
+
+```mermaid
+flowchart TD
+    A["dp[i][j] = LCS of s1[0..i) and s2[0..j)"] --> B{"s1[i−1] == s2[j−1]?"}
+    B -->|"MATCH"| C["⭐ dp[i][j] = 1 + dp[i−1][j−1]<br/>extend the diagonal"]
+    B -->|"NO MATCH"| D["⭐ dp[i][j] = max(dp[i−1][j], dp[i][j−1])<br/>drop one character from either string"]
+
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
+```
+   s1 = "abcde"   s2 = "ace"
+
+       ""  a  c  e
+   ""   0  0  0  0
+   a    0  1  1  1
+   b    0  1  1  1
+   c    0  1  2  2
+   d    0  1  2  2
+   e    0  1  2 ⭐3
+
+   ⭐ ANSWER: 3 ("ace")
+```
+
+```cpp
+int longestCommonSubsequence(string s1, string s2) {
+    int n = s1.size(), m = s2.size();
+    vector<vector<int>> dp(n + 1, vector<int>(m + 1, 0));
+
+    for (int i = 1; i <= n; ++i)
+        for (int j = 1; j <= m; ++j)
+            dp[i][j] = (s1[i-1] == s2[j-1])
+                     ? 1 + dp[i-1][j-1]
+                     : max(dp[i-1][j], dp[i][j-1]);
+
+    return dp[n][m];
+}
+```
+
+⭐ **This grid is the ancestor of an entire family:** Edit Distance, Longest Palindromic Subsequence, Longest Common Substring, Shortest Common Supersequence, Delete Operation for Two Strings, Distinct Subsequences. Learn this grid once.
+
+## 📌 Pattern Card
+```
+SIGNAL   compare two sequences, extract shared structure
+KEY      dp[i][j]: match → diagonal+1, mismatch → max(up, left)
+RELATED  Edit Distance · Longest Palindromic Subsequence
+         Longest Common Substring · Shortest Common Supersequence
+```
+
+---
+
+# 10. Edit Distance
+🔴 ⚪ **Variation of #9** — same grid, three operations instead of two.
+
+```mermaid
+flowchart TD
+    A{"s1[i−1] == s2[j−1]?"}
+    A -->|"MATCH"| B["dp[i][j] = dp[i−1][j−1]<br/>⭐ FREE — no edit needed"]
+    A -->|"MISMATCH"| C["⭐ dp[i][j] = 1 + min of THREE:<br/>REPLACE: dp[i−1][j−1]<br/>DELETE:  dp[i−1][j]<br/>INSERT:  dp[i][j−1]"]
+
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+```cpp
+int minDistance(string s1, string s2) {
+    int n = s1.size(), m = s2.size();
+    vector<vector<int>> dp(n + 1, vector<int>(m + 1));
+
+    for (int i = 0; i <= n; ++i) dp[i][0] = i;   // ⭐ delete all of s1
+    for (int j = 0; j <= m; ++j) dp[0][j] = j;   // ⭐ insert all of s2
+
+    for (int i = 1; i <= n; ++i)
+        for (int j = 1; j <= m; ++j)
+            dp[i][j] = (s1[i-1] == s2[j-1])
+                     ? dp[i-1][j-1]
+                     : 1 + min({dp[i-1][j-1], dp[i-1][j], dp[i][j-1]});
+
+    return dp[n][m];
+}
+```
+⭐ **The three min() terms map directly to the three edits:** diagonal = replace, up = delete from s1, left = insert into s1 (from s2).
+
+---
+
+# 11. Longest Palindromic Subsequence
+🟡 ⚪ **Variation of #9** — ⭐ LCS of a string **with its own reverse**.
+
+```cpp
+int longestPalindromeSubseq(string s) {
+    string r(s.rbegin(), s.rend());
+    return longestCommonSubsequence(s, r);      // ⭐ reuse #9 directly
+}
+```
+⭐ **Why this works:** any palindromic subsequence reads the same forwards and backwards, so it's necessarily a common subsequence of `s` and `reverse(s)` — and the converse also holds for the LCS length.
+
+---
+
+# 12. Word Break
+🟡 ⚪ **Fully covered** in [Strings #70](01c-arrays-strings.md#70-word-break) — `dp[i]` over prefixes, bounded by the longest dictionary word.
+
+---
+
+# 13. Decode Ways
+
+🟡 **Medium** · 🔵 Full ladder
+
+> `"12"` → `"AB"` or `"L"` → 2 ways. Count decodings of a digit string.
+
+```mermaid
+flowchart TD
+    A["dp[i] = ways to decode s[0..i)"] --> B{"s[i−1] != '0' ?"}
+    B -->|"yes"| C["⭐ dp[i] += dp[i−1]<br/>— treat as a 1-digit letter"]
+    B -->|"no"| D["contributes nothing —<br/>'0' alone isn't a valid letter"]
+    C --> E{"s[i−2..i) is '10'..'26' ?"}
+    D --> E
+    E -->|"yes"| F["⭐ dp[i] += dp[i−2]<br/>— treat as a 2-digit letter"]
+
+    style C fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
+```
+   ⚠️ THE TRAP CASES
+
+   "06"  → 0 ways. Leading zero is never valid alone or paired.
+   "100" → 0 ways. '0' can't stand alone, and "00" isn't 10-26.
+   "230" → 0 ways. '0' needs a valid PRECEDING digit (2 or 1),
+           and here the pairing would need "30" which is > 26.
+```
+
+```cpp
+int numDecodings(string s) {
+    int n = s.size();
+    if (s[0] == '0') return 0;                  // ⚠️ immediate invalid
+
+    int prev2 = 1, prev1 = 1;                   // dp[0]=1 (empty), dp[1]=1
+
+    for (int i = 2; i <= n; ++i) {
+        int cur = 0;
+        if (s[i-1] != '0') cur += prev1;         // 1-digit decode
+        int two = stoi(s.substr(i-2, 2));
+        if (two >= 10 && two <= 26) cur += prev2;   // 2-digit decode
+
+        if (cur == 0) return 0;                  // ⭐ dead end — no valid split
+        prev2 = prev1;
+        prev1 = cur;
+    }
+    return prev1;
+}
+```
+
+---
+
+# 14. Unique Paths I / II
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The grid-DP template**
+
+> Top-left to bottom-right, only right/down moves. Count paths.
+
+```mermaid
+flowchart TD
+    A["⭐ dp[r][c] = ways to reach (r,c)"] --> B["= dp[r−1][c] + dp[r][c−1]<br/>— arrived from ABOVE or from the LEFT"]
+    B --> C["dp[0][*] = dp[*][0] = 1<br/>⭐ only one way along an edge"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+int uniquePaths(int R, int C) {
+    vector<int> dp(C, 1);                       // ⭐ 1D — top row is all 1s
+    for (int r = 1; r < R; ++r)
+        for (int c = 1; c < C; ++c)
+            dp[c] += dp[c-1];                    // ⭐ dp[c] still holds the row ABOVE
+    return dp[C-1];
+}
+```
+⭐ **Rolling to 1D works because `dp[c]` (before update) IS `dp[r-1][c]`**, and `dp[c-1]` (already updated this row) is `dp[r][c-1]`.
+
+## With obstacles
+```cpp
+int uniquePathsWithObstacles(vector<vector<int>>& g) {
+    int R = g.size(), C = g[0].size();
+    vector<long long> dp(C, 0);
+    dp[0] = (g[0][0] == 0);                      // ⭐ blocked start → 0 paths
+
+    for (int r = 0; r < R; ++r)
+        for (int c = 0; c < C; ++c) {
+            if (g[r][c] == 1) dp[c] = 0;          // ⭐ obstacle kills this cell
+            else if (c > 0) dp[c] += dp[c-1];
+        }
+    return dp[C-1];
+}
+```
+
+---
+
+# 15. Minimum Path Sum
+🟡 ⚪ **Variation of #14** — same grid, `min` + accumulate instead of counting.
+
+```cpp
+int minPathSum(vector<vector<int>>& g) {
+    int R = g.size(), C = g[0].size();
+    vector<int> dp(C, INT_MAX);
     dp[0] = 0;
-    for (int mask = 0; mask < (1 << n); ++mask) {
-        if (dp[mask] < 0) continue;
-        for (int i = 0; i < n; ++i) {
-            if (mask & (1 << i)) continue;
-            if (dp[mask] + nums[i] > target) continue;
-            dp[mask | (1 << i)] = (dp[mask] + nums[i]) % target;
-        }
-    }
-    return dp[(1 << n) - 1] == 0;
+
+    for (int r = 0; r < R; ++r)
+        for (int c = 0; c < C; ++c)
+            dp[c] = g[r][c] + (c > 0 ? min(dp[c], dp[c-1]) : dp[c]);
+    return dp[C-1];
 }
 ```
 
 ---
 
-### 43. Shortest Path Visiting All Nodes 🔴
-```cpp
-int shortestPathLength(vector<vector<int>>& graph) {
-    int n = graph.size(), full = (1 << n) - 1;
-    queue<pair<int,int>> q;                        // {node, visited mask}
-    vector<vector<bool>> seen(n, vector<bool>(1 << n, false));
-    for (int i = 0; i < n; ++i) {                  // ⭐ start from EVERY node
-        q.push({i, 1 << i});
-        seen[i][1 << i] = true;
-    }
+# 16. Maximal Square
 
-    int steps = 0;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int s = 0; s < sz; ++s) {
-            auto [u, mask] = q.front(); q.pop();
-            if (mask == full) return steps;
-            for (int v : graph[u]) {
-                int nm = mask | (1 << v);
-                if (seen[v][nm]) continue;
-                seen[v][nm] = true;
-                q.push({v, nm});
+🟡 **Medium** · 🔵 Full ladder · ⭐ **min of three neighbors, not sum**
+
+> Largest square of all-1s in a binary matrix.
+
+## 💬 The insight
+
+```mermaid
+flowchart TD
+    A["⭐ dp[r][c] = side length of the<br/>LARGEST square whose<br/>BOTTOM-RIGHT corner is (r,c)"] --> B{"grid[r][c] == 1?"}
+    B -->|"no"| C["dp[r][c] = 0"]
+    B -->|"yes"| D["⭐ dp[r][c] = 1 + min(<br/>  dp[r−1][c],<br/>  dp[r][c−1],<br/>  dp[r−1][c−1]<br/>)"]
+
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ WHY THE MIN OF THREE, NOT JUST ONE
+
+   All three neighbors — top, left, and top-left — must
+   support a square of side (dp+1) for THIS cell to. If any
+   one of them caps out early, the new square is bounded by
+   the WEAKEST of the three. That's why it's min, not max.
+
+   VISUAL:
+     dp[r-1][c-1]=2   dp[r-1][c]=1
+     dp[r][c-1]=3     dp[r][c]=?
+
+   ⭐ min(2,1,3) + 1 = 2 — the top neighbor's smaller square
+     is the bottleneck.
+```
+
+```cpp
+int maximalSquare(vector<vector<char>>& g) {
+    int R = g.size(), C = g[0].size(), best = 0;
+    vector<vector<int>> dp(R + 1, vector<int>(C + 1, 0));   // ⭐ padded border
+
+    for (int r = 1; r <= R; ++r)
+        for (int c = 1; c <= C; ++c)
+            if (g[r-1][c-1] == '1') {
+                dp[r][c] = 1 + min({dp[r-1][c], dp[r][c-1], dp[r-1][c-1]});
+                best = max(best, dp[r][c]);
             }
-        }
-        ++steps;
-    }
-    return 0;
+    return best * best;                          // ⚠️ AREA, not side length
 }
 ```
-**Key insight:** BFS where the state is `(where I am, what I've visited)`. Revisiting a node is allowed — what must not repeat is the full state.
+⭐ **The padded border (`dp` is `(R+1)×(C+1)`)** eliminates boundary checks entirely — row/col 0 are naturally all zeros.
 
 ---
 
-## G. Tree & Digit DP
+# 17. Best Time to Buy/Sell Stock II/III/IV
 
-### 44. House Robber III 🟡
-```cpp
-pair<int,int> robTree(TreeNode* n) {               // {rob this node, skip this node}
-    if (!n) return {0, 0};
-    auto [rl, sl] = robTree(n->left);
-    auto [rr, sr] = robTree(n->right);
-    return { n->val + sl + sr,                     // rob → children MUST be skipped
-             max(rl, sl) + max(rr, sr) };          // skip → children free to choose
-}
-int rob(TreeNode* root) { auto [a, b] = robTree(root); return max(a, b); }
-```
-**Key insight:** Returning a **pair of states** lets the parent choose. This is the standard shape of tree DP.
+🔴 **Hard** · 🔵 Full ladder · ⭐ **The state-machine generalization**
 
----
+## 🗺️ Approach Ladder
 
-### 45. Binary Tree Maximum Path Sum 🔴
-```cpp
-int best = INT_MIN;
-int gain(TreeNode* n) {
-    if (!n) return 0;
-    int l = max(0, gain(n->left));                 // negative subtrees are worth skipping
-    int r = max(0, gain(n->right));
-    best = max(best, n->val + l + r);              // path THROUGH this node
-    return n->val + max(l, r);                     // but only ONE branch goes up
-}
+```mermaid
+flowchart LR
+    A["Stock I: 1 transaction<br/><b>O(n)</b> — track min-so-far"] --> B["Stock II: UNLIMITED<br/><b>O(n)</b> — greedy, sum all gains"]
+    B --> C["Stock III: AT MOST 2<br/><b>O(n)</b> — 4-state machine"]
+    C --> D["🚀 Stock IV: AT MOST k<br/><b>O(nk)</b> — 2k-state machine"]
+
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style D fill:#b2dfdb,stroke:#00695c,stroke-width:3px,color:#000
 ```
 
----
+## 💬 The unifying state machine
 
-### 46. Count Numbers with Unique Digits 🟡
-```cpp
-int countNumbersWithUniqueDigits(int n) {
-    if (n == 0) return 1;
-    int total = 10, unique = 9;                    // 1-digit: 0..9
-    for (int i = 2; i <= min(n, 10); ++i) {
-        unique *= (11 - i);                        // 9×9, then ×8, ×7, ...
-        total += unique;
-    }
-    return total;
-}
+```mermaid
+stateDiagram-v2
+    [*] --> Cash0
+    Cash0 --> Hold1: buy
+    Hold1 --> Cash1: sell
+    Cash1 --> Hold2: buy
+    Hold2 --> Cash2: sell
+
+    note right of Hold1
+        holding after
+        the 1st buy
+    end note
+    note right of Cash1
+        cash after
+        the 1st sell
+    end note
 ```
 
----
+```
+   ⭐⭐ THE GENERAL k-TRANSACTION STATE MACHINE
 
-### 47. Numbers At Most N Given Digit Set (digit DP) 🔴
-```cpp
-int atMostNGivenDigitSet(vector<string>& digits, int n) {
-    string s = to_string(n);
-    int k = s.size(), d = digits.size(), ans = 0;
+   buy[i]  = max profit after i-th BUY  (currently holding)
+   sell[i] = max profit after i-th SELL (currently in cash)
 
-    for (int i = 1; i < k; ++i) ans += pow(d, i);  // all shorter lengths are free
+   buy[i]  = max(buy[i],  sell[i-1] - price)   ⭐ buy using the
+                                                 previous sell's cash
+   sell[i] = max(sell[i], buy[i] + price)      ⭐ sell what we hold
 
-    for (int i = 0; i < k; ++i) {                  // same length, digit by digit
-        bool prefixMatched = false;
-        for (auto& dg : digits) {
-            if (dg[0] < s[i]) ans += pow(d, k - i - 1);   // strictly smaller → all free
-            else if (dg[0] == s[i]) { prefixMatched = true; break; }
-        }
-        if (!prefixMatched) return ans;            // ⭐ can't continue matching
-    }
-    return ans + 1;                                // +1 for n itself
-}
+   Process prices LEFT TO RIGHT, updating ALL k states each day.
+   ⭐ Answer = sell[k] (the last state is always "in cash").
 ```
 
----
-
-## H. Stock & Game DP
-
-### 48. Best Time to Buy and Sell Stock 🟢
 ```cpp
-int maxProfit(vector<int>& p) {
-    int lo = INT_MAX, best = 0;
-    for (int x : p) { lo = min(lo, x); best = max(best, x - lo); }
-    return best;
-}
-```
+int maxProfit(int k, vector<int>& prices) {
+    if (prices.empty()) return 0;
 
----
-
-### 49. Stock II (unlimited transactions) 🟡
-```cpp
-int maxProfit(vector<int>& p) {
-    int total = 0;
-    for (int i = 1; i < (int)p.size(); ++i)
-        total += max(0, p[i] - p[i-1]);            // ⭐ grab every upward step
-    return total;
-}
-```
-**Key insight:** With unlimited transactions, capturing every rise is optimal — a multi-day climb equals the sum of its daily gains.
-
----
-
-### 50. Stock III (at most 2 transactions) 🔴
-```cpp
-int maxProfit(vector<int>& p) {
-    int buy1 = INT_MIN, sell1 = 0, buy2 = INT_MIN, sell2 = 0;
-    for (int x : p) {
-        buy1  = max(buy1,  -x);                    // best after 1st buy
-        sell1 = max(sell1, buy1 + x);              // best after 1st sell
-        buy2  = max(buy2,  sell1 - x);             // ⭐ 2nd buy uses 1st profit
-        sell2 = max(sell2, buy2 + x);
-    }
-    return sell2;
-}
-```
-
----
-
-### 51. Stock IV (at most k transactions) 🔴
-```cpp
-int maxProfit(int k, vector<int>& p) {
-    int n = p.size();
-    if (k >= n / 2) {                              // ⭐ effectively unlimited
-        int t = 0;
-        for (int i = 1; i < n; ++i) t += max(0, p[i] - p[i-1]);
-        return t;
-    }
     vector<int> buy(k + 1, INT_MIN), sell(k + 1, 0);
-    for (int x : p)
-        for (int j = 1; j <= k; ++j) {
-            buy[j]  = max(buy[j],  sell[j-1] - x);
-            sell[j] = max(sell[j], buy[j] + x);
+
+    for (int p : prices)
+        for (int i = 1; i <= k; ++i) {
+            buy[i]  = max(buy[i],  sell[i-1] - p);
+            sell[i] = max(sell[i], buy[i] + p);
         }
     return sell[k];
 }
 ```
 
+```
+   ⭐ SPECIAL CASES FALL OUT OF THIS GENERAL FORM
+
+   k=1  → Stock I    (a single buy/sell pair)
+   k=2  → Stock III  (exactly this code with k=2)
+   k=∞  → Stock II   (greedy: sum every positive day-to-day
+                       delta — equivalent to unlimited transactions)
+```
+
+```cpp
+// Stock II — unlimited transactions, the greedy simplification
+int maxProfitUnlimited(vector<int>& prices) {
+    int profit = 0;
+    for (int i = 1; i < (int)prices.size(); ++i)
+        if (prices[i] > prices[i-1]) profit += prices[i] - prices[i-1];   // ⭐ capture every uptick
+    return profit;
+}
+```
+⭐ **Why the greedy works for unlimited transactions:** any profitable multi-day rise decomposes exactly into its daily deltas — buying and selling every single day you can profit is equivalent to holding through the whole rise.
+
+## 📌 Pattern Card
+```
+SIGNAL   stock buy/sell with constraints (k transactions, cooldown, fee)
+KEY      ⭐ state machine: buy[i]/sell[i] pairs, roll forward day by day
+RELATED  Stock with Cooldown · Stock with Transaction Fee
+```
+
 ---
 
-### 52. Stock with Transaction Fee 🟡
+# 18. Best Time to Buy/Sell Stock with Cooldown
+🟡 ⚪ **Variation of #17** — a third state for the enforced wait.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Rest
+    Rest --> Hold: buy
+    Hold --> Sold: sell
+    Sold --> Rest: cooldown day
+    Rest --> Rest: stay
+
+    note right of Sold
+        ⭐ MUST pass through
+        here before buying again
+    end note
+```
 ```cpp
-int maxProfit(vector<int>& p, int fee) {
-    int held = INT_MIN, free = 0;
-    for (int x : p) {
-        int prevFree = free;
-        free = max(free, held + x - fee);          // sell, pay the fee
-        held = max(held, prevFree - x);            // buy
+int maxProfit(vector<int>& prices) {
+    int hold = INT_MIN, sold = 0, rest = 0;
+
+    for (int p : prices) {
+        int prevSold = sold;
+        sold = hold + p;                        // ⭐ sell today
+        hold = max(hold, rest - p);              // ⭐ buy today (from rest, not sold)
+        rest = max(rest, prevSold);              // ⭐ enter cooldown from a past sell
     }
-    return free;
+    return max(sold, rest);
 }
 ```
+⭐ **`hold` draws from `rest`, never from `sold` directly** — that's what enforces the one-day cooldown after selling.
 
 ---
 
-### 53. Predict the Winner 🟡
+# 19. Longest Common Substring
+🟡 ⚪ **Variation of #9** — ⭐ **reset to 0 on a mismatch instead of taking max**.
+
 ```cpp
-bool PredictTheWinner(vector<int>& nums) {
-    int n = nums.size();
-    vector<int> dp(nums.begin(), nums.end());      // dp[i] over shrinking ranges
-    for (int len = 2; len <= n; ++len)
-        for (int i = 0; i + len - 1 < n; ++i)
-            dp[i] = max(nums[i] - dp[i+1], nums[i+len-1] - dp[i]);
-    return dp[0] >= 0;
-}
-```
+int longestCommonSubstring(string s1, string s2) {
+    int n = s1.size(), m = s2.size(), best = 0;
+    vector<vector<int>> dp(n + 1, vector<int>(m + 1, 0));
 
----
-
-### 54. Can I Win 🟡
-```cpp
-bool canIWin(int maxChoosable, int target) {
-    if (maxChoosable >= target) return true;
-    if (maxChoosable * (maxChoosable + 1) / 2 < target) return false;   // sum too small
-
-    unordered_map<int,bool> memo;                  // memo on the used-bitmask
-    function<bool(int,int)> win = [&](int used, int remaining) -> bool {
-        if (memo.count(used)) return memo[used];
-        for (int i = 0; i < maxChoosable; ++i) {
-            if (used & (1 << i)) continue;
-            if (i + 1 >= remaining || !win(used | (1 << i), remaining - i - 1))
-                return memo[used] = true;          // ⭐ opponent loses → I win
+    for (int i = 1; i <= n; ++i)
+        for (int j = 1; j <= m; ++j) {
+            if (s1[i-1] == s2[j-1]) {
+                dp[i][j] = 1 + dp[i-1][j-1];
+                best = max(best, dp[i][j]);
+            }
+            // ⭐ else: dp[i][j] stays 0 — a MISMATCH BREAKS THE RUN.
+            //    This single difference from LCS is the whole problem.
         }
-        return memo[used] = false;
-    };
-    return win(0, target);
-}
-```
-
----
-
-## I. Miscellaneous Classics
-
-### 55. Longest Increasing Path in a Matrix 🔴
-```cpp
-int longestIncreasingPath(vector<vector<int>>& m) {
-    int R = m.size(), C = m[0].size(), best = 0;
-    vector<vector<int>> memo(R, vector<int>(C, 0));
-    const int dr[] = {-1,1,0,0}, dc[] = {0,0,-1,1};
-
-    function<int(int,int)> dfs = [&](int r, int c) -> int {
-        if (memo[r][c]) return memo[r][c];
-        int len = 1;
-        for (int d = 0; d < 4; ++d) {
-            int nr = r + dr[d], nc = c + dc[d];
-            if (nr < 0 || nr >= R || nc < 0 || nc >= C || m[nr][nc] <= m[r][c]) continue;
-            len = max(len, 1 + dfs(nr, nc));
-        }
-        return memo[r][c] = len;
-    };
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) best = max(best, dfs(r, c));
     return best;
 }
 ```
-**Key insight:** Because paths must strictly increase, the graph is acyclic — so no visited-set is needed and plain memoization works.
 
 ---
 
-### 56. Russian Doll Envelopes 🔴
-```cpp
-int maxEnvelopes(vector<vector<int>>& e) {
-    sort(e.begin(), e.end(), [](auto& a, auto& b) {
-        return a[0] == b[0] ? a[1] > b[1]          // ⭐ width tie → height DESCENDING
-                            : a[0] < b[0];
-    });
-    vector<int> tails;                             // LIS on heights
-    for (auto& x : e) {
-        auto it = lower_bound(tails.begin(), tails.end(), x[1]);
-        if (it == tails.end()) tails.push_back(x[1]);
-        else *it = x[1];
-    }
-    return tails.size();
-}
-```
-**Key insight:** Sorting heights *descending* within equal widths prevents two same-width envelopes from both being picked — the LIS is strictly increasing, so it can't take a descending pair.
+# 20. Palindrome Partitioning II
 
----
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Precompute + reduce to a 1D DP**
 
-### 57. Maximum Profit in Job Scheduling 🔴
-```cpp
-int jobScheduling(vector<int>& start, vector<int>& end, vector<int>& profit) {
-    int n = start.size();
-    vector<array<int,3>> jobs(n);
-    for (int i = 0; i < n; ++i) jobs[i] = {end[i], start[i], profit[i]};
-    sort(jobs.begin(), jobs.end());                // by END time
+> Minimum cuts to partition a string into all-palindrome pieces.
 
-    map<int,int> dp{{0, 0}};                       // endTime -> best profit up to it
-    for (auto& [e, s, p] : jobs) {
-        auto it = prev(dp.upper_bound(s));         // ⭐ best profit finishing by s
-        int cand = it->second + p;
-        if (cand > dp.rbegin()->second) dp[e] = cand;   // only keep improvements
-    }
-    return dp.rbegin()->second;
-}
+```mermaid
+flowchart TD
+    A["🐌 NAIVE: at each cut point,<br/>check if the piece is a palindrome<br/>by re-scanning it — <b>O(n³)</b>"] --> B["⭐ PRECOMPUTE isPal[i][j]<br/>for EVERY substring first<br/>— O(n²), same table as<br/>Longest Palindromic Substring"]
+    B --> C["⭐ THEN a 1D DP:<br/>cuts[i] = min cuts for s[0..i)"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
-
-### 58. Frog Jump 🔴
 ```cpp
-bool canCross(vector<int>& stones) {
-    unordered_map<int, unordered_set<int>> jumps;  // stone -> set of arriving jump sizes
-    for (int s : stones) jumps[s] = {};
-    jumps[0].insert(0);
-    for (int s : stones)
-        for (int k : jumps[s])
-            for (int step : {k-1, k, k+1})
-                if (step > 0 && jumps.count(s + step)) jumps[s + step].insert(step);
-    return !jumps[stones.back()].empty();
-}
-```
-**Key insight:** The state is `(stone, last jump size)` — position alone isn't enough, because your options depend on how you arrived.
-
----
-
-### 59. Count Different Palindromic Subsequences 🔴
-```cpp
-int countPalindromicSubsequences(string s) {
-    const int MOD = 1e9 + 7;
+int minCut(string s) {
     int n = s.size();
-    vector<vector<int>> dp(n, vector<int>(n, 0));
-    for (int i = 0; i < n; ++i) dp[i][i] = 1;
+
+    // ⭐ isPal[i][j]: is s[i..j] a palindrome? Fill by INCREASING length.
+    vector<vector<bool>> isPal(n, vector<bool>(n, false));
+    for (int i = 0; i < n; ++i) isPal[i][i] = true;
 
     for (int len = 2; len <= n; ++len)
         for (int i = 0; i + len - 1 < n; ++i) {
             int j = i + len - 1;
-            if (s[i] == s[j]) {
-                int lo = i + 1, hi = j - 1;
-                while (lo <= hi && s[lo] != s[i]) ++lo;
-                while (lo <= hi && s[hi] != s[i]) --hi;
-
-                if (lo > hi)       dp[i][j] = 2LL * dp[i+1][j-1] % MOD + 2;
-                else if (lo == hi) dp[i][j] = 2LL * dp[i+1][j-1] % MOD + 1;
-                else               dp[i][j] = (2LL * dp[i+1][j-1] - dp[lo+1][hi-1]) % MOD;
-            } else {
-                dp[i][j] = (dp[i+1][j] + dp[i][j-1] - dp[i+1][j-1]) % MOD;  // inclusion-exclusion
-            }
-            dp[i][j] = (dp[i][j] + MOD) % MOD;
+            if (s[i] == s[j] && (len == 2 || isPal[i+1][j-1]))
+                isPal[i][j] = true;
         }
-    return dp[0][n-1];
+
+    // ⭐ cuts[i] = minimum cuts needed for s[0..i)
+    vector<int> cuts(n + 1, INT_MAX);
+    cuts[0] = -1;                                // ⭐ so a whole-prefix palindrome costs 0
+
+    for (int i = 1; i <= n; ++i)
+        for (int j = 0; j < i; ++j)
+            if (isPal[j][i-1])                    // s[j..i-1] is a palindrome
+                cuts[i] = min(cuts[i], cuts[j] + 1);
+
+    return cuts[n];
 }
 ```
+⭐ **`cuts[0] = -1`** is the trick that makes "the whole string is already a palindrome" come out to 0 cuts instead of 1.
 
 ---
 
-### 60. Cherry Pickup 🔴
+# 21. Burst Balloons
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Think about the LAST balloon, not the first**
+
+> Bursting a balloon earns `left × balloon × right` (the current neighbors). Maximize total.
+
+## ⚠️ Why the obvious order fails
+
+```mermaid
+flowchart TD
+    A["❌ Bursting FIRST or IN ORDER<br/>changes who the 'neighbors' are<br/>for every future burst"] --> B["⚠️ The subproblems don't stay<br/>independent — bursting balloon i<br/>changes the boundaries for<br/>every other choice"]
+    B --> C["⭐ REFRAME: for a range (i, j),<br/>think about which balloon is<br/>burst LAST"]
+    C --> D["⭐ If k is burst LAST in (i,j),<br/>its neighbors AT THAT MOMENT<br/>are exactly i and j —<br/>everything between has<br/>already been cleared"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐⭐ THE REFRAME IN DETAIL
+
+   dp[i][j] = max coins from bursting everything STRICTLY
+              between i and j, leaving i and j themselves
+              (padded balloons of value 1) as boundaries.
+
+   For each possible LAST balloon k in (i, j):
+     dp[i][j] = max over k of:
+        dp[i][k] + dp[k][j] + nums[i]·nums[k]·nums[j]
+        ⭐ left subrange   right subrange   k's contribution,
+                                            using ORIGINAL
+                                            neighbors i, j
+                                            (since k is LAST)
+```
+
+```
+   PADDED  nums = [1, 3, 1, 5, 8, 1]
+                    i              j
+
+   dp[i][j] fills by increasing WIDTH (j − i), since wider
+   ranges depend on narrower ones.
+```
+
 ```cpp
-int cherryPickup(vector<vector<int>>& g) {
-    int n = g.size();
-    vector<vector<int>> dp(n, vector<int>(n, INT_MIN));
-    dp[0][0] = g[0][0];
+int maxCoins(vector<int>& nums) {
+    int n = nums.size();
+    vector<int> a(n + 2, 1);                     // ⭐ pad both ends with 1
+    for (int i = 0; i < n; ++i) a[i + 1] = nums[i];
 
-    for (int step = 1; step <= 2 * n - 2; ++step) {
-        vector<vector<int>> nd(n, vector<int>(n, INT_MIN));
-        for (int r1 = max(0, step - n + 1); r1 <= min(n - 1, step); ++r1)
-            for (int r2 = max(0, step - n + 1); r2 <= min(n - 1, step); ++r2) {
-                int c1 = step - r1, c2 = step - r2;
-                if (g[r1][c1] == -1 || g[r2][c2] == -1) continue;
+    vector<vector<int>> dp(n + 2, vector<int>(n + 2, 0));
 
-                int best = INT_MIN;
-                for (int a = 0; a < 2; ++a)
-                    for (int b = 0; b < 2; ++b) {
-                        int p1 = r1 - a, p2 = r2 - b;
-                        if (p1 >= 0 && p2 >= 0) best = max(best, dp[p1][p2]);
-                    }
-                if (best == INT_MIN) continue;
-                nd[r1][r2] = best + g[r1][c1] + (r1 == r2 ? 0 : g[r2][c2]);
-                //                                ⭐ same cell → count only once
-            }
-        dp = move(nd);
-    }
-    return max(0, dp[n-1][n-1]);
+    for (int len = 2; len <= n + 1; ++len)        // ⭐ increasing WIDTH
+        for (int i = 0; i + len <= n + 1; ++i) {
+            int j = i + len;
+            for (int k = i + 1; k < j; ++k)       // ⭐ try every "burst LAST"
+                dp[i][j] = max(dp[i][j],
+                    dp[i][k] + dp[k][j] + a[i] * a[k] * a[j]);
+        }
+    return dp[0][n + 1];
 }
 ```
-**Key insight:** Two round trips is equivalent to **two people walking simultaneously**. Both take the same number of steps, so `c = step - r` — the state collapses from four dimensions to three.
+**O(n³)** — an interval DP with an O(n) split search inside an O(n²) range table.
+
+## 📌 Pattern Card
+```
+SIGNAL   optimal order of operations where each choice affects
+         its NEIGHBORS' future value
+KEY      ⭐ think about which element acts LAST in a range, not first
+         interval DP, fill by increasing width
+RELATED  Matrix Chain Multiplication · Minimum Cost to Merge Stones
+```
 
 ---
 
-## 📋 Section Summary
+# 22. Matrix Chain Multiplication
+🔴 ⚪ **Variation of #21** — same interval-DP shape, ⭐ **think about the split point instead**.
 
+```cpp
+int matrixChainOrder(vector<int>& dims) {          // dims[i-1] × dims[i] = matrix i
+    int n = dims.size() - 1;
+    vector<vector<int>> dp(n + 1, vector<int>(n + 1, 0));
+
+    for (int len = 2; len <= n; ++len)
+        for (int i = 1; i + len - 1 <= n; ++i) {
+            int j = i + len - 1;
+            dp[i][j] = INT_MAX;
+            for (int k = i; k < j; ++k) {           // ⭐ try every SPLIT point
+                int cost = dp[i][k] + dp[k+1][j] + dims[i-1]*dims[k]*dims[j];
+                dp[i][j] = min(dp[i][j], cost);
+            }
+        }
+    return dp[1][n];
+}
 ```
-╔═══════════════════════════════════════════════════════════════════╗
-║              DYNAMIC PROGRAMMING — PATTERN RECALL                 ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ THE PROCESS (say it out loud in interviews)                       ║
-║   brute-force recursion → find the state → memoize →              ║
-║   (optional) tabulate → (optional) shrink space                   ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ HOW TO SPOT THE STATE                                             ║
-║   one index changing        → dp[i]                               ║
-║   two sequences             → dp[i][j]                            ║
-║   index + a budget/capacity → dp[i][w]                            ║
-║   a range                   → dp[i][j], fill by LENGTH            ║
-║   subset of ≤20 items       → dp[mask]                            ║
-║   tree node                 → return a PAIR of states             ║
-║   position + resource left  → dp[pos][resource]                   ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ ⭐ KNAPSACK LOOP DIRECTION — the #1 DP bug                         ║
-║   0/1 (use once)     → weight loop BACKWARD                       ║
-║   unbounded (reuse)  → weight loop FORWARD                        ║
-║                                                                   ║
-║ ⭐ COIN CHANGE LOOP ORDER                                          ║
-║   coins outer  → COMBINATIONS ({1,2} == {2,1})                    ║
-║   amount outer → PERMUTATIONS ({1,2} != {2,1})                    ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ TWO-SEQUENCE TEMPLATE                                             ║
-║   match    → dp[i-1][j-1] (+1 or +0)                              ║
-║   no match → best of dp[i-1][j] and dp[i][j-1]                    ║
-║                                                                   ║
-║ INTERVAL DP → loop by LENGTH first, then start, then split point  ║
-║   "burst balloons" trick: ask which is LAST, not first            ║
-║                                                                   ║
-║ GAME DP → dp = my score MINUS opponent's; subtract for their turn ║
-║ STOCK DP → model as states (free / held / sold) and transitions   ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ WHEN DP IS **NOT** THE ANSWER                                     ║
-║   no overlapping subproblems      → plain divide & conquer        ║
-║   a provable greedy choice exists → greedy (jump game, stock II)  ║
-║   n is tiny (≤ 12)                → brute force is fine and safer ║
-╚═══════════════════════════════════════════════════════════════════╝
+⭐ **The shared shape:** both problems fill an interval table by increasing width and search over an internal index — "last burst" versus "split point" are the same computational pattern wearing different names.
+
+---
+
+# 23. Regular Expression / Wildcard Matching
+
+🔴 **Hard** · 🔵 Full ladder · **2D DP with special handling for `*`**
+
+```mermaid
+flowchart TD
+    A["dp[i][j] = does s[0..i) match p[0..j)?"] --> B{"p[j−1]"}
+    B -->|"a normal char or '?'"| C["⭐ needs s[i−1] to match<br/>dp[i][j] = dp[i−1][j−1] &amp;&amp; matches(s[i-1],p[j-1])"]
+    B -->|"'*' (wildcard: any sequence)"| D["⭐ TWO CHOICES:<br/>use * for ZERO chars: dp[i][j−1]<br/>use * for ONE MORE char: dp[i−1][j]"]
+
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-**Next:** [Greedy, Backtracking & Misc →](10-greedy-backtracking-misc.md)
+```cpp
+// Wildcard Matching — '?' matches any ONE char, '*' matches ANY sequence
+bool isMatch(string s, string p) {
+    int n = s.size(), m = p.size();
+    vector<vector<bool>> dp(n + 1, vector<bool>(m + 1, false));
+    dp[0][0] = true;
+
+    for (int j = 1; j <= m; ++j)                 // ⭐ leading '*'s can match empty
+        dp[0][j] = dp[0][j-1] && p[j-1] == '*';
+
+    for (int i = 1; i <= n; ++i)
+        for (int j = 1; j <= m; ++j) {
+            if (p[j-1] == '*')
+                dp[i][j] = dp[i][j-1] || dp[i-1][j];   // ⭐ zero-use or extend
+            else if (p[j-1] == '?' || p[j-1] == s[i-1])
+                dp[i][j] = dp[i-1][j-1];
+        }
+    return dp[n][m];
+}
+```
+
+```
+   ⭐⭐ REGEX '*' IS DIFFERENT: it means "zero or more of the
+     PRECEDING character", not "any sequence"
+
+     "a*"  matches "", "a", "aa", "aaa"...
+     "*"   is meaningless alone in regex — always paired
+
+   dp[i][j] when p[j-1] == '*' (referring to p[j-2]):
+     ⭐ ZERO occurrences: dp[i][j-2]
+     ⭐ ONE MORE occurrence: dp[i-1][j] AND (s[i-1] matches p[j-2])
+```
+
+```cpp
+// Regular Expression Matching — '*' means "zero or more of the PRECEDING char"
+bool isMatchRegex(string s, string p) {
+    int n = s.size(), m = p.size();
+    vector<vector<bool>> dp(n + 1, vector<bool>(m + 1, false));
+    dp[0][0] = true;
+
+    for (int j = 1; j <= m; ++j)
+        if (p[j-1] == '*') dp[0][j] = dp[0][j-2];   // ⭐ "x*" can match empty
+
+    for (int i = 1; i <= n; ++i)
+        for (int j = 1; j <= m; ++j) {
+            if (p[j-1] == '*') {
+                dp[i][j] = dp[i][j-2];               // ⭐ zero occurrences
+                bool prevMatches = (p[j-2] == '.' || p[j-2] == s[i-1]);
+                if (prevMatches) dp[i][j] = dp[i][j] || dp[i-1][j];   // ⭐ one more
+            } else if (p[j-1] == '.' || p[j-1] == s[i-1]) {
+                dp[i][j] = dp[i-1][j-1];
+            }
+        }
+    return dp[n][m];
+}
+```
+⚠️ **The two `*` semantics are genuinely different problems** wearing the same symbol — conflating wildcard-`*` and regex-`*` is the most common confusion here.
+
+---
+
+# 24. Dungeon Game
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **DP must run backward from the destination**
+
+> Minimum starting HP to survive top-left to bottom-right, HP must stay ≥ 1 throughout.
+
+## ⚠️ Why forward DP fails
+
+```mermaid
+flowchart TD
+    A["❌ Forward: 'max HP reachable at<br/>each cell' seems natural"] --> B["⚠️ But the OPTIMAL path to a cell<br/>isn't the one with the highest HP —<br/>a path that dips lower now might<br/>recover better LATER"]
+    B --> C["⭐ The decision needs FUTURE<br/>information the forward pass<br/>doesn't have yet"]
+    C --> D["⭐ FIX: work BACKWARD from the<br/>destination — dp[r][c] = min HP<br/>NEEDED entering this cell to<br/>survive the REST of the path"]
+
+    style B fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+int calculateMinimumHP(vector<vector<int>>& d) {
+    int R = d.size(), C = d[0].size();
+    vector<vector<int>> dp(R + 1, vector<int>(C + 1, INT_MAX));
+    dp[R][C-1] = dp[R-1][C] = 1;                 // ⭐ sentinel: need HP 1 past the end
+
+    for (int r = R - 1; r >= 0; --r)              // ⭐ BACKWARD from the destination
+        for (int c = C - 1; c >= 0; --c) {
+            int need = min(dp[r+1][c], dp[r][c+1]) - d[r][c];
+            dp[r][c] = max(1, need);              // ⭐ HP can never be < 1
+        }
+    return dp[0][0];
+}
+```
+⭐ **`dp[r][c]` means "minimum HP needed BEFORE entering this cell"** — a purely backward-looking quantity, which is why the DP must run in reverse.
+
+---
+
+# 25. Perfect Squares
+🟡 ⚪ **Variation of Coin Change** — "coins" are `1², 2², 3², ...`, unbounded knapsack.
+
+```cpp
+int numSquares(int n) {
+    vector<int> dp(n + 1, INT_MAX);
+    dp[0] = 0;
+
+    for (int i = 1; i <= n; ++i)
+        for (int j = 1; j * j <= i; ++j)          // ⭐ each perfect square ≤ i
+            dp[i] = min(dp[i], dp[i - j*j] + 1);
+    return dp[n];
+}
+```
+⭐ **Recognizing "unlimited denominations summing to a target"** immediately maps this onto Coin Change's exact skeleton.
+
+---
+
+# 26. Longest Increasing Path in Matrix
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **DFS + memoization on an implicit DAG**
+
+## 💬 Why this is a graph problem in disguise
+
+```mermaid
+flowchart TD
+    A["⭐ Draw an edge from cell A to<br/>neighbor B if B &gt; A"] --> B["⭐ Since values strictly increase<br/>along any edge, this graph has<br/>NO CYCLES — it's a DAG"]
+    B --> C["'Longest increasing path' =<br/>'longest path in a DAG'"]
+    C --> D["⭐ Longest path in a DAG is solved<br/>by DFS + MEMOIZATION —<br/>no separate topological sort needed,<br/>because the recursion naturally<br/>respects the DAG order"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+class Solution {
+    int R, C;
+    vector<vector<int>> memo;
+    int dr[4] = {-1,1,0,0}, dc[4] = {0,0,-1,1};
+
+    int dfs(vector<vector<int>>& g, int r, int c) {
+        if (memo[r][c]) return memo[r][c];        // ⭐ cached
+
+        int best = 1;                              // a path of just this cell
+        for (int d = 0; d < 4; ++d) {
+            int nr = r + dr[d], nc = c + dc[d];
+            if (nr >= 0 && nr < R && nc >= 0 && nc < C && g[nr][nc] > g[r][c])
+                best = max(best, 1 + dfs(g, nr, nc));
+        }
+        return memo[r][c] = best;
+    }
+
+public:
+    int longestIncreasingPath(vector<vector<int>>& g) {
+        R = g.size(); C = g[0].size();
+        memo.assign(R, vector<int>(C, 0));
+
+        int best = 0;
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c)
+                best = max(best, dfs(g, r, c));
+        return best;
+    }
+};
+```
+⭐ **No visited array is needed** — the strict `>` comparison guarantees the recursion can never revisit a cell along any single path, since values can only increase.
+
+## 📌 Pattern Card
+```
+SIGNAL   longest/best path in an implicitly monotonic graph
+KEY      ⭐ DFS + memoization; monotonicity guarantees no cycles
+RELATED  Word Ladder (unweighted BFS) · Course Schedule (explicit DAG)
+```
+
+---
+
+# 27. Maximum Profit in Job Scheduling
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Sort + binary search + DP**
+
+> Weighted, non-overlapping interval selection maximizing total profit.
+
+```mermaid
+flowchart TD
+    A["sort jobs by END time"] --> B["dp[i] = max profit using<br/>jobs 0..i, job i's decision"]
+    B --> C{"include job i?"}
+    C -->|"skip it"| D["dp[i] = dp[i−1]"]
+    C -->|"take it"| E["⭐ dp[i] = profit[i] +<br/>dp[latest job that doesn't overlap]"]
+    E --> F["⭐ that latest compatible job is<br/>found via BINARY SEARCH<br/>on the sorted end times"]
+
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style F fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+```
+
+```cpp
+int jobScheduling(vector<int>& start, vector<int>& end, vector<int>& profit) {
+    int n = start.size();
+    vector<int> idx(n);
+    iota(idx.begin(), idx.end(), 0);
+    sort(idx.begin(), idx.end(), [&](int a, int b){ return end[a] < end[b]; });
+
+    vector<int> ends(n), dp(n + 1, 0);
+    for (int i = 0; i < n; ++i) ends[i] = end[idx[i]];
+
+    for (int i = 1; i <= n; ++i) {
+        int j = idx[i - 1];
+        // ⭐ binary search: latest job ending ≤ start[j]
+        int lo = 0, hi = i - 1;
+        while (lo < hi) {
+            int mid = (lo + hi + 1) / 2;
+            if (ends[mid - 1] <= start[j]) lo = mid; else hi = mid - 1;
+        }
+        int withJob = profit[j] + (ends[lo - 1] <= start[j] && lo > 0 ? dp[lo] : 0);
+        dp[i] = max(dp[i - 1], withJob);         // ⭐ take vs skip
+    }
+    return dp[n];
+}
+```
+⭐ **This is [Non-overlapping Intervals](01b-arrays-strings.md#25-non-overlapping-intervals)'s greedy generalized with weights** — when weights are equal, the DP and the greedy agree; unequal weights are exactly why greedy stops working and DP becomes necessary.
+
+---
+
+# 28. Partition to K Equal Sum Subsets
+🟡 ⚪ **Variation** — backtracking with memoized bitmask pruning.
+
+```mermaid
+flowchart TD
+    A["target = sum / k"] --> B["⭐ backtrack: try adding each<br/>unused number to the current bucket"]
+    B --> C{"current bucket<br/>hits target?"}
+    C -->|"yes"| D["start a NEW bucket"]
+    C -->|"no, still under"| E["keep adding"]
+    D --> F["⭐ memoize on the BITMASK of<br/>used numbers — the same mask<br/>never needs re-exploring"]
+
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+bool canPartitionKSubsets(vector<int>& a, int k) {
+    int sum = accumulate(a.begin(), a.end(), 0);
+    if (sum % k) return false;
+    int target = sum / k;
+
+    sort(a.rbegin(), a.rend());                  // ⭐ largest first — prunes faster
+    if (a[0] > target) return false;
+
+    vector<int> memo(1 << a.size(), -1);          // ⭐ −1 unknown, 0 fail, 1 success
+
+    function<bool(int,int,int)> bt = [&](int mask, int curSum, int k_left) -> bool {
+        if (k_left == 0) return true;
+        if (curSum == target) {
+            if (memo[mask] != -1) return memo[mask];
+            bool res = bt(mask, 0, k_left - 1);   // ⭐ start a fresh bucket
+            return memo[mask] = res;
+        }
+        for (int i = 0; i < (int)a.size(); ++i) {
+            if (mask & (1 << i)) continue;
+            if (curSum + a[i] > target) continue;
+            if (bt(mask | (1 << i), curSum + a[i], k_left)) return true;
+        }
+        return false;
+    };
+    return bt(0, 0, k);
+}
+```
+⭐ **Memoizing by bitmask** avoids exploring the same "which numbers are used" state twice, even across different orders of assignment — the key to keeping this tractable for moderate `n`.
+
+---
+
+## 📋 Dynamic Programming Recall
+
+```mermaid
+mindmap
+  root(("Dynamic<br/>Programming"))
+    The Recipe
+      ⭐ brute force FIRST
+      identify the state
+      memoize — you can STOP here
+      optional: tabulate, then compress space
+    1D Families
+      Fibonacci: last move decides
+      Knapsack: take-or-skip
+      ⭐ 0/1 descending, unbounded ascending
+    2D Grid Family
+      LCS: match diagonal, else max(up,left)
+      Edit Distance: min of 3 operations
+      ⭐ substring RESETS on mismatch
+      Unique Paths: sum of up + left
+    Interval DP
+      ⭐ think about what happens LAST
+      fill by increasing WIDTH
+      Burst Balloons · Matrix Chain
+    State Machines
+      ⭐ buy[i]/sell[i] roll forward
+      cooldown adds a third state
+      generalizes k=1,2,...,∞
+    Direction Matters
+      ⭐ Dungeon Game runs BACKWARD
+      forward DP can lack future info
+    Graph Disguises
+      ⭐ monotonic grid = a DAG
+      DFS + memo = longest path
+    Beyond O(n²)
+      ⭐ LIS → O(n log n) patience sort
+      sort + binary search + DP
+```
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║              DYNAMIC PROGRAMMING — PATTERN RECALL                    ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "count ways to reach n"        → last-move recurrence, roll forward  ║
+║ "can't pick adjacent"          → take-or-skip: max(skip, take+val)   ║
+║ "subset within a capacity"     → 0/1 knapsack, ⭐ loop DESCENDING     ║
+║ "unlimited reuse of items"     → unbounded knapsack, loop ASCENDING  ║
+║ "compare two sequences"        → LCS grid: diagonal match, else max  ║
+║ "min edits between strings"    → Edit Distance: min of 3 neighbors   ║
+║ "longest increasing subseq"    → ⭐ O(n log n) tails[] + lower_bound  ║
+║ "largest square/rectangle"     → min of 3 neighbors + 1              ║
+║ "stock with k transactions"    → ⭐ buy[i]/sell[i] state machine      ║
+║ "order of ops affects value"   → ⭐ interval DP: think what's LAST    ║
+║ "path needs future context"    → ⭐ run the DP BACKWARD               ║
+║ "path in a strictly monotonic grid" → DFS + memo, no visited array   ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   0/1 vs unbounded knapsack: wrong loop direction silently swaps them║
+║   coin change II: coin-outer counts combos, amount-outer counts perms║
+║   decode ways: "0" alone is invalid, and needs a valid predecessor   ║
+║   maximal square: answer is side² (area), not the side length        ║
+║   regex '*' means "zero+ of PRECEDING char" — NOT wildcard '*'       ║
+║   burst balloons: pad both ends with virtual 1-value balloons        ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+**Next:** [Greedy, Backtracking & Misc →](10-greedy-backtracking-misc.md) · **Back:** [Graphs](08-graphs.md)

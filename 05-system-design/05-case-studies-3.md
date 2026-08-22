@@ -128,6 +128,54 @@
    └────────────────┘
 ```
 
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        D["Desktop"]
+        M["Mobile"]
+        W["Web"]
+    end
+
+    subgraph Gateway["🔌 Connection Tier"]
+        GW["Gateway<br/><b>holds WebSockets</b><br/>sticky-routes by workspace_id"]
+    end
+
+    subgraph Service["⚙️ Service Layer"]
+        MS["Message Service<br/>persist → sequence → fan out"]
+        PS["Pub/Sub<br/>delivery to connected devices"]
+    end
+
+    subgraph Data["🗄️ Data Layer (sharded by workspace)"]
+        MSTORE[("Message Store<br/>sharded by channel + time")]
+        CM[("Channel Membership")]
+        SEARCH[("Search Index<br/>Elasticsearch, per-workspace")]
+    end
+
+    subgraph Async["📣 Async Path"]
+        NOTIF["Notification Service<br/>push · email digest · mentions"]
+    end
+
+    D & M & W -->|"persistent<br/>WebSocket"| GW
+    GW --> MS
+    MS --> MSTORE
+    MS --> CM
+    MS --> PS
+    PS -->|"push to<br/>live connections"| GW
+    MSTORE -->|"CDC"| SEARCH
+    MSTORE -.->|"async"| NOTIF
+
+    style D fill:#e1f5fe,stroke:#0277bd,color:#000
+    style M fill:#e1f5fe,stroke:#0277bd,color:#000
+    style W fill:#e1f5fe,stroke:#0277bd,color:#000
+    style GW fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style MS fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style PS fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style MSTORE fill:#e3f2fd,stroke:#1565c0,color:#000
+    style CM fill:#e3f2fd,stroke:#1565c0,color:#000
+    style SEARCH fill:#e3f2fd,stroke:#1565c0,color:#000
+    style NOTIF fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
 ### ⭐ Sharding by workspace
 
 ```
@@ -149,6 +197,26 @@
    ⭐ SAME PATTERN AS UBER'S GEOGRAPHIC SHARDING: find the natural
      isolation boundary in the domain and shard on it. It turns
      one global problem into N independent local ones.
+```
+
+```mermaid
+flowchart LR
+    Q{"Where should we<br/>find the shard key?"}
+    Q --> NAIVE["🐌 Shard by user_id or message_id<br/><b>cross-shard queries constantly</b><br/>(a channel spans many shards)"]
+    Q --> BETTER["⚠️ Shard by hash(channel_id)<br/>even distribution, but a<br/>workspace's data is scattered"]
+    Q --> BEST["✅ Shard by workspace_id<br/><b>matches the REAL isolation boundary</b><br/>— cross-workspace reads never happen"]
+
+    BEST --> R1["✅ self-contained failure blast radius"]
+    BEST --> R2["✅ big workspaces → dedicated infra"]
+    BEST --> R3["✅ data residency becomes structural"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style NAIVE fill:#ffcdd2,stroke:#c62828,color:#000
+    style BETTER fill:#fff9c4,stroke:#f9a825,color:#000
+    style BEST fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style R1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R3 fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ## 5. Deep Dive — Channel Fan-Out
@@ -197,6 +265,26 @@
    │    interrupted: @mentions, DMs, keyword matches — not        │
    │    every message in every channel.                           │
    └──────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+sequenceDiagram
+    participant Sender
+    participant MS as Message Service
+    participant Store as Message Store
+    participant PubSub
+    participant Online as Online Members
+    participant Offline as Offline Member
+
+    Sender->>MS: send message
+    MS->>Store: ① persist + assign seq N
+    Note over Store: source of truth,<br/>establishes order
+    MS->>PubSub: ② publish to channel topic
+    PubSub->>Online: push (small fraction<br/>actually connected)
+    Note over Offline: still offline,<br/>nothing pushed
+    Offline->>Store: ③ reconnect: "last seq = K"
+    Store-->>Offline: everything after K
+    MS->>Online: ④ notification service<br/>(separate filtered path:<br/>@mentions, DMs only)
 ```
 
 ```
@@ -256,6 +344,17 @@
    AND has that conversation visible.
 ```
 
+```mermaid
+flowchart LR
+    Q{"When should a push<br/>notification be suppressed?"}
+    Q --> NAIVE["🐌 Any device connected<br/><b>idle overnight desktop</b><br/>still counts as 'present'<br/>→ user misses real notifications"]
+    Q --> BEST["✅ Device is ACTIVE<br/>(focus + recent input)<br/><b>AND</b> has this conversation<br/>visible right now"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style NAIVE fill:#ffcdd2,stroke:#c62828,color:#000
+    style BEST fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 7. Deep Dive — Search
 
 ```
@@ -286,6 +385,20 @@
    ⚠️ Getting this wrong leaks private conversations across a
      company. It's the single highest-severity bug class in
      a product like this.
+```
+
+```mermaid
+flowchart TD
+    Q{"How to filter search<br/>results by permission?"}
+    Q --> A["⚠️ Filter at query time<br/>attach user's accessible<br/>channel list to the query<br/><b>simple, but slow at scale</b><br/>(list can be thousands long)"]
+    Q --> B["✅ Index ACLs with documents<br/>filter inside the engine<br/><b>fast, but membership changes<br/>require reindexing</b>"]
+    A --> C["⚠️ In practice: combine both —<br/>index channel_id per doc,<br/>pass cached filtered channel set"]
+    B --> C
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style A fill:#fff9c4,stroke:#f9a825,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups
@@ -375,6 +488,48 @@ In practice you'd combine them: index channel IDs with each document, and pass a
      ⭐ The economics of the medium determine the architecture.
 ```
 
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        App["Spotify App<br/>local cache + prefetch buffer"]
+    end
+
+    subgraph Edge["🌐 Delivery Layer"]
+        CDN["Commercial CDN<br/><b>audio is 60× cheaper than video</b><br/>→ no need for owned network"]
+    end
+
+    subgraph Service["⚙️ Service Layer"]
+        Stream["Streaming Service<br/>bitrate selection, licensing check"]
+        Search["Search Service"]
+        Rec["Recommendation Service<br/>(Discover Weekly, Radio)"]
+        Playlist["Playlist Service<br/>fractional ordering keys"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        Catalog[("Track Catalogue<br/>~1.4 PB, multi-bitrate")]
+        UserData[("Listening History")]
+        Territory[("Territory / Licensing Rules")]
+    end
+
+    App -->|"play request"| Stream
+    Stream --> Territory
+    Stream --> CDN
+    CDN -->|"audio stream"| App
+    App --> Search --> Catalog
+    App --> Playlist
+    App --> Rec --> UserData
+
+    style App fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CDN fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Stream fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Search fill:#fff9c4,stroke:#f9a825,color:#000
+    style Rec fill:#fff9c4,stroke:#f9a825,color:#000
+    style Playlist fill:#fff9c4,stroke:#f9a825,color:#000
+    style Catalog fill:#e3f2fd,stroke:#1565c0,color:#000
+    style UserData fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Territory fill:#e3f2fd,stroke:#1565c0,color:#000
+```
+
 ## 3. Deep Dive — Instant Playback
 
 #### 💬 Why sub-200ms matters so much
@@ -413,6 +568,27 @@ In practice you'd combine them: index channel IDs with each document, and pass a
    └──────────────────────────────────────────────────────────────┘
 ```
 
+```mermaid
+flowchart LR
+    Press["👆 User presses Play"] --> Cache{"In local<br/>device cache?"}
+    Cache -->|"✅ ~50%+ of plays"| Instant["<b>Instant start</b><br/>zero network round trip"]
+    Cache -->|"❌ miss"| Edge{"At CDN edge<br/>(popular track)?"}
+    Edge -->|"✅ common case"| Buffer["Buffer few seconds<br/>→ start playing<br/>→ keep fetching"]
+    Edge -->|"❌ long tail"| Origin["Fetch from origin<br/>(rare, acceptable)"]
+    Origin --> Buffer
+    Buffer --> Playing["🎵 Playing"]
+    Instant --> Playing
+    Playing -.->|"prefetch next track<br/>(queue order known)"| Cache
+
+    style Press fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Cache fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Edge fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Instant fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Buffer fill:#fff9c4,stroke:#f9a825,color:#000
+    style Origin fill:#ffcdd2,stroke:#c62828,color:#000
+    style Playing fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
 ## 4. Deep Dive — Playlists
 
 ```
@@ -428,6 +604,17 @@ In practice you'd combine them: index channel IDs with each document, and pass a
    ⭐ NAIVE: store an ordered array of track IDs.
      Reordering one track rewrites the whole array.
      Two people reordering concurrently = lost work.
+```
+
+```mermaid
+flowchart LR
+    Q{"How should playlist<br/>order be stored?"}
+    Q --> NAIVE["🐌 Array of track IDs by index<br/><b>reorder = rewrite whole array</b><br/>concurrent edits = lost work"]
+    Q --> BEST["✅ Fractional / lexicographic<br/>position keys per row<br/><b>insert/reorder touches ONE row</b><br/>concurrent inserts don't conflict"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style NAIVE fill:#ffcdd2,stroke:#c62828,color:#000
+    style BEST fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```
@@ -493,6 +680,30 @@ In practice you'd combine them: index channel IDs with each document, and pass a
      most accurate but can't handle new content. Audio analysis
      is less precise but works from day zero. Together they
      cover each other's weakness.
+```
+
+```mermaid
+flowchart TD
+    subgraph Signals["🎯 Three Signal Sources"]
+        CF["Collaborative Filtering<br/>listening history +<br/>playlist co-occurrence<br/><b>most accurate</b>"]
+        NLP["NLP on Text<br/>blogs, reviews, playlist titles<br/><b>genre / mood / context</b>"]
+        Audio["Raw Audio Analysis<br/>CNN over spectrograms<br/><b>solves cold start</b>"]
+    end
+
+    CF -->|"❌ cold start:<br/>no co-occurrence yet"| Problem["New track,<br/>zero listens"]
+    Audio -->|"✅ audio itself<br/>IS the feature"| Problem
+
+    CF --> Blend["Combined Ranking Model"]
+    NLP --> Blend
+    Audio --> Blend
+    Blend --> Weekly["🎧 Discover Weekly Playlist"]
+
+    style CF fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style NLP fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Audio fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Problem fill:#ffcdd2,stroke:#c62828,color:#000
+    style Blend fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Weekly fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```
@@ -629,6 +840,25 @@ The generation pipeline then filters by territory licensing and already-heard tr
    too early and they wait unpaid, too late and the food is cold.
 ```
 
+```mermaid
+flowchart TD
+    Order["📦 Order placed"] --> Consumer["Consumer wants:<br/>fast, hot, cheap"]
+    Order --> Merchant["Merchant wants:<br/>orders paced to<br/>kitchen capacity"]
+    Order --> Dasher["Dasher wants:<br/>high $/hour,<br/>minimal idle time"]
+
+    Consumer -.->|"conflicts with"| Merchant
+    Merchant -.->|"conflicts with"| Dasher
+    Dasher -.->|"conflicts with"| Consumer
+
+    Consumer & Merchant & Dasher --> Blend["⭐ Weighted blend<br/><b>a business decision,<br/>not a technical one</b>"]
+
+    style Order fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Consumer fill:#fff9c4,stroke:#f9a825,color:#000
+    style Merchant fill:#fff9c4,stroke:#f9a825,color:#000
+    style Dasher fill:#fff9c4,stroke:#f9a825,color:#000
+    style Blend fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 3. Deep Dive — The Assignment Problem
 
 #### 💬 Why this isn't just "nearest dasher"
@@ -655,6 +885,24 @@ The generation pipeline then filters by territory licensing and already-heard tr
      • dasher travel time to the customer
      • parking and hand-off time (surprisingly significant
        and highly location-dependent)
+```
+
+```mermaid
+flowchart LR
+    Placed(["Order placed"]) --> Cook["Restaurant cooking<br/>(~15 min)"]
+    Cook --> Ready(["Food ready"])
+    Placed -.->|"assignment algorithm predicts"| Dasher["Dasher arrival"]
+    Dasher -->|"⚠️ too early"| Wait["Waits unpaid<br/>wasted capacity"]
+    Dasher -->|"✅ arrives ≈ food-ready"| OnTime["Hot food,<br/>no wasted time"]
+    Dasher -->|"⚠️ too late"| Cold["Food sits,<br/>gets cold"]
+
+    style Placed fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Cook fill:#fff9c4,stroke:#f9a825,color:#000
+    style Ready fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Dasher fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Wait fill:#ffcdd2,stroke:#c62828,color:#000
+    style OnTime fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Cold fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ```
@@ -692,6 +940,17 @@ The generation pipeline then filters by territory licensing and already-heard tr
       approach at scale where optimal is too slow
 
    ④ Offer to the selected dashers; on decline, re-solve
+```
+
+```mermaid
+flowchart LR
+    Q{"How to assign<br/>dashers to orders?"}
+    Q --> GREEDY["🐌 Greedy: assign each order<br/>to nearest dasher on arrival<br/><b>misses batching opportunities</b>"]
+    Q --> BATCH["✅ Collect batch window (~sec)<br/>→ build cost matrix<br/>(dasher × order)<br/>→ solve assignment<br/><b>Hungarian algorithm / heuristic</b>"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style GREEDY fill:#ffcdd2,stroke:#c62828,color:#000
+    style BATCH fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 4. Deep Dive — ETA Prediction
@@ -744,6 +1003,20 @@ The generation pipeline then filters by territory licensing and already-heard tr
      and applies far beyond delivery.
 ```
 
+```mermaid
+flowchart LR
+    Model["ML model outputs<br/>a probability distribution<br/>over arrival times"] --> Median["🐌 Quote the median<br/><b>late ~50% of the time</b>"]
+    Model --> P75["✅ Quote ~p70-80<br/><b>early most of the time</b><br/>= perceived as reliable"]
+
+    Median -.->|"cost of being LATE ≫<br/>cost of being early"| Loss["Asymmetric loss"]
+    P75 -.->|"accounts for<br/>asymmetric loss"| Loss
+
+    style Model fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Median fill:#ffcdd2,stroke:#c62828,color:#000
+    style P75 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Loss fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
 ## 5. Architecture
 
 ```
@@ -781,6 +1054,59 @@ The generation pipeline then filters by territory licensing and already-heard tr
      Chicago never involves data from Miami.
 ```
 
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        C["Consumer app"]
+        M["Merchant tablet"]
+        D["Dasher app"]
+    end
+
+    subgraph GW["🔌 Gateway"]
+        API["API Gateway"]
+    end
+
+    subgraph Service["⚙️ Service Layer (sharded by region)"]
+        Ord["Order Service"]
+        Cat["Merchant Catalog"]
+        Assign["Assignment Engine<br/>(matching)"]
+        ETA["ETA Service (ML)"]
+        Loc["Location Tracking"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        OrdDB[("Orders DB<br/>Postgres, sharded by region")]
+        Supply[("Dasher Supply State<br/>Redis")]
+        Geo[("Redis Geo Index<br/>+ in-memory")]
+    end
+
+    subgraph Async["📣 Async (via Kafka)"]
+        Pay["Payments"]
+        Notif["Notifications"]
+        Fraud["Fraud"]
+    end
+
+    C & M & D --> API
+    API --> Ord & Cat & Assign & ETA & Loc
+    Ord --> OrdDB
+    Assign --> Supply
+    Loc --> Geo
+    OrdDB -.->|"Kafka"| Pay & Notif & Fraud
+
+    style C fill:#e1f5fe,stroke:#0277bd,color:#000
+    style M fill:#e1f5fe,stroke:#0277bd,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,color:#000
+    style API fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Ord fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Assign fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style ETA fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Cat fill:#fff9c4,stroke:#f9a825,color:#000
+    style Loc fill:#fff9c4,stroke:#f9a825,color:#000
+    style OrdDB fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Supply fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Geo fill:#e3f2fd,stroke:#1565c0,color:#000
+```
+
 ## 6. Deep Dive — Merchant Integration
 
 ```
@@ -799,6 +1125,20 @@ The generation pipeline then filters by territory licensing and already-heard tr
    │ PRINTER / FAX / PHONE  ⚠️ yes, really. Some merchants get    │
    │                        orders via an auto-dialed phone call. │
    └──────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+flowchart LR
+    Order["Order confirmed"] --> Route{"Merchant<br/>integration type?"}
+    Route -->|"most common"| Tablet["✅ Tablet<br/>DoorDash-provided device<br/>merchant taps accept"]
+    Route -->|"best experience"| POS["✅ POS Integration<br/>direct API (Toast/Square/etc.)<br/><b>dozens of systems to support</b>"]
+    Route -->|"⚠️ still exists"| Fax["⚠️ Printer / Fax / Phone<br/>auto-dialed call to<br/>restaurants without computers"]
+
+    style Order fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Route fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Tablet fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style POS fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Fax fill:#ffcdd2,stroke:#c62828,color:#000
 
    ⭐ MENU ACCURACY IS A CONSTANT BATTLE
      Prices change, items go out of stock, hours vary.
@@ -903,6 +1243,17 @@ And the perishability constraint makes time a hard requirement rather than a pre
      different operations based on the cost of being wrong.
 ```
 
+```mermaid
+flowchart LR
+    Op{"Which operation?"}
+    Op -->|"add to cart"| AP["✅ AP (Availability)<br/><b>accept the write ALWAYS</b><br/>reconcile later<br/>cost of being wrong: low"]
+    Op -->|"checkout /<br/>payment / final<br/>inventory decrement"| CP["✅ CP (Consistency)<br/><b>strongly consistent</b><br/>cost of being wrong: high"]
+
+    style Op fill:#e3f2fd,stroke:#1565c0,color:#000
+    style AP fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style CP fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 3. Deep Dive — The Cart
 
 ```
@@ -926,6 +1277,26 @@ And the perishability constraint makes time a hard requirement rather than a pre
 
      Amazon deliberately biases toward the recoverable failure.
      The business cost is asymmetric, so the merge rule is too.
+```
+
+```mermaid
+flowchart TD
+    Base["Cart: {book}"] -->|"partition:<br/>replica 1 adds laptop"| R1["Replica 1<br/>{book, laptop}"]
+    Base -->|"partition:<br/>replica 2 removes book<br/>(then re-adds nothing)"| R2["Replica 2<br/>{book}"]
+    R1 --> Merge{"Merge on<br/>reconnect"}
+    R2 --> Merge
+    Merge -->|"⭐ union — ADD wins"| Result["Merged: {book, laptop}"]
+
+    Result -.->|"✅ chosen tradeoff"| Good["Item reappears<br/>→ minor annoyance,<br/>user removes it again"]
+    Result -.->|"❌ avoided tradeoff"| Bad["Item vanishes<br/>→ lost revenue<br/>(the worse outcome)"]
+
+    style Base fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style R2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style Merge fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Result fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Good fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Bad fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ```
@@ -981,6 +1352,22 @@ And the perishability constraint makes time a hard requirement rather than a pre
    └──────────────────────────────────────────────────────────────┘
 ```
 
+```mermaid
+stateDiagram-v2
+    [*] --> InTransit: supplier ships
+    InTransit --> OnHand: received at FC
+    OnHand --> Reserved: checkout initiated<br/>(conditional decrement)
+    Reserved --> OnHand: reservation expires<br/>or payment fails
+    Reserved --> Shipped: payment captured
+    OnHand --> DamagedHeld: inspection finds<br/>damage/theft/miscount
+    Shipped --> [*]
+
+    note right of Reserved
+        ⭐ AVAILABLE = ON_HAND − RESERVED
+        this is the critical intermediate state
+    end note
+```
+
 ```
    THE FLOW — WHEN DOES INVENTORY ACTUALLY GET COMMITTED?
 
@@ -1009,6 +1396,26 @@ And the perishability constraint makes time a hard requirement rather than a pre
    ⭐ RESERVATIONS MUST EXPIRE. An abandoned checkout must not
      hold inventory forever. A background job releases stale
      reservations — same pattern as Airbnb's pending holds.
+```
+
+```mermaid
+flowchart LR
+    Browse["① Browse<br/>approximate cached signal<br/><i>'In Stock' = marketing,<br/>not a guarantee</i>"] --> Cart{"② Add to Cart"}
+    Cart -->|"🐌 naive: reserve here<br/>→ lets anyone deny stock<br/>to everyone"| BadReserve["❌ Wrong design"]
+    Cart -->|"✅ NO reservation<br/>carts aren't commitments"| Checkout["③ Checkout<br/><b>RESERVE</b> — strongly consistent<br/>conditional decrement"]
+    Checkout -->|"0 rows affected"| Fail["Out of stock,<br/>fail cleanly"]
+    Checkout -->|"success"| Payment["④ Payment"]
+    Payment -->|"fails"| Release["Release reservation"]
+    Payment -->|"success"| Ship["⑤ Ship<br/>on_hand decremented,<br/>reservation released"]
+
+    style Browse fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Cart fill:#e3f2fd,stroke:#1565c0,color:#000
+    style BadReserve fill:#ffcdd2,stroke:#c62828,color:#000
+    style Checkout fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Fail fill:#fff9c4,stroke:#f9a825,color:#000
+    style Payment fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Release fill:#fff9c4,stroke:#f9a825,color:#000
+    style Ship fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```
@@ -1062,6 +1469,27 @@ And the perishability constraint makes time a hard requirement rather than a pre
    shipment from multiple FCs, address change, payment failure.
 ```
 
+```mermaid
+stateDiagram-v2
+    [*] --> Placed
+    Placed --> Confirmed: payment authorized,<br/>inventory reserved
+    Confirmed --> Processing: FC picks and packs
+    Processing --> Shipped: handed to carrier,<br/>payment CAPTURED
+    Shipped --> Delivered
+    Delivered --> Returned: up to 30+ days later
+
+    Placed --> Cancelled: customer/system cancels
+    Confirmed --> Cancelled: payment/inventory fails
+    Processing --> Cancelled: cannot fulfill
+    Cancelled --> [*]
+    Returned --> [*]
+
+    note right of Shipped
+        ⭐ payment capture happens
+        at SHIP, not at order placement
+    end note
+```
+
 ```
    ⭐ THIS IS A SAGA — see [Queues §12](../03-backend/queues-streaming.md#12-sagas)
 
@@ -1082,6 +1510,32 @@ And the perishability constraint makes time a hard requirement rather than a pre
      workflow service drives the steps, because the flow is
      complex, needs visibility for customer service, and must
      be resumable after any failure.
+```
+
+```mermaid
+flowchart LR
+    subgraph Forward["Forward Steps (Saga)"]
+        S1["reserve inventory"] --> S2["authorize payment"] --> S3["allocate to FC"] --> S4["capture payment"]
+    end
+    subgraph Compensating["Compensating Actions (NOT rollbacks)"]
+        C1["release inventory"]
+        C2["void authorization"]
+        C3["deallocate"]
+        C4["refund<br/>(new business event,<br/>not an undo)"]
+    end
+    S1 -.->|"on failure"| C1
+    S2 -.->|"on failure"| C2
+    S3 -.->|"on failure"| C3
+    S4 -.->|"on failure"| C4
+
+    style S1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style C2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style C3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style C4 fill:#fff9c4,stroke:#f9a825,color:#000
 ```
 
 ## 6. Deep Dive — Search & Recommendations
@@ -1112,6 +1566,19 @@ And the perishability constraint makes time a hard requirement rather than a pre
      ✅ ⭐ Scales independently of user count — the expensive
         computation is O(items²), not O(users²), and items
         change far more slowly than users
+```
+
+```mermaid
+flowchart LR
+    Q{"User-to-user or<br/>item-to-item similarity?"}
+    Q --> UU["🐌 User-to-user matrix<br/>O(users²) — recomputed<br/>constantly as users churn"]
+    Q --> II["✅ Item-to-item matrix<br/><b>O(items²), computed OFFLINE</b><br/>stable — changes slowly"]
+    II --> Lookup["Request time: simple lookup<br/>keyed on item being viewed<br/>'customers who bought X<br/>also bought Y'"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style UU fill:#ffcdd2,stroke:#c62828,color:#000
+    style II fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Lookup fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups
@@ -1207,6 +1674,22 @@ State must be persisted at every transition with the reason, so a crash resumes 
      the ranking system and its latency budget.
 ```
 
+```mermaid
+flowchart LR
+    Q{"What builds<br/>the feed?"}
+    Q -->|"Instagram/Twitter"| Graph["⚠️ Social graph<br/><b>fan-out is the hard problem</b><br/>materialize per-user timelines,<br/>celebrity write amplification"]
+    Q -->|"TikTok"| Rank["✅ Content similarity +<br/>predicted engagement<br/><b>ranking is the hard problem</b><br/>NO fan-out at all"]
+
+    Graph -.->|"cold start"| G2["follow people first"]
+    Rank -.->|"cold start"| R2["watch 10 videos,<br/>we already know you"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Graph fill:#ffcdd2,stroke:#c62828,color:#000
+    style Rank fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style G2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style R2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
 ## 3. Deep Dive — The Recommendation Pipeline
 
 ```
@@ -1246,6 +1729,31 @@ State must be persisted at every transition with the reason, so a crash resumes 
    └──────────────────────────────────────────────────────────────┘
 ```
 
+```mermaid
+flowchart TD
+    Billions(["Billions of videos"]) --> CG["① Candidate Generation<br/>~10ms · ANN over embeddings<br/><b>never a model forward pass</b>"]
+    CG --> Sources{"Parallel retrieval sources"}
+    Sources --> Emb["Embedding similarity<br/>(primary source)"]
+    Sources --> Trend["Trending in region/language"]
+    Sources --> Follow["Followed creators"]
+    Sources --> Recent["Similar to recent engagement"]
+    Sources --> Explore["⭐ Exploration bucket<br/>deliberately unfamiliar"]
+
+    Emb & Trend & Follow & Recent & Explore --> Thousands(["~thousands of candidates"])
+    Thousands --> Rank["② Ranking<br/>deep model, multiple objectives"]
+    Rank --> Hundreds(["~hundreds"])
+    Hundreds --> Rerank["③ Re-ranking / Policy<br/>diversity, freshness, ads,<br/>integrity filters"]
+    Rerank --> Next10(["Next ~10 videos<br/>served to user"])
+
+    style Billions fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CG fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Sources fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Explore fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Rank fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Rerank fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Next10 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
 ```
    ⭐ WHY WATCH-COMPLETION AND REWATCH DOMINATE
 
@@ -1262,6 +1770,34 @@ State must be persisted at every transition with the reason, so a crash resumes 
    ⭐ THE FORMAT IS THE DATA ADVANTAGE. A 15-second video
      yields a full watch-completion signal in 15 seconds.
      That's the real reason the recommendations feel so sharp.
+```
+
+```mermaid
+flowchart LR
+    subgraph Strong["⭐ Strong signals"]
+        Complete["P(watch to completion)"]
+        Rewatch["P(rewatch / loop)"]
+        Share["P(share)<br/><b>strongest positive signal</b>"]
+    end
+    subgraph Weak["Weaker / biased signals"]
+        Like["P(like)"]
+        Comment["P(comment)"]
+    end
+    subgraph Neg["⚠️ Heavily weighted negative"]
+        Skip["P(skip immediately)"]
+    end
+
+    Strong --> Score["Combined Score<br/>(tuned weights)"]
+    Weak --> Score
+    Neg -->|"pulls score DOWN"| Score
+
+    style Complete fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Rewatch fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Share fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Like fill:#fff9c4,stroke:#f9a825,color:#000
+    style Comment fill:#fff9c4,stroke:#f9a825,color:#000
+    style Skip fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Score fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
 ```
 
 ## 4. Deep Dive — Cold Start
@@ -1310,6 +1846,34 @@ State must be persisted at every transition with the reason, so a crash resumes 
    └──────────────────────────────────────────────────────────────┘
 ```
 
+```mermaid
+flowchart TD
+    New(["New video<br/>zero engagement data"]) --> CU["Content Understanding<br/>visual + audio embeddings,<br/>OCR, hashtags, creator history<br/><b>placed in embedding space<br/>with NO views needed</b>"]
+    CU --> S1["Show to ~200 users"]
+    S1 --> T1{"Engagement rate<br/>strong?"}
+    T1 -->|"❌ weak"| Stop1["Stop promoting"]
+    T1 -->|"✅ strong"| S2["Show to ~2,000 users"]
+    S2 --> T2{"Still strong<br/>at this scale?"}
+    T2 -->|"❌ weak"| Stop2["Stop promoting"]
+    T2 -->|"✅ strong"| S3["Show to ~20,000 users"]
+    S3 --> T3{"Still strong?"}
+    T3 -->|"✅"| Viral(["... viral"])
+    T3 -->|"❌"| Stop3["Stop promoting"]
+
+    style New fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CU fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style S1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style T1 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style T2 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style T3 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Stop1 fill:#ffcdd2,stroke:#c62828,color:#000
+    style Stop2 fill:#ffcdd2,stroke:#c62828,color:#000
+    style Stop3 fill:#ffcdd2,stroke:#c62828,color:#000
+    style Viral fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```
    ⭐ THIS STAGED-EXPOSURE MECHANISM IS THE PRODUCT.
 
@@ -1352,6 +1916,21 @@ State must be persisted at every transition with the reason, so a crash resumes 
      than a page load.
 ```
 
+```mermaid
+flowchart LR
+    Swipe(["👆 User swipes"]) --> Check{"Next video<br/>already prefetched<br/>+ buffered?"}
+    Check -->|"✅ yes (target state)"| Instant["Instant playback<br/>zero perceived latency"]
+    Check -->|"❌ no — design failure"| Wait["Perceptible delay<br/>breaks the experience"]
+
+    Watching["While watching<br/>current video"] -.->|"prefetch next 3-5<br/>+ precompute ranked queue"| Check
+
+    style Swipe fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Check fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Instant fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Wait fill:#ffcdd2,stroke:#c62828,color:#000
+    style Watching fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
 ## 6. Deep Dive — The Feedback Loop
 
 ```
@@ -1387,6 +1966,31 @@ State must be persisted at every transition with the reason, so a crash resumes 
      local optimum — high short-term engagement, declining
      long-term retention. This is a real and well-documented
      failure mode of engagement-optimized systems.
+```
+
+```mermaid
+flowchart LR
+    Watch["User watches"] --> Signal["Signals emitted"]
+    Signal --> Stream["Stream processing"]
+    Stream --> Model["Interest model updated<br/><b>closes in seconds-minutes</b>"]
+    Model --> Next["Next recommendations"]
+    Next -.->|"narrows further"| Watch
+
+    Next -.->|"⚠️ unchecked loop"| Bubble["Filter bubble<br/>degenerate local optimum"]
+
+    Explore["✅ Exploration budget"] -.->|"countermeasure"| Next
+    Diversity["✅ Diversity constraints"] -.->|"countermeasure"| Next
+    Penalty["✅ Penalize repetition"] -.->|"countermeasure"| Next
+
+    style Watch fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Signal fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Stream fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Model fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Next fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Bubble fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Explore fill:#fff9c4,stroke:#f9a825,color:#000
+    style Diversity fill:#fff9c4,stroke:#f9a825,color:#000
+    style Penalty fill:#fff9c4,stroke:#f9a825,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups

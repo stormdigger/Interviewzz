@@ -1,1224 +1,1351 @@
-# 🎯 Greedy, Backtracking, Bits & Math — 45 Problems
+# 🎯 Greedy, Backtracking, Bits & Math
 
-> Three very different mindsets. **Greedy** commits immediately and never looks back. **Backtracking** tries everything but abandons dead ends early. **Bit tricks** exploit binary structure. Knowing which one applies is most of the battle.
+> Three mindsets. **Greedy** commits immediately and never looks back. **Backtracking** tries everything but abandons dead ends early. **Bit tricks** exploit binary structure. Knowing which one applies is most of the battle.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
-
----
-
-## Part 1 — Greedy
-
-### 🧠 The greedy mindset
-
-#### 💬 What greedy actually means
-A greedy algorithm makes the choice that looks best **right now** and never reconsiders. No backtracking, no table of subproblems. Just: pick the locally best option, move on.
-
-The catch is that this is often **wrong**. Making a locally optimal choice can lock you out of the globally optimal solution.
-
-```
-   Coin change, coins = [1, 3, 4], target = 6
-
-   GREEDY: take the biggest coin that fits
-     4 → remaining 2
-     1 → remaining 1
-     1 → remaining 0
-     TOTAL: 3 coins ❌
-
-   OPTIMAL:
-     3 + 3
-     TOTAL: 2 coins ✅
-
-   → Greedy FAILS here. This problem needs DP.
-```
-
-So the real skill is not "write greedy code" — it's **proving greedy is safe** before you commit.
-
-#### The two proof techniques
-
-```
-   ┌─────────────────────────────────────────────────────────────┐
-   │ 1. EXCHANGE ARGUMENT                                        │
-   │    Take ANY optimal solution. Show you can swap in the      │
-   │    greedy choice without making it worse.                   │
-   │                                                             │
-   │    Example (activity selection):                            │
-   │    "Suppose the optimal schedule doesn't start with the     │
-   │     earliest-finishing meeting. Swap that meeting in.       │
-   │     It finishes no later, so nothing else breaks, and       │
-   │     the count is unchanged. So greedy is at least as good." │
-   ├─────────────────────────────────────────────────────────────┤
-   │ 2. GREEDY STAYS AHEAD                                       │
-   │    Show that after every step, greedy's partial solution    │
-   │    is at least as good as any other partial solution.       │
-   └─────────────────────────────────────────────────────────────┘
-```
-
-🎤 **In an interview, say:** *"Let me check whether greedy is safe here — can I construct a counterexample?"* Then actually try. If you can't find one in a minute, sketch the exchange argument. This is exactly what separates a strong answer from a lucky one.
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
-### 1. Jump Game 🟡
-> Each `nums[i]` is your max jump length from index `i`. Can you reach the last index?
+## 🧠 Greedy: Proving It's Safe
 
-#### 💬 Think of it like this
-You don't need to know *which* jumps to take. You only need to know: **how far can I possibly get?**
+```mermaid
+flowchart TD
+    A["Coin change, coins=[1,3,4], target=6"] --> B["⭐ GREEDY: biggest coin first<br/>4 → 1 → 1 = 3 coins"]
+    A --> C["⭐ OPTIMAL: 3 + 3 = 2 coins"]
+    B --> D["❌ GREEDY FAILS —<br/>this needs DP, not greedy"]
+    C --> D
 
-Walk left to right tracking a single number — the furthest index reachable so far. At each position, first check whether you can even stand here (is `i` within reach?). If yes, update your reach with whatever this position offers.
-
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
 ```
-   nums = [2, 3, 1, 1, 4]
 
-   i=0  reach = max(0, 0+2) = 2      ┌──────┐
-                                     [2, 3, 1, 1, 4]
+The real skill isn't writing greedy code — it's **proving greedy is safe** before committing to it.
 
-   i=1  1 ≤ 2 ✅  reach = max(2, 1+3) = 4
-                                      ┌────────────┐
-                                     [2, 3, 1, 1, 4]
+```mermaid
+flowchart TD
+    Q{"How do you prove<br/>greedy is correct?"}
+    Q -->|"'my choice is at least<br/>as good as any other'"| A["⭐ EXCHANGE ARGUMENT<br/>take an optimal solution,<br/>swap in your greedy choice,<br/>show it doesn't get worse"]
+    Q -->|"'the locally best choice<br/>is always safe'"| B["⭐ STAYS-AHEAD ARGUMENT<br/>show the greedy prefix is never<br/>worse than any alternative prefix"]
 
-   i=2  2 ≤ 4 ✅  reach = max(4, 2+1) = 4
-   i=3  3 ≤ 4 ✅  reach = max(4, 3+1) = 4
-   i=4  4 ≤ 4 ✅  reached the end → TRUE
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+```
 
-   Failure case: nums = [3, 2, 1, 0, 4]
-   i=0..3 → reach = 3
-   i=4  →  4 > 3  ❌  stuck at index 3, return FALSE
+⭐ **You've already seen both proofs in this library:** the exchange argument for [Non-overlapping Intervals](01b-arrays-strings.md#25-non-overlapping-intervals) (sort by end time) and the stays-ahead argument for [IPO](07-heaps-intervals.md#10-ipo--maximize-capital) (capital only grows).
+
+---
+
+## 🧠 Backtracking: The Universal Skeleton
+
+```mermaid
+flowchart TD
+    A["choose"] --> B["explore (recurse)"]
+    B --> C["⭐ un-choose (backtrack)"]
+    C --> D{"more choices<br/>at this level?"}
+    D -->|"yes"| A
+    D -->|"no"| E["return to caller"]
+
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```cpp
-bool canJump(vector<int>& nums) {
-    int reach = 0;
-    for (int i = 0; i < (int)nums.size(); ++i) {
-        if (i > reach) return false;               // ⭐ can't even stand here
-        reach = max(reach, i + nums[i]);
+void backtrack(State& state, vector<Result>& results) {
+    if (isComplete(state)) { results.push_back(state.snapshot()); return; }
+
+    for (auto& choice : choicesAt(state)) {
+        if (!isValid(choice, state)) continue;   // ⭐ PRUNE — the whole speedup
+
+        state.apply(choice);                     // choose
+        backtrack(state, results);               // explore
+        state.undo(choice);                      // ⭐ un-choose
+    }
+}
+```
+
+⭐ **Pruning early is the entire performance story.** Backtracking without pruning is just brute force with extra steps; a good `isValid` check turns exponential into merely large.
+
+---
+
+## 📑 Contents
+
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-jump-game-i) | Jump Game I | 🟡 | 🔵 **Full** | O(n) greedy reach |
+| [2](#2-gas-station) | Gas Station | 🟡 | 🔵 **Full** | ⭐ total ≥ 0 guarantees a start |
+| [3](#3-candy) | Candy | 🔴 | 🔵 **Full** | two-pass greedy |
+| [4](#4-permutations) | Permutations | 🟡 | 🔵 **Full** | ⭐ the backtrack template |
+| [5](#5-permutations-ii-with-duplicates) | Permutations II | 🟡 | ⚪ Variation | sort + skip-equal pruning |
+| [6](#6-combinations--combination-sum) | Combinations / Combination Sum | 🟡 | 🔵 **Full** | start-index pruning |
+| [7](#7-subsets--subsets-ii) | Subsets / Subsets II | 🟡 | 🔵 **Full** | ⭐ include/exclude tree |
+| [8](#8-n-queens) | N-Queens | 🔴 | 🔵 **Full** | ⭐ O(1) column/diagonal checks |
+| [9](#9-sudoku-solver) | Sudoku Solver | 🔴 | ⚪ Variation | bitmask constraint checks |
+| [10](#10-palindrome-partitioning) | Palindrome Partitioning | 🟡 | ⚪ Variation | backtrack + palindrome check |
+| [11](#11-word-search) | Word Search | 🟡 | ⚪ Variation | grid DFS + backtrack |
+| [12](#12-generate-parentheses) | Generate Parentheses | 🟡 | 🔵 **Full** | ⭐ constrained backtracking |
+| [13](#13-single-number-i-ii-iii) | Single Number I / II / III | 🟢 | 🔵 **Full** | ⭐ XOR family |
+| [14](#14-number-of-1-bits--counting-bits) | Number of 1 Bits / Counting Bits | 🟢 | 🔵 **Full** | ⭐ n & (n-1) |
+| [15](#15-sum-of-two-integers-no--or--) | Sum of Two Integers (no +/-) | 🟡 | 🔵 **Full** | XOR + carry via AND |
+| [16](#16-missing-number--bit-tricks) | Missing Number | 🟢 | ⚪ Variation | XOR everything |
+| [17](#17-reverse-bits) | Reverse Bits | 🟢 | ⚪ Variation | bit-by-bit swap |
+| [18](#18-power-of-two--power-of-four) | Power of Two / Four | 🟢 | ⚪ Variation | `n & (n-1) == 0` |
+| [19](#19-pow-x-n) | Pow(x, n) | 🟡 | 🔵 **Full** | ⭐ fast exponentiation |
+| [20](#20-sqrt-x-and-newtons-method) | Sqrt(x) | 🟢 | ⚪ Variation | binary search or Newton's |
+| [21](#21-gcd--lcm--extended-euclid) | GCD / LCM | 🟢 | 🔵 **Full** | Euclid's algorithm |
+| [22](#22-count-primes-sieve-of-eratosthenes) | Count Primes (Sieve) | 🟡 | 🔵 **Full** | O(n log log n) |
+| [23](#23-random-pick-with-weight--reservoir-sampling) | Random Pick / Reservoir Sampling | 🟡 | 🔵 **Full** | prefix sums + binary search |
+| [24](#24-majority-element) | Majority Element | 🟢 | 🔵 **Full** | ⭐ Boyer-Moore voting |
+| [25](#25-meeting-rooms-max-events--misc-greedy) | Max Events / Misc Greedy | 🟡 | ⚪ Variation | heap-based greedy |
+
+---
+
+# 1. Jump Game I
+
+🟡 **Medium** · 🔵 Full ladder · **The greedy proof, stated cleanly**
+
+> Can you reach the last index? `a[i]` = max jump from index `i`.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 BACKTRACKING<br/>try every jump<br/><b>O(2ⁿ)</b>"] --> B["⚡ DP: canReach[i]<br/><b>O(n²)</b>"]
+    B --> C["🚀 GREEDY: track farthest reach<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["⭐ track `farthest` — the<br/>rightmost index reachable so far"] --> B{"is i within<br/>`farthest`?"}
+    B -->|"no"| C(["❌ unreachable — stuck"])
+    B -->|"yes"| D["farthest = max(farthest, i + a[i])"]
+    D --> E{"farthest ≥ n−1?"}
+    E -->|"yes"| F(["✅ reachable"])
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#ffcdd2,stroke:#c62828,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+bool canJump(vector<int>& a) {
+    int farthest = 0;
+    for (int i = 0; i < (int)a.size(); ++i) {
+        if (i > farthest) return false;         // ⭐ this index is unreachable
+        farthest = max(farthest, i + a[i]);
     }
     return true;
 }
 ```
-**Why greedy is safe:** reachability is monotonic — if you can reach index `i`, you can reach everything before it. There is no benefit to "saving" jumps.
+⭐ **You never need to know WHICH path reaches the end** — only that some jump sequence does, which the single `farthest` frontier captures completely.
 
 ---
 
-### 2. Jump Game II 🟡
-```cpp
-int jump(vector<int>& nums) {
-    int jumps = 0, curEnd = 0, farthest = 0;
-    for (int i = 0; i < (int)nums.size() - 1; ++i) {
-        farthest = max(farthest, i + nums[i]);
-        if (i == curEnd) { ++jumps; curEnd = farthest; }   // ⭐ range exhausted
-    }
-    return jumps;
-}
+# 2. Gas Station
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **A one-line correctness proof**
+
+> Circular route of gas stations. Find a starting station that completes the loop, or report impossible.
+
+## 💬 The two-part insight
+
+```mermaid
+flowchart TD
+    A["⭐ PART 1: a solution exists ⟺<br/>total gas ≥ total cost"] --> B["If total gas &lt; total cost,<br/>NO start can work — trivially"]
+    A2["⭐ PART 2: if a solution exists,<br/>it's UNIQUE, and it's found by<br/>a single greedy pass"] --> C["If the tank goes negative<br/>starting from s, NO station<br/>between s and the failure<br/>point can be a valid start either"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style A2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-**Key insight:** This is BFS by levels, implemented with two pointers. `curEnd` marks the boundary of the current jump's reach; hitting it forces another jump.
-
----
-
-### 3. Gas Station 🟡
-> Circular route of gas stations. `gas[i]` fuel available, `cost[i]` to reach the next. Find the starting index, or `-1`.
-
-#### 💬 Two insights that solve it instantly
-
-**Insight 1:** If total gas < total cost, no solution exists. Period.
-
-**Insight 2:** If you start at `A` and run dry at station `B`, then **no station between A and B can work either**. Why? Because you arrived at each of those with non-negative fuel — starting there means arriving with *zero*, which is worse. So skip past `B` entirely.
 
 ```
-   gas  = [1, 2, 3, 4, 5]
-   cost = [3, 4, 5, 1, 2]
-   diff = [-2, -2, -2, 3, 3]
+   ⭐⭐ WHY FAILING AT STATION f MEANS SKIPPING TO f+1 IS SAFE
 
-   start=0  tank: -2  ❌ fail at 0 → restart at 1
-   start=1  tank: -2  ❌ fail at 1 → restart at 2
-   start=2  tank: -2  ❌ fail at 2 → restart at 3
-   start=3  tank: 3, then 3+3=6   ✅ survives to the end
+   Suppose starting at s, the tank first goes negative at f.
+   That means the SUM from s to f is negative.
 
-   total = -2-2-2+3+3 = 0  ≥ 0  →  a solution exists
-   ANSWER = 3
+   For any station m between s and f: the sum from s to m is
+   ≥ 0 (else we'd have failed earlier at m). So the sum from
+   m to f = (sum s to f) − (sum s to m) ≤ (negative) − (≥0),
+   which is even MORE negative.
+
+   ⭐ So m ALSO fails by the time it reaches f. No station
+     between s and f can be the answer — safe to jump
+     straight to f+1 and never revisit s..f. ∎
 ```
 
 ```cpp
 int canCompleteCircuit(vector<int>& gas, vector<int>& cost) {
     int total = 0, tank = 0, start = 0;
+
     for (int i = 0; i < (int)gas.size(); ++i) {
         int diff = gas[i] - cost[i];
         total += diff;
         tank += diff;
-        if (tank < 0) { start = i + 1; tank = 0; }  // ⭐ restart AFTER the failure
+
+        if (tank < 0) {                          // ⭐ this start (and everything
+            start = i + 1;                       //    since the last reset) fails
+            tank = 0;
+        }
     }
-    return total >= 0 ? start : -1;
-}
-```
-**Complexity:** O(n) single pass — no need to try each start.
-
----
-
-### 4. Task Scheduler 🟡
-```cpp
-int leastInterval(vector<char>& tasks, int n) {
-    int cnt[26] = {};
-    for (char c : tasks) cnt[c - 'A']++;
-    int maxCount = *max_element(cnt, cnt + 26);
-    int numMax = count(cnt, cnt + 26, maxCount);
-    return max((int)tasks.size(), (maxCount - 1) * (n + 1) + numMax);
+    return total >= 0 ? start : -1;              // ⭐ Part 1's check
 }
 ```
 
+⭐ **One pass answers both "does a solution exist" and "where is it."** No separate feasibility check needed — `total >= 0` at the end tells you.
+
+## 📌 Pattern Card
 ```
-   The most frequent task sets the skeleton. With A×3 and n=2:
-
-   A _ _ | A _ _ | A
-   └──3──┘└──3──┘  └─ the last block needs no idle time
-
-   (maxCount-1) blocks of size (n+1), plus numMax tasks at the end.
-   If other tasks can fill every gap, the answer is just tasks.size().
+SIGNAL   circular sequence, find a valid starting point
+KEY      ⭐ if a prefix sum goes negative, EVERY station in that
+         prefix fails too — jump past all of them at once
+RELATED  Non-overlapping Intervals · Candy · Jump Game
 ```
 
 ---
 
-### 5. Partition Labels 🟡
-```cpp
-vector<int> partitionLabels(string s) {
-    int last[26] = {};
-    for (int i = 0; i < (int)s.size(); ++i) last[s[i] - 'a'] = i;
+# 3. Candy
 
-    vector<int> out;
-    int start = 0, end = 0;
-    for (int i = 0; i < (int)s.size(); ++i) {
-        end = max(end, last[s[i] - 'a']);          // ⭐ must extend to cover this char
-        if (i == end) { out.push_back(end - start + 1); start = i + 1; }
-    }
-    return out;
-}
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Two one-directional passes**
+
+> Each child gets ≥1 candy. A child with a higher rating than a neighbor gets more candy than that neighbor. Minimize total.
+
+## ⚠️ Why one pass isn't enough
+
+```mermaid
+flowchart TD
+    A["⚠️ Each child's candy count depends<br/>on BOTH neighbors simultaneously"] --> B["A single left-to-right pass can<br/>satisfy the LEFT constraint but<br/>break the RIGHT one, or vice versa"]
+    B --> C["⭐ FIX: satisfy each DIRECTION<br/>in its own pass, then take the<br/>MAX of both requirements"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```
-   s = "ababcbacadefegde..."
+   ratings:  1  3  4  5  2
 
-   Scan and keep stretching the window until every character
-   inside it has ALL its occurrences inside it too:
+   LEFT PASS  (only checks: am I > my LEFT neighbor?)
+   candies:   1  2  3  4  1
 
-   a b a b c b a c a | d e f e g d e | ...
-   └──── i == end ───┘ └──── cut ────┘
-        the 'a' at index 8 is the last 'a', so we can close here
+   RIGHT PASS (only checks: am I > my RIGHT neighbor?)
+   candies:   1  1  1  2  1
+
+   ⭐ TAKE THE MAX, position by position:
+   final:     1  2  3  4  1
+                          ▲
+              ⭐ untouched by the right pass since 2 &lt; 4
+                already satisfies "more than the right neighbor"
 ```
 
----
-
-### 6. Non-overlapping Intervals 🟡
-```cpp
-int eraseOverlapIntervals(vector<vector<int>>& iv) {
-    sort(iv.begin(), iv.end(), [](auto& a, auto& b){ return a[1] < b[1]; });  // ⭐ by END
-    int end = INT_MIN, keep = 0;
-    for (auto& x : iv) if (x[0] >= end) { end = x[1]; ++keep; }
-    return iv.size() - keep;
-}
-```
-
-#### 💬 Why sort by END, not start?
-Sorting by end time is what makes greedy provably optimal. Keeping the interval that **finishes earliest** leaves the maximum possible room for everything after it.
-
-```
-   Sorted by START:              Sorted by END:
-   ├─────────────────┤           ├──┤
-      ├──┤                          ├──┤
-        ├──┤                           ├──┤
-
-   Greedy takes the long one     Greedy takes all three ✅
-   → only 1 interval ❌
-```
-
----
-
-### 7. Minimum Number of Arrows 🟡
-```cpp
-int findMinArrowShots(vector<vector<int>>& pts) {
-    sort(pts.begin(), pts.end(), [](auto& a, auto& b){ return a[1] < b[1]; });
-    int arrows = 0;
-    long long end = LLONG_MIN;
-    for (auto& p : pts) if (p[0] > end) { ++arrows; end = p[1]; }
-    return arrows;
-}
-```
-
----
-
-### 8. Two City Scheduling 🟡
-```cpp
-int twoCitySchedCost(vector<vector<int>>& costs) {
-    sort(costs.begin(), costs.end(), [](auto& a, auto& b) {
-        return a[0] - a[1] < b[0] - b[1];          // ⭐ sort by SAVINGS from choosing A
-    });
-    int total = 0, n = costs.size() / 2;
-    for (int i = 0; i < (int)costs.size(); ++i)
-        total += (i < n) ? costs[i][0] : costs[i][1];
-    return total;
-}
-```
-**Key insight:** Send everyone to city B, then compute how much each person would *save* by switching to A. Pick the `n` biggest savings. Sorting by `costA - costB` does exactly that.
-
----
-
-### 9. Boats to Save People 🟡
-```cpp
-int numRescueBoats(vector<int>& p, int limit) {
-    sort(p.begin(), p.end());
-    int l = 0, r = p.size() - 1, boats = 0;
-    while (l <= r) {
-        if (p[l] + p[r] <= limit) ++l;             // lightest can join the heaviest
-        --r;                                        // the heaviest always goes
-        ++boats;
-    }
-    return boats;
-}
-```
-**Why it's safe:** The heaviest person needs a boat no matter what. The only question is whether anyone can share — and if anyone can, the lightest person can.
-
----
-
-### 10. Candy 🔴
 ```cpp
 int candy(vector<int>& ratings) {
     int n = ratings.size();
-    vector<int> c(n, 1);
-    for (int i = 1; i < n; ++i)                    // ⭐ pass 1: left-to-right
-        if (ratings[i] > ratings[i-1]) c[i] = c[i-1] + 1;
-    for (int i = n - 2; i >= 0; --i)               // ⭐ pass 2: right-to-left
-        if (ratings[i] > ratings[i+1]) c[i] = max(c[i], c[i+1] + 1);
-    return accumulate(c.begin(), c.end(), 0);
+    vector<int> candies(n, 1);
+
+    for (int i = 1; i < n; ++i)                  // ⭐ LEFT-TO-RIGHT pass
+        if (ratings[i] > ratings[i-1])
+            candies[i] = candies[i-1] + 1;
+
+    for (int i = n - 2; i >= 0; --i)              // ⭐ RIGHT-TO-LEFT pass
+        if (ratings[i] > ratings[i+1])
+            candies[i] = max(candies[i], candies[i+1] + 1);   // ⭐ MAX, not overwrite
+
+    return accumulate(candies.begin(), candies.end(), 0);
 }
 ```
-
-```
-   ratings = [1, 0, 2]
-
-   start:     [1, 1, 1]
-   L→R pass:  [1, 1, 2]    only fixes "higher than my LEFT neighbour"
-   R→L pass:  [2, 1, 2]    now also fixes "higher than my RIGHT neighbour"
-                ▲
-              max() keeps both constraints satisfied
-
-   ANSWER = 5
-```
-**Key insight:** Two constraints pull in opposite directions, so satisfy each in its own sweep and combine with `max`. This two-pass pattern is broadly reusable.
+⚠️ **`max`, not a plain assignment, in the second pass.** Overwriting would silently discard the left pass's guarantee.
 
 ---
 
-### 11. Queue Reconstruction by Height 🟡
+# 4. Permutations
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The canonical backtracking template**
+
+## 💬 The choose / explore / un-choose skeleton, made concrete
+
+```mermaid
+flowchart TD
+    A["start with an EMPTY permutation"] --> B["at each step, try EVERY<br/>unused number"]
+    B --> C["place it, recurse<br/>(the permutation grows by one)"]
+    C --> D["⭐ when full length is reached,<br/>record a COPY"]
+    D --> E["⭐ REMOVE the number —<br/>undo, so the next candidate<br/>at this level starts clean"]
+
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  nums = [1,2,3], partial recursion tree
+
+   []
+   ├─ [1]
+   │  ├─ [1,2]
+   │  │  └─ [1,2,3] ⭐ RECORD
+   │  └─ [1,3]
+   │     └─ [1,3,2] ⭐ RECORD
+   ├─ [2] ...
+   └─ [3] ...
+
+   ⭐ "used" is TRACKED, not recomputed — an O(1) boolean array
+     beats scanning the current permutation for membership.
+```
+
 ```cpp
-vector<vector<int>> reconstructQueue(vector<vector<int>>& people) {
-    sort(people.begin(), people.end(), [](auto& a, auto& b) {
-        return a[0] == b[0] ? a[1] < b[1] : a[0] > b[0];   // tall first, then by k
-    });
+class Solution {
     vector<vector<int>> out;
-    for (auto& p : people) out.insert(out.begin() + p[1], p);   // ⭐ insert at index k
-    return out;
-}
-```
-**Key insight:** Place tall people first. Shorter people inserted later are invisible to them, so every already-placed person's `k` value stays correct.
+    vector<int> path;
+    vector<bool> used;
 
----
+    void backtrack(vector<int>& nums) {
+        if (path.size() == nums.size()) { out.push_back(path); return; }   // ⭐ COPY
 
-### 12. Merge Triplets to Form Target 🟡
-```cpp
-bool mergeTriplets(vector<vector<int>>& triplets, vector<int>& target) {
-    bool got[3] = {false, false, false};
-    for (auto& t : triplets) {
-        if (t[0] > target[0] || t[1] > target[1] || t[2] > target[2]) continue;  // ⭐ toxic
-        for (int i = 0; i < 3; ++i) if (t[i] == target[i]) got[i] = true;
-    }
-    return got[0] && got[1] && got[2];
-}
-```
-**Key insight:** Since merging takes the max, any triplet exceeding the target in *any* position poisons the result forever. Filter those out, then just check each position is achievable.
+        for (int i = 0; i < (int)nums.size(); ++i) {
+            if (used[i]) continue;               // ⭐ PRUNE
 
----
+            used[i] = true;
+            path.push_back(nums[i]);              // choose
 
-### 13. Valid Parenthesis String 🟡
-```cpp
-bool checkValidString(string s) {
-    int lo = 0, hi = 0;                            // ⭐ RANGE of possible open counts
-    for (char c : s) {
-        if (c == '(')      { ++lo; ++hi; }
-        else if (c == ')') { --lo; --hi; }
-        else               { --lo; ++hi; }         // '*' could be ')', '(' or ''
-        if (hi < 0) return false;                  // too many ')' even at best
-        lo = max(lo, 0);                           // can't go below zero
-    }
-    return lo == 0;
-}
-```
-**Key insight:** Instead of trying all interpretations of `*`, track the **range** of possible open-paren counts. Elegant and O(n).
+            backtrack(nums);                      // explore
 
----
-
-### 14. Minimum Deletions to Make Character Frequencies Unique 🟡
-```cpp
-int minDeletions(string s) {
-    int cnt[26] = {};
-    for (char c : s) cnt[c - 'a']++;
-    unordered_set<int> used;
-    int deletions = 0;
-    for (int f : cnt) {
-        while (f > 0 && used.count(f)) { --f; ++deletions; }   // step down until free
-        if (f > 0) used.insert(f);
-    }
-    return deletions;
-}
-```
-
----
-
-### 15. Hand of Straights 🟡
-```cpp
-bool isNStraightHand(vector<int>& hand, int groupSize) {
-    if (hand.size() % groupSize) return false;
-    map<int,int> cnt;                              // ordered!
-    for (int x : hand) cnt[x]++;
-    while (!cnt.empty()) {
-        int start = cnt.begin()->first;            // ⭐ smallest card MUST start a group
-        for (int i = 0; i < groupSize; ++i) {
-            auto it = cnt.find(start + i);
-            if (it == cnt.end()) return false;
-            if (--it->second == 0) cnt.erase(it);
+            path.pop_back();                      // ⭐ un-choose
+            used[i] = false;
         }
     }
-    return true;
+
+public:
+    vector<vector<int>> permute(vector<int>& nums) {
+        used.assign(nums.size(), false);
+        backtrack(nums);
+        return out;
+    }
+};
+```
+
+⚠️ **`out.push_back(path)` copies the vector** — pushing a reference would leave every stored "permutation" pointing at the same, later-mutated buffer.
+
+## 📌 Pattern Card
+```
+SIGNAL   generate all orderings/arrangements
+KEY      choose → recurse → ⭐ UNDO; track "used" as O(1) state
+RELATED  Permutations II · N-Queens · Combinations · Subsets
+```
+
+---
+
+# 5. Permutations II (with Duplicates)
+🟡 ⚪ **Variation of #4** — ⭐ **sort first, then skip equal values at the same recursion level**.
+
+```mermaid
+flowchart TD
+    A["⚠️ Naive: duplicate INPUT values<br/>produce duplicate OUTPUT permutations"] --> B["⭐ SORT the input first —<br/>duplicates become ADJACENT"]
+    B --> C["⭐ At each level, skip a candidate<br/>if it equals the PREVIOUS candidate<br/>AND that previous one is unused"]
+    C --> D["'unused' means: we're about to<br/>place duplicates in the SAME<br/>relative position again"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+void backtrack(vector<int>& nums, vector<bool>& used,
+              vector<int>& path, vector<vector<int>>& out) {
+    if (path.size() == nums.size()) { out.push_back(path); return; }
+
+    for (int i = 0; i < (int)nums.size(); ++i) {
+        if (used[i]) continue;
+
+        // ⭐⭐ the dedup guard — nums MUST be sorted for this to work
+        if (i > 0 && nums[i] == nums[i-1] && !used[i-1]) continue;
+
+        used[i] = true;
+        path.push_back(nums[i]);
+        backtrack(nums, used, path, out);
+        path.pop_back();
+        used[i] = false;
+    }
+}
+// caller: sort(nums.begin(), nums.end()) BEFORE the first call
+```
+
+```
+   ⭐⭐ WHY `!used[i-1]` SPECIFICALLY (not `used[i-1]`)
+
+   `!used[i-1]` means: the previous duplicate is currently
+   AVAILABLE but we're skipping it in favor of this one.
+   That would produce the exact same permutation as choosing
+   the previous one first — so it's redundant.
+
+   `used[i-1]` means the previous duplicate is ALREADY placed
+   earlier in this path — that's fine, it's a DIFFERENT
+   permutation (using a different copy in a different slot).
+```
+
+---
+
+# 6. Combinations / Combination Sum
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Start-index pruning avoids order duplicates**
+
+```mermaid
+flowchart TD
+    A["⭐ Instead of tracking 'used',<br/>pass a START INDEX and only<br/>consider candidates from there on"] --> B["This makes [2,3] and [3,2]<br/>literally impossible to both<br/>generate — only ascending order<br/>index-wise is explored"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+// Combinations — choose k from 1..n
+void backtrack(int start, int n, int k, vector<int>& path, vector<vector<int>>& out) {
+    if ((int)path.size() == k) { out.push_back(path); return; }
+
+    // ⭐ PRUNE: if even taking every remaining number can't reach k, stop
+    for (int i = start; i <= n - (k - (int)path.size()) + 1; ++i) {
+        path.push_back(i);
+        backtrack(i + 1, n, k, path, out);       // ⭐ i+1 — never revisit
+        path.pop_back();
+    }
+}
+
+// Combination Sum — numbers REUSABLE
+void backtrack(vector<int>& c, int target, int start,
+              vector<int>& path, vector<vector<int>>& out) {
+    if (target == 0) { out.push_back(path); return; }
+    if (target < 0) return;                      // ⭐ prune — overshot
+
+    for (int i = start; i < (int)c.size(); ++i) {
+        path.push_back(c[i]);
+        backtrack(c, target - c[i], i, path, out);   // ⭐ i, NOT i+1 — reuse allowed
+        path.pop_back();
+    }
+}
+```
+⭐ **The single difference between "combinations" and "combination sum with reuse"** is `i+1` versus `i` in the recursive call — everything else is identical.
+
+---
+
+# 7. Subsets / Subsets II
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Every node in the recursion tree IS an answer**
+
+```mermaid
+flowchart TD
+    A["[]"] --> B["[1]"]
+    A --> C["[2]"]
+    A --> D["[3]"]
+    B --> E["[1,2]"]
+    B --> F["[1,3]"]
+    E --> G["[1,2,3]"]
+
+    N["⭐ Unlike permutations, there's no<br/>'complete' check — EVERY node<br/>along the way is a valid subset"] -.-> A
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style N fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
+```cpp
+void backtrack(vector<int>& nums, int start, vector<int>& path,
+              vector<vector<int>>& out) {
+    out.push_back(path);                          // ⭐ record at EVERY node
+
+    for (int i = start; i < (int)nums.size(); ++i) {
+        path.push_back(nums[i]);
+        backtrack(nums, i + 1, path, out);
+        path.pop_back();
+    }
 }
 ```
 
----
+## Subsets II — with duplicates
+```cpp
+void backtrack(vector<int>& nums, int start, vector<int>& path,
+              vector<vector<int>>& out) {
+    out.push_back(path);
 
-## Part 2 — Backtracking
-
-### 🧠 The backtracking mindset
-
-#### 💬 What backtracking is
-Backtracking is **systematic trial and error with an undo button**. You explore a decision tree depth-first: make a choice, recurse deeper, and when you return, **undo** that choice so you can try the next one.
-
-The "undo" is what makes it backtracking rather than plain recursion. It lets you reuse the same data structure for every branch instead of copying state everywhere.
-
+    for (int i = start; i < (int)nums.size(); ++i) {
+        if (i > start && nums[i] == nums[i-1]) continue;   // ⭐ same dedup idea as #5
+        path.push_back(nums[i]);
+        backtrack(nums, i + 1, path, out);
+        path.pop_back();
+    }
+}
+// caller: sort(nums) first
 ```
-   THE TEMPLATE — memorize this shape
+⭐ **`i > start` (not `i > 0`)** is the key difference from Permutations II's dedup check — here, duplicates ARE allowed across different recursion levels, just not as two different choices at the SAME level.
 
-   void backtrack(State& st, Path& path) {
-       if (isComplete(st)) { record(path); return; }
-
-       for (choice : availableChoices(st)) {
-           if (!isValid(choice, st)) continue;    // ⭐ PRUNE — the key to speed
-
-           make(choice, st);  path.push(choice);  //    CHOOSE
-           backtrack(st, path);                   //    EXPLORE
-           path.pop();  undo(choice, st);         //    UN-CHOOSE  ⭐
-       }
-   }
-```
-
-#### The decision tree, visualized
-
-```
-   Generating subsets of [1, 2, 3] — at each element, include or exclude:
-
-                          []
-                    ┌──────┴──────┐
-                exclude 1      include 1
-                    │              │
-                   []            [1]
-              ┌─────┴─────┐  ┌─────┴─────┐
-             []          [2] [1]        [1,2]
-            ┌─┴─┐      ┌─┴─┐ ┌─┴─┐     ┌──┴──┐
-           [] [3]   [2] [2,3] [1] [1,3] [1,2] [1,2,3]
-
-   8 leaves = 2³ subsets ✅
-```
-
-⚠️ **Pruning is everything.** Without it, backtracking is just brute force with extra steps. The `if (!isValid) continue` line is often the difference between 0.1 seconds and never finishing.
-
----
-
-### 16. Subsets 🟡
+## 🔁 The bitmask alternative — worth knowing
 ```cpp
 vector<vector<int>> subsets(vector<int>& nums) {
-    vector<vector<int>> out;
-    vector<int> cur;
-    function<void(int)> bt = [&](int i) {
-        if (i == (int)nums.size()) { out.push_back(cur); return; }
-        bt(i + 1);                                 // exclude nums[i]
-        cur.push_back(nums[i]);
-        bt(i + 1);                                 // include nums[i]
-        cur.pop_back();                            // ⭐ undo
-    };
-    bt(0);
-    return out;
-}
-```
-**Complexity:** O(2ⁿ · n).
-
----
-
-### 17. Subsets II (with duplicates) 🟡
-```cpp
-vector<vector<int>> subsetsWithDup(vector<int>& nums) {
-    sort(nums.begin(), nums.end());                // ⭐ duplicates must be adjacent
-    vector<vector<int>> out;
-    vector<int> cur;
-    function<void(int)> bt = [&](int start) {
-        out.push_back(cur);
-        for (int i = start; i < (int)nums.size(); ++i) {
-            if (i > start && nums[i] == nums[i-1]) continue;   // ⭐ skip dup at same level
-            cur.push_back(nums[i]);
-            bt(i + 1);
-            cur.pop_back();
-        }
-    };
-    bt(0);
-    return out;
-}
-```
-
-```
-   Why "i > start" and not "i > 0"?
-
-   nums = [1, 2, 2]
-
-   At the SAME level, picking the 2nd '2' after skipping the 1st
-   would duplicate the branch → skip it.
-
-   But going DEEPER (start advanced past the first 2), picking
-   the second '2' is legitimate — that's the subset [2,2].
-
-   level 0:  start=0, i=0 → [1]
-                     i=1 → [2]
-                     i=2 → SKIP (i>start and nums[2]==nums[1])
-   level 1:  start=2, i=2 → [2,2] ✅ allowed
-```
-
----
-
-### 18. Permutations 🟡
-```cpp
-vector<vector<int>> permute(vector<int>& nums) {
-    vector<vector<int>> out;
-    function<void(int)> bt = [&](int start) {
-        if (start == (int)nums.size()) { out.push_back(nums); return; }
-        for (int i = start; i < (int)nums.size(); ++i) {
-            swap(nums[start], nums[i]);            // ⭐ swap-based: no extra space
-            bt(start + 1);
-            swap(nums[start], nums[i]);            // undo
-        }
-    };
-    bt(0);
-    return out;
-}
-```
-
----
-
-### 19. Permutations II (with duplicates) 🟡
-```cpp
-vector<vector<int>> permuteUnique(vector<int>& nums) {
-    sort(nums.begin(), nums.end());
     int n = nums.size();
     vector<vector<int>> out;
-    vector<int> cur;
-    vector<bool> used(n, false);
-    function<void()> bt = [&]() {
-        if ((int)cur.size() == n) { out.push_back(cur); return; }
-        for (int i = 0; i < n; ++i) {
-            if (used[i]) continue;
-            // ⭐ only use a duplicate if its identical predecessor is already used
-            if (i > 0 && nums[i] == nums[i-1] && !used[i-1]) continue;
-            used[i] = true;  cur.push_back(nums[i]);
-            bt();
-            cur.pop_back();  used[i] = false;
-        }
-    };
-    bt();
+    for (int mask = 0; mask < (1 << n); ++mask) {   // ⭐ every subset = a bitmask
+        vector<int> subset;
+        for (int i = 0; i < n; ++i)
+            if (mask & (1 << i)) subset.push_back(nums[i]);
+        out.push_back(subset);
+    }
     return out;
 }
 ```
-**Key insight:** The `!used[i-1]` condition enforces that identical values are always consumed left-to-right, so each distinct arrangement is generated exactly once.
+⭐ **"Generate all subsets" without duplicates is equivalent to counting from `0` to `2ⁿ-1`** — each bit says whether that element is included.
 
----
-
-### 20. Combinations 🟡
-```cpp
-vector<vector<int>> combine(int n, int k) {
-    vector<vector<int>> out;
-    vector<int> cur;
-    function<void(int)> bt = [&](int start) {
-        if ((int)cur.size() == k) { out.push_back(cur); return; }
-        // ⭐ PRUNE: stop if not enough numbers remain to reach size k
-        for (int i = start; i <= n - (k - cur.size()) + 1; ++i) {
-            cur.push_back(i);
-            bt(i + 1);
-            cur.pop_back();
-        }
-    };
-    bt(1);
-    return out;
-}
+## 📌 Pattern Card
+```
+SIGNAL   generate all subsets/combinations
+KEY      ⭐ start-index recursion prevents order duplicates
+         subsets record at EVERY node; combos only at completion
+RELATED  Combination Sum · Letter Combinations · Palindrome Partitioning
 ```
 
 ---
 
-### 21. Combination Sum 🟡
+# 8. N-Queens
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **O(1) conflict checks via diagonal ids**
+
+> Place n queens on an n×n board, no two attacking.
+
+## 💬 The insight: encode diagonals as sums and differences
+
+```mermaid
+flowchart TD
+    A["⚠️ Checking 'is this square attacked'<br/>by scanning the whole board is<br/>O(n) per placement"] --> B["⭐ Track THREE sets instead:<br/>columns, and two kinds of diagonal"]
+    B --> C["column: just the column index"]
+    B --> D["⭐ '/' diagonal: row + col is CONSTANT<br/>along this diagonal"]
+    B --> E["⭐ '\\' diagonal: row − col is CONSTANT<br/>along this diagonal"]
+    C --> F["Checking a placement becomes<br/>THREE O(1) set lookups"]
+    D --> F
+    E --> F
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#bbdefb,stroke:#1565c0,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   WHY row+col AND row−col IDENTIFY DIAGONALS
+
+   (0,0) (0,1) (0,2)          row+col:  0  1  2
+   (1,0) (1,1) (1,2)                    1  2  3
+   (2,0) (2,1) (2,2)                    2  3  4
+
+   ⭐ Every cell on the SAME "\" diagonal shares row+col.
+
+   row−col:  0  -1  -2
+             1   0  -1
+             2   1   0
+
+   ⭐ Every cell on the SAME "/" diagonal shares row−col.
+```
+
 ```cpp
-vector<vector<int>> combinationSum(vector<int>& c, int target) {
-    sort(c.begin(), c.end());
-    vector<vector<int>> out;
-    vector<int> cur;
-    function<void(int,int)> bt = [&](int start, int rem) {
-        if (rem == 0) { out.push_back(cur); return; }
-        for (int i = start; i < (int)c.size(); ++i) {
-            if (c[i] > rem) break;                 // ⭐ sorted → all later are too big
-            cur.push_back(c[i]);
-            bt(i, rem - c[i]);                     // ⭐ `i` not `i+1` → reuse allowed
-            cur.pop_back();
-        }
-    };
-    bt(0, target);
-    return out;
-}
-```
-
----
-
-### 22. Combination Sum II (each used once) 🟡
-```cpp
-vector<vector<int>> combinationSum2(vector<int>& c, int target) {
-    sort(c.begin(), c.end());
-    vector<vector<int>> out;
-    vector<int> cur;
-    function<void(int,int)> bt = [&](int start, int rem) {
-        if (rem == 0) { out.push_back(cur); return; }
-        for (int i = start; i < (int)c.size(); ++i) {
-            if (c[i] > rem) break;
-            if (i > start && c[i] == c[i-1]) continue;   // skip duplicates
-            cur.push_back(c[i]);
-            bt(i + 1, rem - c[i]);                       // ⭐ i+1 → each used once
-            cur.pop_back();
-        }
-    };
-    bt(0, target);
-    return out;
-}
-```
-
----
-
-### 23. Combination Sum III 🟡
-```cpp
-vector<vector<int>> combinationSum3(int k, int n) {
-    vector<vector<int>> out;
-    vector<int> cur;
-    function<void(int,int)> bt = [&](int start, int rem) {
-        if ((int)cur.size() == k) { if (rem == 0) out.push_back(cur); return; }
-        for (int i = start; i <= 9; ++i) {
-            if (i > rem) break;
-            cur.push_back(i);
-            bt(i + 1, rem - i);
-            cur.pop_back();
-        }
-    };
-    bt(1, n);
-    return out;
-}
-```
-
----
-
-### 24. Letter Combinations of a Phone Number 🟡
-```cpp
-vector<string> letterCombinations(string digits) {
-    if (digits.empty()) return {};
-    const string map[] = {"", "", "abc", "def", "ghi", "jkl",
-                          "mno", "pqrs", "tuv", "wxyz"};
-    vector<string> out;
-    string cur;
-    function<void(int)> bt = [&](int i) {
-        if (i == (int)digits.size()) { out.push_back(cur); return; }
-        for (char c : map[digits[i] - '0']) {
-            cur.push_back(c);
-            bt(i + 1);
-            cur.pop_back();
-        }
-    };
-    bt(0);
-    return out;
-}
-```
-
----
-
-### 25. Generate Parentheses 🟡
-```cpp
-vector<string> generateParenthesis(int n) {
-    vector<string> out;
-    string cur;
-    function<void(int,int)> bt = [&](int open, int close) {
-        if ((int)cur.size() == 2 * n) { out.push_back(cur); return; }
-        if (open < n)     { cur += '('; bt(open + 1, close); cur.pop_back(); }
-        if (close < open) { cur += ')'; bt(open, close + 1); cur.pop_back(); }
-        //  ⭐ close < open is the whole validity rule
-    };
-    bt(0, 0);
-    return out;
-}
-```
-
-```
-   n = 2, the pruned decision tree:
-
-                    ""
-                    │  open<2 ✅
-                   "("
-              ┌─────┴─────┐
-        open<2 ✅      close<open ✅
-           "(("           "()"
-             │        ┌────┴────┐
-      close<open ✅  open<2 ✅  close<open ❌ (0<0 false)
-           "(()"        "()("
-             │            │
-           "(())" ✅    "()()"  ✅
-
-   The two conditions prune every invalid branch BEFORE building it.
-```
-
----
-
-### 26. Word Search 🟡
-```cpp
-bool exist(vector<vector<char>>& b, string word) {
-    int R = b.size(), C = b[0].size();
-    function<bool(int,int,int)> dfs = [&](int r, int c, int i) -> bool {
-        if (i == (int)word.size()) return true;
-        if (r < 0 || r >= R || c < 0 || c >= C || b[r][c] != word[i]) return false;
-        char tmp = b[r][c];
-        b[r][c] = '#';                             // ⭐ mark
-        bool found = dfs(r-1,c,i+1) || dfs(r+1,c,i+1)
-                  || dfs(r,c-1,i+1) || dfs(r,c+1,i+1);
-        b[r][c] = tmp;                             // ⭐ UNMARK — this is backtracking
-        return found;
-    };
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) if (dfs(r, c, 0)) return true;
-    return false;
-}
-```
-⚠️ **Compare to Number of Islands**, where you mark and *never* unmark. The difference: island counting wants each cell visited once globally; word search needs the cell available to *other paths*.
-
----
-
-### 27. Palindrome Partitioning 🟡
-```cpp
-vector<vector<string>> partition(string s) {
-    int n = s.size();
-    vector<vector<bool>> pal(n, vector<bool>(n, false));
-    for (int i = n - 1; i >= 0; --i)               // precompute palindromes
-        for (int j = i; j < n; ++j)
-            pal[i][j] = (s[i] == s[j]) && (j - i < 2 || pal[i+1][j-1]);
-
+class Solution {
+    int n;
     vector<vector<string>> out;
-    vector<string> cur;
-    function<void(int)> bt = [&](int start) {
-        if (start == n) { out.push_back(cur); return; }
-        for (int end = start; end < n; ++end) {
-            if (!pal[start][end]) continue;        // ⭐ prune non-palindromes
-            cur.push_back(s.substr(start, end - start + 1));
-            bt(end + 1);
-            cur.pop_back();
-        }
-    };
-    bt(0);
-    return out;
-}
-```
+    vector<int> queenCol;                         // queenCol[row] = column used
+    unordered_set<int> cols, diag1, diag2;         // ⭐ O(1) conflict checks
 
----
-
-### 28. N-Queens 🔴
-```cpp
-vector<vector<string>> solveNQueens(int n) {
-    vector<vector<string>> out;
-    vector<int> pos(n);                            // pos[row] = column
-    vector<bool> col(n, false), d1(2*n, false), d2(2*n, false);
-
-    function<void(int)> bt = [&](int r) {
-        if (r == n) {
+    void backtrack(int row) {
+        if (row == n) {
             vector<string> board(n, string(n, '.'));
-            for (int i = 0; i < n; ++i) board[i][pos[i]] = 'Q';
+            for (int r = 0; r < n; ++r) board[r][queenCol[r]] = 'Q';
             out.push_back(board);
             return;
         }
-        for (int c = 0; c < n; ++c) {
-            // ⭐ O(1) conflict check via three boolean arrays
-            if (col[c] || d1[r + c] || d2[r - c + n]) continue;
-            col[c] = d1[r + c] = d2[r - c + n] = true;
-            pos[r] = c;
-            bt(r + 1);
-            col[c] = d1[r + c] = d2[r - c + n] = false;   // undo
+
+        for (int col = 0; col < n; ++col) {
+            int d1 = row + col, d2 = row - col;
+            if (cols.count(col) || diag1.count(d1) || diag2.count(d2)) continue;   // ⭐ PRUNE
+
+            cols.insert(col); diag1.insert(d1); diag2.insert(d2);
+            queenCol[row] = col;
+
+            backtrack(row + 1);
+
+            cols.erase(col); diag1.erase(d1); diag2.erase(d2);   // ⭐ un-choose
         }
-    };
-    bt(0);
-    return out;
-}
-```
-
-```
-   Why r+c and r-c identify diagonals:
-
-        c=0  c=1  c=2  c=3          r+c  (anti-diagonal ↗)
-   r=0 [ 0 ][ 1 ][ 2 ][ 3 ]         every cell on the same ↗
-   r=1 [ 1 ][ 2 ][ 3 ][ 4 ]         diagonal has the SAME r+c
-   r=2 [ 2 ][ 3 ][ 4 ][ 5 ]
-   r=3 [ 3 ][ 4 ][ 5 ][ 6 ]
-
-        c=0  c=1  c=2  c=3          r-c  (main diagonal ↘)
-   r=0 [ 0 ][-1 ][-2 ][-3 ]         same ↘ diagonal → same r-c
-   r=1 [ 1 ][ 0 ][-1 ][-2 ]         (+n to keep the index non-negative)
-   r=2 [ 2 ][ 1 ][ 0 ][-1 ]
-   r=3 [ 3 ][ 2 ][ 1 ][ 0 ]
-```
-
----
-
-### 29. Sudoku Solver 🔴
-```cpp
-bool solveSudoku(vector<vector<char>>& b) {
-    for (int r = 0; r < 9; ++r)
-        for (int c = 0; c < 9; ++c) {
-            if (b[r][c] != '.') continue;
-            for (char d = '1'; d <= '9'; ++d) {
-                if (!isValid(b, r, c, d)) continue;
-                b[r][c] = d;
-                if (solveSudoku(b)) return true;   // ⭐ solved downstream → done
-                b[r][c] = '.';                     // undo and try the next digit
-            }
-            return false;                          // ⭐ no digit works → backtrack
-        }
-    return true;                                   // no empty cells left
-}
-bool isValid(vector<vector<char>>& b, int r, int c, char d) {
-    for (int i = 0; i < 9; ++i) {
-        if (b[r][i] == d || b[i][c] == d) return false;
-        if (b[3*(r/3) + i/3][3*(c/3) + i%3] == d) return false;   // the 3×3 box
     }
-    return true;
-}
+
+public:
+    vector<vector<string>> solveNQueens(int N) {
+        n = N;
+        queenCol.assign(n, 0);
+        backtrack(0);
+        return out;
+    }
+};
+```
+
+⭐ **Placing one queen per row by construction** eliminates the row-conflict check entirely — you never need to ask "is this row already used."
+
+🎤 **Follow-up: just count solutions (N-Queens II)?** Same code, drop the board construction — often solved even faster with bitmasks representing the "available columns" as a single integer and using `lowbit` tricks to enumerate placements.
+
+## 📌 Pattern Card
+```
+SIGNAL   placement puzzles with pairwise conflict constraints
+KEY      ⭐ encode each conflict TYPE as its own set for O(1) checks
+         diagonals: row+col and row−col are each constant
+RELATED  Sudoku Solver · N-Queens II
 ```
 
 ---
 
-### 30. Restore IP Addresses 🟡
+# 9. Sudoku Solver
+🔴 ⚪ **Variation of #8** — same backtracking shape, three constraint types instead of three diagonal types.
+
 ```cpp
-vector<string> restoreIpAddresses(string s) {
-    vector<string> out;
-    vector<string> parts;
-    function<void(int)> bt = [&](int start) {
-        if (parts.size() == 4) {
-            if (start == (int)s.size())
-                out.push_back(parts[0]+"."+parts[1]+"."+parts[2]+"."+parts[3]);
-            return;
+class Solution {
+    bool rows[9][10] = {}, cols[9][10] = {}, boxes[9][10] = {};
+
+    bool solve(vector<vector<char>>& b, int r, int c) {
+        if (r == 9) return true;                  // ⭐ filled everything
+        if (c == 9) return solve(b, r + 1, 0);     // ⭐ wrap to the next row
+
+        if (b[r][c] != '.') return solve(b, r, c + 1);   // pre-filled, skip
+
+        int box = (r / 3) * 3 + c / 3;
+        for (int d = 1; d <= 9; ++d) {
+            if (rows[r][d] || cols[c][d] || boxes[box][d]) continue;   // ⭐ PRUNE
+
+            rows[r][d] = cols[c][d] = boxes[box][d] = true;
+            b[r][c] = '0' + d;
+
+            if (solve(b, r, c + 1)) return true;   // ⭐ propagate success upward
+
+            rows[r][d] = cols[c][d] = boxes[box][d] = false;   // un-choose
+            b[r][c] = '.';
         }
-        for (int len = 1; len <= 3 && start + len <= (int)s.size(); ++len) {
-            string seg = s.substr(start, len);
-            if (seg.size() > 1 && seg[0] == '0') break;   // ⭐ no leading zeros
-            if (stoi(seg) > 255) break;                    // ⭐ max octet
-            parts.push_back(seg);
-            bt(start + len);
-            parts.pop_back();
-        }
-    };
-    bt(0);
-    return out;
+        return false;                              // ⭐ no digit works → backtrack further
+    }
+
+public:
+    void solveSudoku(vector<vector<char>>& b) {
+        for (int r = 0; r < 9; ++r)
+            for (int c = 0; c < 9; ++c)
+                if (b[r][c] != '.') {
+                    int d = b[r][c] - '0', box = (r / 3) * 3 + c / 3;
+                    rows[r][d] = cols[c][d] = boxes[box][d] = true;
+                }
+        solve(b, 0, 0);
+    }
+};
+```
+⭐ **`box = (r/3)*3 + c/3` maps any cell to its 3×3 block index (0–8)** — one integer formula replaces nested box-boundary arithmetic.
+
+---
+
+# 10. Palindrome Partitioning
+🟡 ⚪ **Variation of #6/#7's start-index skeleton** — the constraint is "each piece is a palindrome."
+
+```cpp
+void backtrack(string& s, int start, vector<string>& path, vector<vector<string>>& out) {
+    if (start == (int)s.size()) { out.push_back(path); return; }
+
+    for (int end = start; end < (int)s.size(); ++end) {
+        if (!isPalindrome(s, start, end)) continue;   // ⭐ PRUNE non-palindromes
+
+        path.push_back(s.substr(start, end - start + 1));
+        backtrack(s, end + 1, path, out);
+        path.pop_back();
+    }
+}
+```
+🎤 **Follow-up: minimum cuts, not all partitions?** That's a different problem — [Palindrome Partitioning II](09-dynamic-programming.md#20-palindrome-partitioning-ii), solved with DP, because "minimum" wants an optimum, not an enumeration.
+
+---
+
+# 11. Word Search
+🟡 ⚪ **Variation** — grid DFS with in-place marking, exactly like [Number of Islands](08-graphs.md#1-number-of-islands) but with a target string.
+
+```cpp
+bool dfs(vector<vector<char>>& b, string& word, int r, int c, int idx) {
+    if (idx == (int)word.size()) return true;    // ⭐ matched the whole word
+    if (r < 0 || r >= (int)b.size() || c < 0 || c >= (int)b[0].size()
+        || b[r][c] != word[idx]) return false;
+
+    char tmp = b[r][c];
+    b[r][c] = '#';                                // ⭐ mark — can't reuse a cell
+
+    bool found = dfs(b,word,r-1,c,idx+1) || dfs(b,word,r+1,c,idx+1)
+              || dfs(b,word,r,c-1,idx+1) || dfs(b,word,r,c+1,idx+1);
+
+    b[r][c] = tmp;                                // ⭐⭐ RESTORE — this path failed,
+                                                  //    the cell is reusable elsewhere
+    return found;
+}
+```
+⚠️ **The restore is essential here**, unlike flood fill — a cell used on one attempted path must be available again for a different starting cell's search.
+
+---
+
+# 12. Generate Parentheses
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Backtracking constrained by two counters**
+
+> All combinations of n pairs of well-formed parentheses.
+
+```mermaid
+flowchart TD
+    A["track: open used, close used"] --> B{"open &lt; n?"}
+    B -->|"yes"| C["can ALWAYS add '('"]
+    B -->|"no"| D["can't add more '('"]
+    E{"close &lt; open?"}
+    E -->|"yes"| F["⭐ can add ')' — there's an<br/>UNMATCHED '(' waiting"]
+    E -->|"no"| G["⚠️ adding ')' now would make<br/>a prefix with more closes<br/>than opens — INVALID"]
+
+    style C fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style G fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+```
+
+```cpp
+void backtrack(int n, int open, int close, string& path, vector<string>& out) {
+    if ((int)path.size() == 2 * n) { out.push_back(path); return; }
+
+    if (open < n) {                               // ⭐ always legal to open more
+        path.push_back('(');
+        backtrack(n, open + 1, close, path, out);
+        path.pop_back();
+    }
+    if (close < open) {                            // ⭐⭐ the ENTIRE validity constraint
+        path.push_back(')');
+        backtrack(n, open, close + 1, path, out);
+        path.pop_back();
+    }
+}
+```
+⭐ **`close < open` alone guarantees every generated string is valid** — no post-hoc validation is ever needed, because an invalid state is simply never reachable.
+
+## 📌 Pattern Card
+```
+SIGNAL   generate all valid sequences under a structural constraint
+KEY      ⭐ encode the constraint directly in the branching condition
+         so invalid states are unreachable, not filtered out after
+RELATED  Remove Invalid Parentheses · Letter Combinations of a Phone Number
+```
+
+---
+
+# 13. Single Number I / II / III
+
+🟢 **Easy to state, ⭐ each variant needs a different XOR trick**
+
+## I — every number appears twice except one
+```mermaid
+flowchart TD
+    A["⭐ XOR is its own inverse:<br/>x ^ x = 0, and x ^ 0 = x"] --> B["XOR every element together"]
+    B --> C["⭐ Pairs cancel to 0,<br/>the lone survivor remains"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+```cpp
+int singleNumber(vector<int>& a) {
+    int x = 0;
+    for (int v : a) x ^= v;                       // ⭐ pairs cancel
+    return x;
 }
 ```
 
----
+## II — every number appears THREE times except one
+```
+   ⭐⭐ XOR alone can't help — three copies don't cancel to 0.
 
-### 31. Word Break II 🔴
+   Track bits appearing exactly ONCE and TWICE, using ANOTHER
+   pair of bitwise tricks (ones/twos rotate through states):
+
+     ones  = bits seen exactly 1 time (mod 3)
+     twos  = bits seen exactly 2 times (mod 3)
+
+   When a bit is seen a 3rd time, both reset to 0 — simulating
+   a base-3 counter using only bitwise ops.
+```
 ```cpp
-vector<string> wordBreak(string s, vector<string>& dict) {
-    unordered_set<string> d(dict.begin(), dict.end());
-    unordered_map<int, vector<string>> memo;       // ⭐ memoize by start index
-
-    function<vector<string>(int)> bt = [&](int start) -> vector<string> {
-        if (memo.count(start)) return memo[start];
-        vector<string> res;
-        if (start == (int)s.size()) { res.push_back(""); return res; }
-
-        for (int end = start + 1; end <= (int)s.size(); ++end) {
-            string word = s.substr(start, end - start);
-            if (!d.count(word)) continue;
-            for (auto& rest : bt(end))
-                res.push_back(word + (rest.empty() ? "" : " " + rest));
-        }
-        return memo[start] = res;
-    };
-    return bt(0);
-}
-```
-**Key insight:** Pure backtracking is exponential on inputs like `"aaaaaaa..."` with dict `{"a","aa","aaa"}`. Memoizing the *list of results* per start index makes it tractable.
-
----
-
-### 32. Beautiful Arrangement 🟡
-```cpp
-int countArrangement(int n) {
-    vector<bool> used(n + 1, false);
-    function<int(int)> bt = [&](int pos) -> int {
-        if (pos > n) return 1;
-        int count = 0;
-        for (int i = 1; i <= n; ++i) {
-            if (used[i]) continue;
-            if (i % pos && pos % i) continue;      // ⭐ divisibility constraint
-            used[i] = true;
-            count += bt(pos + 1);
-            used[i] = false;
-        }
-        return count;
-    };
-    return bt(1);
-}
-```
-
----
-
-## Part 3 — Bit Manipulation
-
-### 🧠 The essential tricks
-
-```cpp
-x & 1                      // is x odd?
-x >> 1                     // divide by 2
-x << 1                     // multiply by 2
-x & (x - 1)                // ⭐ clear the LOWEST set bit
-x & (-x)                   // ⭐ isolate the LOWEST set bit
-x | (x + 1)                // set the lowest zero bit
-(x & (x - 1)) == 0         // is x a power of two? (for x > 0)
-__builtin_popcount(x)      // count set bits
-__builtin_ctz(x)           // count trailing zeros
-```
-
-```
-   WHY x & (x-1) clears the lowest set bit:
-
-   x     = 1011000
-   x - 1 = 1010111    ← borrowing flips the lowest 1 and everything below it
-   ─────────────────
-   AND   = 1010000    ← the lowest 1 is gone ✅
-
-   WHY x & (-x) isolates it:
-
-   x     = 1011000
-   -x    = 0101000    ← two's complement = ~x + 1
-   ─────────────────
-   AND   = 0001000    ← only the lowest 1 survives ✅
-```
-
-```
-   XOR PROPERTIES — the foundation of many tricks
-
-   a ^ a = 0        anything XORed with itself vanishes
-   a ^ 0 = a        XOR with zero is identity
-   commutative and associative → order doesn't matter
-
-   ⭐ Consequence: XOR everything together and pairs cancel out,
-     leaving only the unpaired element.
-```
-
----
-
-### 33. Single Number 🟢
-```cpp
-int singleNumber(vector<int>& nums) {
-    int r = 0;
-    for (int x : nums) r ^= x;                     // pairs cancel, the loner survives
-    return r;
-}
-```
-
----
-
-### 34. Single Number II (others appear 3×) 🟡
-```cpp
-int singleNumber(vector<int>& nums) {
+int singleNumber(vector<int>& a) {
     int ones = 0, twos = 0;
-    for (int x : nums) {
-        ones = (ones ^ x) & ~twos;                 // ⭐ a 2-bit counter, per bit position
-        twos = (twos ^ x) & ~ones;
+    for (int x : a) {
+        ones = (ones ^ x) & ~twos;                 // ⭐ add x to "seen once" unless
+                                                   //    it's already at "seen twice"
+        twos = (twos ^ x) & ~ones;                 // ⭐ mirror logic
     }
     return ones;
 }
 ```
-**Key insight:** `ones` and `twos` together form a mod-3 counter for every bit position simultaneously. When a bit reaches count 3, both are cleared.
 
----
+## III — TWO numbers each appear once, rest appear twice
+```mermaid
+flowchart TD
+    A["XOR everything → get a^b<br/>(the XOR of the two singles)"] --> B["⭐ Find any SET BIT in a^b —<br/>a and b DIFFER there"]
+    B --> C["⭐ Partition all numbers by that bit<br/>→ splits a and b into<br/>DIFFERENT groups"]
+    C --> D["XOR each group separately<br/>→ isolates a and b"]
 
-### 35. Single Number III (two loners) 🟡
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 ```cpp
-vector<int> singleNumber(vector<int>& nums) {
-    long long xorAll = 0;
-    for (int x : nums) xorAll ^= x;                // = a ^ b (the two unique numbers)
+vector<int> singleNumberIII(vector<int>& a) {
+    int xorAll = 0;
+    for (int x : a) xorAll ^= x;
 
-    int lowbit = xorAll & (-xorAll);               // ⭐ a bit where a and b DIFFER
-    int a = 0, b = 0;
-    for (int x : nums) {
-        if (x & lowbit) a ^= x;                    // partition into two groups
-        else            b ^= x;
-    }
-    return {a, b};
+    int diffBit = xorAll & (-xorAll);              // ⭐ isolates the LOWEST set bit
+
+    int a1 = 0, a2 = 0;
+    for (int x : a)
+        (x & diffBit) ? a1 ^= x : a2 ^= x;          // ⭐ partition by that bit
+    return {a1, a2};
 }
 ```
-**Key insight:** Any set bit in `a ^ b` is a position where they differ. Splitting on that bit puts `a` and `b` in different groups, and each group reduces to the simple single-number problem.
+⭐ **`x & (-x)` isolating the lowest set bit** is the same trick used in Fenwick trees ([Trees #20](06-trees.md#20-segment-tree--fenwick-tree)).
+
+## 📌 Pattern Card
+```
+SIGNAL   find unique element(s) among duplicates, O(1) space
+KEY      appears 2×: XOR all · appears 3×: bit-counting state machine
+         two unique: partition by a differing bit
+RELATED  Missing Number · Find the Duplicate Number
+```
 
 ---
 
-### 36. Number of 1 Bits 🟢
+# 14. Number of 1 Bits / Counting Bits
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **`n & (n-1)` clears the lowest set bit**
+
+```mermaid
+flowchart TD
+    A["n     = 1011000₂"] --> B["n − 1 = 1010111₂<br/>⭐ everything below the lowest<br/>set bit FLIPS"]
+    B --> C["n &amp; (n−1) = 1010000₂<br/>⭐ the lowest set bit is GONE"]
+
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
 int hammingWeight(uint32_t n) {
     int count = 0;
-    while (n) { n &= (n - 1); ++count; }           // ⭐ loops once PER SET BIT
-    return count;
+    while (n) { n &= (n - 1); ++count; }          // ⭐ one iteration per SET bit,
+    return count;                                //    not per total bit
 }
 ```
+⭐ **This runs in O(popcount), not O(32)** — a sparse number with few set bits finishes almost immediately.
 
----
+## Counting Bits — for every i in [0, n]
+```mermaid
+flowchart TD
+    A["⭐ dp[i] = dp[i &amp; (i−1)] + 1"] --> B["i &amp; (i−1) is a SMALLER number,<br/>already computed"]
+    B --> C["popcount(i) = popcount(i without its<br/>lowest set bit) + 1"]
 
-### 37. Counting Bits 🟢
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 ```cpp
 vector<int> countBits(int n) {
     vector<int> dp(n + 1, 0);
     for (int i = 1; i <= n; ++i)
-        dp[i] = dp[i >> 1] + (i & 1);              // ⭐ i's bits = (i/2)'s bits + last bit
+        dp[i] = dp[i & (i - 1)] + 1;               // ⭐ O(n) total, not O(n log n)
     return dp;
 }
 ```
 
 ---
 
-### 38. Reverse Bits 🟢
-```cpp
-uint32_t reverseBits(uint32_t n) {
-    uint32_t r = 0;
-    for (int i = 0; i < 32; ++i) {
-        r = (r << 1) | (n & 1);                    // shift result left, pull n's low bit
-        n >>= 1;
-    }
-    return r;
-}
+# 15. Sum of Two Integers (No +/−)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **XOR is addition without carrying**
+
+```mermaid
+flowchart TD
+    A["⭐ XOR gives the SUM ignoring carries"] --> B["⭐ AND, shifted left 1, gives<br/>exactly the CARRY bits"]
+    B --> C["Repeat: xor + carry, xor + carry...<br/>until carry becomes 0"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
+```
+   a = 0101 (5)   b = 0011 (3)
 
-### 39. Missing Number 🟢
-```cpp
-int missingNumber(vector<int>& nums) {
-    int r = nums.size();
-    for (int i = 0; i < (int)nums.size(); ++i) r ^= i ^ nums[i];
-    return r;
-}
+   xor(a,b)        = 0110    (sum ignoring carry)
+   and(a,b) &lt;&lt; 1    = 0010    (the carry positions)
+
+   repeat with (0110, 0010):
+   xor  = 0100
+   carry= 0100    ⭐ (0010 & 0110)=0010, <<1 = 0100
+
+   repeat with (0100, 0100):
+   xor  = 0000
+   carry= 1000
+
+   repeat with (0000, 1000):
+   xor  = 1000
+   carry= 0000   ⭐ DONE
+
+   RESULT: 1000 = 8 = 5 + 3 ✅
 ```
 
----
-
-### 40. Sum of Two Integers (no + operator) 🟡
 ```cpp
 int getSum(int a, int b) {
-    while (b) {
-        unsigned carry = (unsigned)(a & b) << 1;   // ⭐ AND finds carry positions
-        a = a ^ b;                                 // ⭐ XOR is addition without carry
+    while (b != 0) {
+        int carry = (unsigned int)(a & b) << 1;   // ⚠️ unsigned — avoids UB on
+                                                  //    signed overflow shift
+        a = a ^ b;
         b = carry;
     }
     return a;
 }
 ```
-
-```
-   5 + 3:
-     a=101  b=011   →  xor=110  carry=(001)<<1=010
-     a=110  b=010   →  xor=100  carry=(010)<<1=100
-     a=100  b=100   →  xor=000  carry=(100)<<1=1000
-     a=000  b=1000  →  xor=1000 carry=0
-     a=1000 = 8 ✅
-```
+⚠️ **The cast to `unsigned int` before shifting** avoids undefined behavior when the sign bit would otherwise overflow during a signed left shift.
 
 ---
 
-### 41. Maximum XOR of Two Numbers 🟡
-```cpp
-int findMaximumXOR(vector<int>& nums) {
-    int mx = 0, mask = 0;
-    for (int bit = 31; bit >= 0; --bit) {          // ⭐ greedy, high bit first
-        mask |= (1 << bit);
-        unordered_set<int> prefixes;
-        for (int x : nums) prefixes.insert(x & mask);
+# 16. Missing Number / Bit Tricks
+🟢 ⚪ **Variation of #13** — XOR every index AND every value; only the missing one survives unpaired.
 
-        int candidate = mx | (1 << bit);           // can we achieve this bit?
-        for (int p : prefixes)
-            if (prefixes.count(p ^ candidate)) { mx = candidate; break; }
-    }
-    return mx;
+```cpp
+int missingNumber(vector<int>& a) {
+    int x = a.size();                             // ⭐ pre-seed with n
+    for (int i = 0; i < (int)a.size(); ++i) x ^= i ^ a[i];
+    return x;
 }
 ```
-**Key insight:** Build the answer bit by bit from the top. `a ^ b == c` implies `a ^ c == b`, so checking whether a needed partner exists is a hash-set lookup.
+⭐ **Every index `i` and value `a[i]` cancels except the missing one** — since indices run `0..n-1` but values are a permutation of `0..n` minus one element.
 
 ---
 
-### 42. Subsets via Bitmask 🟡
+# 17. Reverse Bits
+🟢 ⚪ **Variation** — extract each bit from one end, place it at the other.
+
 ```cpp
-vector<vector<int>> subsets(vector<int>& nums) {
-    int n = nums.size();
-    vector<vector<int>> out;
-    for (int mask = 0; mask < (1 << n); ++mask) {  // ⭐ every integer IS a subset
-        vector<int> cur;
-        for (int i = 0; i < n; ++i)
-            if (mask & (1 << i)) cur.push_back(nums[i]);
-        out.push_back(cur);
-    }
-    return out;
-}
-```
-
----
-
-## Part 4 — Math
-
-### 43. Pow(x, n) — Fast Exponentiation 🟡
-```cpp
-double myPow(double x, int n) {
-    long long N = n;
-    if (N < 0) { x = 1 / x; N = -N; }              // ⭐ long long avoids INT_MIN overflow
-    double result = 1;
-    while (N) {
-        if (N & 1) result *= x;                    // this bit is set → multiply in
-        x *= x;                                     // square the base
-        N >>= 1;
+uint32_t reverseBits(uint32_t n) {
+    uint32_t result = 0;
+    for (int i = 0; i < 32; ++i) {
+        result = (result << 1) | (n & 1);          // ⭐ shift result left, append n's LSB
+        n >>= 1;
     }
     return result;
 }
 ```
 
+---
+
+# 18. Power of Two / Power of Four
+🟢 ⚪ **Variation of #14** — a power of two has exactly one set bit.
+
+```cpp
+bool isPowerOfTwo(int n) {
+    return n > 0 && (n & (n - 1)) == 0;            // ⭐ clearing the only set bit → 0
+}
+
+bool isPowerOfFour(int n) {
+    // ⭐ power of two AND the set bit is in an EVEN position
+    return n > 0 && (n & (n - 1)) == 0 && (n & 0xAAAAAAAA) == 0;
+}
 ```
-   x¹³ where 13 = 1101 in binary
-
-   13 = 8 + 4 + 1   →   x¹³ = x⁸ · x⁴ · x¹
-
-   bit   base       take?   result
-   1     x          ✅      x
-   0     x²         ❌      x
-   1     x⁴         ✅      x⁵
-   1     x⁸         ✅      x¹³ ✅
-
-   O(log n) multiplications instead of O(n)
-```
+⭐ **`0xAAAAAAAA`** has 1s at every odd bit position (1, 3, 5, ...) — ANDing with it and requiring zero confirms the single set bit sits at an even position, which is exactly what distinguishes 4^k from other powers of 2.
 
 ---
 
-### 44. Sqrt(x) 🟢
+# 19. Pow(x, n)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Fast exponentiation by squaring**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 MULTIPLY n TIMES<br/><b>O(n)</b>"] --> B["🚀 EXPONENTIATION BY SQUARING<br/><b>O(log n)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["⭐ x^n = (x²)^(n/2)      if n even<br/>⭐ x^n = x · (x²)^(n/2)  if n odd"] --> B["Each step HALVES the exponent"]
+    B --> C["⭐ O(log n) multiplications<br/>instead of O(n)"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
-int mySqrt(int x) {
-    long long lo = 0, hi = x;
-    while (lo <= hi) {
-        long long mid = lo + (hi - lo) / 2;
-        if (mid * mid <= x) lo = mid + 1;
-        else hi = mid - 1;
+double myPow(double x, long long n) {              // ⚠️ long long — n=INT_MIN
+    if (n < 0) { x = 1 / x; n = -n; }               //    overflows as int
+
+    double result = 1;
+    while (n) {
+        if (n & 1) result *= x;                     // ⭐ this bit of n is set
+        x *= x;                                     // ⭐ square the base
+        n >>= 1;
     }
-    return hi;                                     // ⭐ hi lands on the floor
+    return result;
+}
+```
+⚠️ **`n = INT_MIN` negated as an `int` overflows** — hence the `long long`. This edge case is a favorite interview trap.
+
+⭐ **The same squaring trick computes matrix powers in O(log n)**, which is how you solve Fibonacci and general linear recurrences in logarithmic time.
+
+---
+
+# 20. Sqrt(x) and Newton's Method
+🟢 ⚪ **Variation** — binary search, or the far faster Newton's method.
+
+```cpp
+// Binary search — O(log x)
+int mySqrt(int x) {
+    if (x < 2) return x;
+    long lo = 1, hi = x;
+    while (lo < hi) {
+        long mid = lo + (hi - lo + 1) / 2;          // ⭐ upper mid — avoids infinite loop
+        if (mid * mid <= x) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+}
+
+// ⭐ Newton's method — converges QUADRATICALLY, ~5 iterations for any 32-bit x
+int mySqrtNewton(int x) {
+    if (x == 0) return 0;
+    double guess = x;
+    while (abs(guess * guess - x) > 1e-6)
+        guess = (guess + x / guess) / 2;            // ⭐ average guess with x/guess
+    return (int)guess;
+}
+```
+⭐ **Newton's method halves the number of correct digits each iteration** — fundamentally faster than binary search's linear digit gain, though binary search is easier to make exactly correct on integers.
+
+---
+
+# 21. GCD / LCM / Extended Euclid
+
+🟢 **Easy** · 🔵 Full ladder · ⭐ **The algorithm behind half of number theory**
+
+```mermaid
+flowchart TD
+    A["⭐ gcd(a, b) = gcd(b, a mod b)"] --> B["repeat until b == 0"]
+    B --> C["⭐ a at that point IS the answer"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐ WHY THIS WORKS
+     Any common divisor of a and b also divides (a mod b),
+     because a mod b = a − k·b for some integer k.
+     So gcd(a,b) = gcd(b, a mod b) exactly. ∎
+```
+
+```cpp
+long long gcd(long long a, long long b) { return b ? gcd(b, a % b) : a; }
+long long lcm(long long a, long long b) { return a / gcd(a, b) * b; }   // ⚠️ divide FIRST — avoids overflow
+```
+
+⭐ **Extended Euclid** finds integers `x, y` such that `ax + by = gcd(a,b)` — the basis for modular inverses and the CRT.
+```cpp
+long long extGcd(long long a, long long b, long long& x, long long& y) {
+    if (!b) { x = 1; y = 0; return a; }
+    long long x1, y1;
+    long long g = extGcd(b, a % b, x1, y1);
+    x = y1;
+    y = x1 - (a / b) * y1;                          // ⭐ back-substitution
+    return g;
 }
 ```
 
 ---
 
-### 45. Count Primes (Sieve of Eratosthenes) 🟡
+# 22. Count Primes (Sieve of Eratosthenes)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **O(n log log n)**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["🐌 TRIAL DIVISION per number<br/><b>O(n√n)</b>"] --> B["🚀 SIEVE OF ERATOSTHENES<br/><b>O(n log log n)</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```mermaid
+flowchart TD
+    A["for each number p starting at 2"] --> B{"is p still<br/>marked prime?"}
+    B -->|"yes"| C["⭐ mark EVERY MULTIPLE of p<br/>as composite, starting from p²"]
+    B -->|"no, already crossed out"| D["skip — it's composite,<br/>a smaller factor got it first"]
+    C --> E["⭐⭐ start from p², not 2p —<br/>smaller multiples were already<br/>marked by SMALLER primes"]
+
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
 ```cpp
 int countPrimes(int n) {
-    if (n < 3) return 0;
+    if (n < 2) return 0;
     vector<bool> composite(n, false);
     int count = 0;
-    for (int i = 2; i < n; ++i) {
-        if (composite[i]) continue;
+
+    for (int p = 2; p < n; ++p) {
+        if (composite[p]) continue;
         ++count;
-        for (long long j = (long long)i * i; j < n; j += i)   // ⭐ start at i², not 2i
-            composite[j] = true;
+
+        if ((long long)p * p < n)                   // ⚠️ overflow guard for large n
+            for (int m = p * p; m < n; m += p)       // ⭐ start at p², step by p
+                composite[m] = true;
     }
     return count;
 }
 ```
 
 ```
-   Sieve for n = 20:
+   ⭐⭐ WHY STARTING AT p² IS SAFE
 
-   2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
-   ✓  ✓  ✗  ✓  ✗  ✓  ✗  ✗  ✗  ✓  ✗  ✓  ✗  ✗  ✗  ✓  ✗  ✓
+   Any composite multiple of p smaller than p² is of the form
+   k·p where k < p. But k < p means k has already been used as
+   a sieving prime (or is composite and was marked by ITS
+   smallest prime factor, which is < p). Either way, k·p was
+   already marked. Starting at p² skips redundant work.
 
-   Start at i² because anything smaller (2i, 3i, ...) was
-   already crossed off by a smaller prime factor.
-```
-**Complexity:** O(n log log n).
-
----
-
-### Bonus: GCD / LCM
-```cpp
-int gcd(int a, int b) { return b ? gcd(b, a % b) : a; }        // Euclid
-long long lcm(int a, int b) { return (long long)a / gcd(a, b) * b; }
-//                                            ⭐ divide FIRST to avoid overflow
+   ⭐ This is what gives the O(n log log n) bound — each
+     composite is marked once by its SMALLEST prime factor,
+     not once per every prime factor.
 ```
 
 ---
 
-### Bonus: Modular Arithmetic
-```cpp
-const int MOD = 1e9 + 7;
-long long addMod(long long a, long long b) { return (a + b) % MOD; }
-long long mulMod(long long a, long long b) { return a % MOD * (b % MOD) % MOD; }
+# 23. Random Pick with Weight / Reservoir Sampling
 
-long long powMod(long long b, long long e, long long m) {
-    long long r = 1; b %= m;
-    while (e) { if (e & 1) r = r * b % m; b = b * b % m; e >>= 1; }
-    return r;
+🟡 **Medium** · 🔵 Full ladder · **Two distinct sampling techniques**
+
+## Random Pick with Weight — ⭐ prefix sums + binary search
+```mermaid
+flowchart TD
+    A["⭐ build a prefix-sum array of weights"] --> B["pick a random value in<br/>[1, totalWeight]"]
+    B --> C["⭐ binary search: the first prefix<br/>sum ≥ that random value<br/>gives the chosen index"]
+    C --> D["⭐ Larger weights occupy WIDER<br/>ranges in the prefix array —<br/>naturally proportional"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+```cpp
+class Solution {
+    vector<int> prefix;
+public:
+    Solution(vector<int>& w) {
+        partial_sum(w.begin(), w.end(), back_inserter(prefix));
+    }
+    int pickIndex() {
+        int target = 1 + rand() % prefix.back();      // ⭐ 1..totalWeight
+        return lower_bound(prefix.begin(), prefix.end(), target) - prefix.begin();
+    }
+};
+```
+
+## Reservoir Sampling — ⭐ uniform sampling from an unknown-length stream
+```mermaid
+flowchart TD
+    A["⭐ keep the i-th element with<br/>probability 1/i"] --> B["when it's kept, it REPLACES<br/>the current answer"]
+    B --> C["⭐⭐ every element ends up with<br/>EQUAL final probability 1/n,<br/>even though n isn't known<br/>in advance"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+```cpp
+int pick(ListNode* head) {                          // pick a uniformly random node value
+    int result = 0, i = 0;
+    for (ListNode* n = head; n; n = n->next) {
+        ++i;
+        if (rand() % i == 0) result = n->val;         // ⭐ probability 1/i of replacing
+    }
+    return result;
 }
-// Modular inverse when m is prime (Fermat's little theorem):
-long long inv(long long a) { return powMod(a, MOD - 2, MOD); }
+```
+```
+   ⭐⭐ THE INDUCTIVE PROOF
+
+   After processing i elements, each has probability 1/i of
+   being the current answer (base case: after 1 element,
+   probability is trivially 1/1).
+
+   When element i+1 arrives, it becomes the answer with
+   probability 1/(i+1). Every PREVIOUS element survives with
+   probability (1 − 1/(i+1)) = i/(i+1).
+
+   So a previous element's overall probability becomes
+   (1/i) · (i/(i+1)) = 1/(i+1). ⭐ Induction holds — every
+   element ends with probability 1/n. ∎
 ```
 
 ---
 
-## 📋 Section Summary
+# 24. Majority Element
 
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║        GREEDY · BACKTRACKING · BITS · MATH — PATTERN RECALL       ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ GREEDY — must be PROVEN, not assumed                              ║
-║   exchange argument · greedy stays ahead                          ║
-║   ⭐ intervals: sort by END for max-count problems                 ║
-║   ⭐ two opposing constraints → TWO PASSES + max() (candy)         ║
-║   ⭐ "restart after failure" (gas station) → O(n) not O(n²)        ║
-║   FAILS on: 0/1 knapsack, coin change with odd denominations      ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ BACKTRACKING — choose → explore → UN-CHOOSE                       ║
-║   ⭐ pruning is what makes it fast, not the recursion              ║
-║   duplicates → SORT, then skip `i > start && a[i]==a[i-1]`        ║
-║   combinations: bt(i+1) no reuse · bt(i) allows reuse             ║
-║   N-Queens: r+c and r-c identify the two diagonals                ║
-║   word search UNMARKS · island counting does NOT                  ║
-║   exponential blowup → add memoization (word break II)            ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ BITS                                                              ║
-║   x & (x-1)  clears the lowest set bit  → popcount loop           ║
-║   x & (-x)   isolates the lowest set bit → partitioning trick     ║
-║   XOR cancels pairs → single number family                        ║
-║   two loners → split the array on a differing bit                 ║
-║   subsets → iterate mask from 0 to 2ⁿ-1                           ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ MATH                                                              ║
-║   fast pow → square the base, consume exponent bits, O(log n)     ║
-║   sieve → start crossing off at i², O(n log log n)                ║
-║   lcm → DIVIDE before multiplying to avoid overflow               ║
-║   modular inverse (prime m) → powMod(a, m-2, m)                   ║
-╚═══════════════════════════════════════════════════════════════════╝
+🟢 **Easy** · 🔵 Full ladder · ⭐ **Boyer-Moore voting**
+
+> The element appearing more than ⌊n/2⌋ times. **O(n) time, O(1) space.**
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ HASH MAP counting<br/><b>O(n)</b> / O(n)"] --> B["⚡ SORT, take the middle<br/><b>O(n log n)</b> / O(1)"]
+    B --> C["🚀 BOYER-MOORE VOTING<br/><b>O(n)</b> / <b>O(1)</b>"]
+
+    style A fill:#fff9c4,stroke:#f9a825,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
-**Next:** [Master Problem Index →](INDEX.md)
+## 💬 The voting insight
+
+```mermaid
+flowchart TD
+    A["⭐ Treat the majority element as +1<br/>and every OTHER element as −1"] --> B["Since the majority appears &gt; n/2<br/>times, the total sum is<br/>PROVABLY positive"]
+    B --> C["⭐ Maintain a 'candidate' and a<br/>count. Matching votes increment,<br/>mismatches decrement."]
+    C --> D{"count hits 0?"}
+    D -->|"yes"| E["⭐ discard the candidate —<br/>votes so far CANCEL OUT,<br/>so the majority must be<br/>somewhere in what's left"]
+    D -->|"no"| F["keep going"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   TRACE  [2,2,1,1,1,2,2]
+
+   ┌───┬─────────┬───────┬────────────────────────────┐
+   │ x │candidate│ count │ note                       │
+   ├───┼─────────┼───────┼────────────────────────────┤
+   │ 2 │    2    │   1   │ start                      │
+   │ 2 │    2    │   2   │ match                      │
+   │ 1 │    2    │   1   │ mismatch                   │
+   │ 1 │    2    │   0   │ ⭐ mismatch → count hits 0 │
+   │ 1 │    1    │   1   │ ⭐ NEW candidate: 1         │
+   │ 2 │    1    │   0   │ mismatch                  │
+   │ 2 │    2    │   1   │ ⭐ NEW candidate: 2         │
+   └───┴─────────┴───────┴────────────────────────────┘
+   ⭐ ANSWER: 2 (appears 4 times, > 7/2)
+```
+
+```cpp
+int majorityElement(vector<int>& a) {
+    int candidate = 0, count = 0;
+    for (int x : a) {
+        if (count == 0) candidate = x;               // ⭐ start fresh
+        count += (x == candidate) ? 1 : -1;
+    }
+    return candidate;                                // ⭐ guaranteed correct — the
+                                                      //    problem promises a majority exists
+}
+```
+
+⚠️ **Without the guarantee** that a majority element exists, this algorithm can output a wrong answer — a verification pass would be needed.
+
+🎤 **Follow-up: Majority Element II (elements appearing > n/3 times)?** At most 2 such elements can exist (three would exceed n). Extend to **two** candidates and **two** counters, tracked simultaneously.
+
+## 📌 Pattern Card
+```
+SIGNAL   find the dominant element, O(1) space
+KEY      ⭐ Boyer-Moore: +1 for match, −1 for mismatch,
+         reset the candidate when count hits 0
+RELATED  Majority Element II · Check If a String Has a Majority
+```
+
+---
+
+# 25. Meeting Rooms / Max Events / Misc Greedy
+🟡 ⚪ **Variation** — a family of "greedily assign to the earliest-available option" problems.
+
+```cpp
+// Maximum number of events attendable, one per day
+int maxEvents(vector<vector<int>>& events) {
+    sort(events.begin(), events.end());            // ⭐ by START day
+    priority_queue<int, vector<int>, greater<int>> pq;   // ⭐ min-heap of end days
+
+    int i = 0, n = events.size(), day = 0, count = 0;
+    while (i < n || !pq.empty()) {
+        if (pq.empty()) day = events[i][0];         // ⭐ jump to the next event's start
+
+        while (i < n && events[i][0] <= day) pq.push(events[i++][1]);   // ⭐ unlock today's options
+
+        while (!pq.empty() && pq.top() < day) pq.pop();   // ⭐ discard expired events
+
+        if (!pq.empty()) { pq.pop(); ++count; ++day; }    // ⭐ attend the SOONEST-EXPIRING one
+    }
+    return count;
+}
+```
+⭐ **"Attend the event that expires soonest"** is another exchange-argument greedy — it never costs you a future option, since it frees up today for anything else while leaving maximal flexibility for tomorrow. The same reasoning as Non-overlapping Intervals, applied one day at a time.
+
+---
+
+## 📋 Greedy, Backtracking & Bits Recall
+
+```mermaid
+mindmap
+  root(("Greedy · Backtrack<br/>· Bits"))
+    Greedy Proofs
+      ⭐ exchange argument
+      ⭐ stays-ahead argument
+      always try to BREAK it first
+    Backtracking Skeleton
+      choose → recurse → ⭐ UNDO
+      prune EARLY — that's the speedup
+      start-index avoids order dupes
+      sort + skip-equal avoids value dupes
+    Encoding Constraints
+      ⭐ diagonals: row±col are constant
+      ⭐ branch condition can make
+        invalid states UNREACHABLE
+    XOR Family
+      appears 2× → XOR all
+      appears 3× → bit state machine
+      two uniques → partition by a set bit
+      ⭐ x &amp; -x isolates lowest bit
+    Fast Math
+      ⭐ exponentiation by squaring
+      Euclid: gcd(a,b)=gcd(b,a mod b)
+      ⭐ sieve marks from p², not 2p
+    Sampling
+      prefix sums + binary search
+      ⭐ reservoir: keep with prob 1/i
+    Voting
+      ⭐ Boyer-Moore: +1/−1, reset at 0
+```
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║           GREEDY, BACKTRACKING & BITS — PATTERN RECALL               ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "can I reach the end"          → track farthest reach, greedy        ║
+║ "circular start point exists"  → ⭐ negative prefix skips the whole   ║
+║                                   failed range at once               ║
+║ "generate all X"               → backtrack: choose/explore/UNDO      ║
+║ "avoid duplicate permutations" → sort + skip if prev unused          ║
+║ "avoid duplicate combinations" → ⭐ start-index recursion             ║
+║ "placement with pairwise rules"→ encode each conflict as its own set ║
+║ "find the odd one out"         → XOR family (2×, 3×, or two singles) ║
+║ "count set bits"               → ⭐ n &amp; (n-1) clears the lowest one║
+║ "x^n fast"                     → exponentiation by squaring, O(log n)║
+║ "primes up to n"                → sieve, mark from p² onward         ║
+║ "sample from a stream"         → reservoir sampling, keep w.p. 1/i   ║
+║ "dominant element, O(1) space" → Boyer-Moore voting                  ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   backtracking: push_back(path) copies — a stored reference doesn't  ║
+║   permutations II / subsets II: sort FIRST, or dedup silently fails  ║
+║   N-Queens: row+col and row−col identify diagonals, not row·col      ║
+║   candy: the second pass needs max(), not overwrite                  ║
+║   getSum: cast to unsigned before shifting — signed overflow is UB   ║
+║   myPow: n = INT_MIN negated as int overflows — use long long        ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+**Back:** [Dynamic Programming](09-dynamic-programming.md) · [Index](INDEX.md)

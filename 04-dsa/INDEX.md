@@ -1,6 +1,8 @@
 # 📇 Master Problem Index
 
-> All 430+ problems, cross-referenced by pattern, difficulty, and frequency. Use this to build practice sets and to look up "what pattern is this?"
+> All problems, cross-referenced by pattern, difficulty, and frequency. Use this to build practice sets and to look up "what pattern is this?"
+>
+> ⚠️ **Format note:** Books 01–10 have been rebuilt with Mermaid approach-ladder diagrams — every problem now shows all viable approaches ranked worst→best by time/space, with plain-language explanations before code. See [FORMAT-SAMPLE.md](FORMAT-SAMPLE.md). Arrays & Strings is now split across three files: [01](01-arrays-strings.md) (1–20), [01b](01b-arrays-strings.md) (21–45), [01c](01c-arrays-strings.md) (46–70). Anchor links below point to section headers, not numbered problem IDs — use each book's own Contents table for exact links.
 
 ---
 
@@ -10,40 +12,39 @@ Find the phrase closest to your problem statement.
 
 | The problem says... | Reach for | Book |
 |---|---|---|
-| "sorted array" + "find a pair/triplet" | Two pointers from both ends | [03](03-two-pointers-sliding-window.md) |
-| "contiguous subarray/substring" + max/min length | Sliding window | [03](03-two-pointers-sliding-window.md) |
-| "subarray sum equals k" + **negatives possible** | Prefix sum + hash map | [01](01-arrays-strings.md#14-subarray-sum-equals-k-) |
-| "subarray sum equals k" + all positive | Sliding window | [03](03-two-pointers-sliding-window.md) |
-| "exactly K distinct/odd/…" | `atMost(K) − atMost(K−1)` | [03](03-two-pointers-sliding-window.md#29-subarrays-with-k-different-integers-) |
-| "top k" / "k-th largest" | Heap of size k, or quickselect | [07](07-heaps-intervals.md) |
-| "median of a stream" | Two heaps | [07](07-heaps-intervals.md#8-find-median-from-data-stream-) |
-| "merge k sorted …" | Heap, or divide & conquer | [07](07-heaps-intervals.md) |
-| "next/previous greater/smaller" | Monotonic stack | [05](05-stacks-queues.md) |
-| "largest rectangle" / "trapping water" | Monotonic stack | [05](05-stacks-queues.md#16-largest-rectangle-in-histogram-) |
-| "max/min of every window of size k" | Monotonic deque | [05](05-stacks-queues.md#26-sliding-window-maximum-) |
-| "intervals" + merge/insert/intersect | Sort by **start** | [07](07-heaps-intervals.md) |
-| "maximum non-overlapping" / "min arrows" | Sort by **end** (activity selection) | [07](07-heaps-intervals.md#23-non-overlapping-intervals-) |
-| "minimum rooms" / "max concurrent" | Sweep line (+1/−1 events) | [07](07-heaps-intervals.md#22-meeting-rooms-ii-) |
-| "cycle in a linked list" / "find the middle" | Fast & slow pointers | [04](04-linked-lists.md) |
-| "reverse a list" / "reorder" | In-place reversal | [04](04-linked-lists.md) |
-| "level by level" / "shortest in unweighted" | BFS with `int sz = q.size()` | [08](08-graphs.md) |
-| "distance from **many** sources" | Multi-source BFS | [08](08-graphs.md#3-rotting-oranges-) |
-| "shortest path" + weights ≥ 0 | Dijkstra | [08](08-graphs.md#33-network-delay-time-dijkstra-) |
-| "shortest path" + at most k edges | Bellman-Ford (copy dist per round) | [08](08-graphs.md#34-cheapest-flights-within-k-stops-) |
-| "prerequisites" / "build order" | Topological sort (Kahn's) | [08](08-graphs.md#19-course-schedule-) |
-| "connected components" + **dynamic** edges | Union-Find | [08](08-graphs.md#d-union-find) |
-| "minimum spanning tree" / "connect all at min cost" | Kruskal (DSU) or Prim (heap) | [08](08-graphs.md) |
+| "sorted array" + "find a pair/triplet" | Two pointers from both ends | [03](03-two-pointers-sliding-window.md#1-two-sum-ii-sorted) |
+| "contiguous subarray/substring" + max/min length | Sliding window | [03](03-two-pointers-sliding-window.md#-the-universal-sliding-window-template) |
+| "subarray sum equals k" + **negatives possible** | Prefix sum + hash map | [02](02-hashing.md#2-subarray-sum-equals-k) |
+| "subarray sum equals k" + all positive | Sliding window | [03](03-two-pointers-sliding-window.md#9-minimum-size-subarray-sum) |
+| "exactly K distinct/odd/…" | `atMost(K) − atMost(K−1)` | [03](03-two-pointers-sliding-window.md#14-subarrays-with-k-different-integers) |
+| "top k" / "k-th largest" | Heap of size k, or quickselect | [07](07-heaps-intervals.md#1-kth-largest-element-in-an-array) |
+| "median of a stream" | Two heaps | [07](07-heaps-intervals.md#4-find-median-from-data-stream) |
+| "merge k sorted …" | Heap, or divide & conquer | [04](04-linked-lists.md#5-merge-k-sorted-lists) |
+| "next/previous greater/smaller" | Monotonic stack | [05](05-stacks-queues.md#5-next-greater-element-i--ii) |
+| "largest rectangle" / "trapping water" | Monotonic stack | [05](05-stacks-queues.md#8-largest-rectangle-in-histogram) |
+| "max/min of every window of size k" | Monotonic deque | [03](03-two-pointers-sliding-window.md#12-sliding-window-maximum) |
+| "intervals" + merge/insert/intersect | Sort by **start** | [01b](01b-arrays-strings.md#23-merge-intervals) |
+| "maximum non-overlapping" / "min arrows" | Sort by **end** (activity selection) | [01b](01b-arrays-strings.md#25-non-overlapping-intervals) |
+| "minimum rooms" / "max concurrent" | Sweep line (+1/−1 events) | [01b](01b-arrays-strings.md#27-meeting-rooms-ii) |
+| "cycle in a linked list" / "find the middle" | Fast & slow pointers | [03](03-two-pointers-sliding-window.md#15-linked-list-cycle-floyds) |
+| "reverse a list" / "reorder" | In-place reversal | [04](04-linked-lists.md#1-reverse-linked-list) |
+| "level by level" / "shortest in unweighted" | BFS with `int sz = q.size()` | [06](06-trees.md#8-level-order-traversal) |
+| "distance from **many** sources" | Multi-source BFS | [08](08-graphs.md#5-rotting-oranges) |
+| "shortest path" + weights ≥ 0 | Dijkstra | [08](08-graphs.md#17-network-delay-time-dijkstra) |
+| "shortest path" + at most k edges | Bellman-Ford (copy dist per round) | [08](08-graphs.md#18-cheapest-flights-within-k-stops) |
+| "prerequisites" / "build order" | Topological sort (Kahn's) | [08](08-graphs.md#8-course-schedule-i--ii) |
+| "connected components" + **dynamic** edges | Union-Find | [08](08-graphs.md#14-union-find-the-structure) |
+| "minimum spanning tree" / "connect all at min cost" | Kruskal (DSU) or Prim (heap) | [08](08-graphs.md#21-minimum-spanning-tree-kruskal--prim) |
 | "count ways" / "min cost" + choices repeat | DP | [09](09-dynamic-programming.md) |
-| "two strings" + match/transform | 2D DP `dp[i][j]` | [09](09-dynamic-programming.md#d-two-sequence-dp) |
-| "pick items with a capacity limit" | Knapsack (mind loop direction!) | [09](09-dynamic-programming.md#c-knapsack-family) |
-| "burst/merge within a range" | Interval DP (loop by length) | [09](09-dynamic-programming.md#e-interval-dp) |
-| "subset of ≤20 items" | Bitmask DP | [09](09-dynamic-programming.md#f-bitmask-dp) |
-| "generate all …" / "all combinations" | Backtracking | [10](10-greedy-backtracking-misc.md#part-2--backtracking) |
-| "minimum/maximum" + a provable local choice | Greedy (**prove it!**) | [10](10-greedy-backtracking-misc.md#part-1--greedy) |
-| "appears once, others twice" | XOR everything | [10](10-greedy-backtracking-misc.md#33-single-number-) |
-| "prefix" / "autocomplete" / "dictionary" | Trie | [00](00-patterns.md#pattern-17--trie) |
-| "minimum X such that f(X) works" | **Binary search on the answer** | [00](00-patterns.md#pattern-12--binary-search) |
-| "values are 1..n, find missing/duplicate" | Cyclic sort or sign marking | [01](01-arrays-strings.md#40-first-missing-positive-) |
+| "two strings" + match/transform | 2D DP `dp[i][j]` | [09](09-dynamic-programming.md#9-longest-common-subsequence) |
+| "pick items with a capacity limit" | Knapsack (mind loop direction!) | [09](09-dynamic-programming.md#5-01-knapsack) |
+| "burst/merge within a range" | Interval DP (loop by length) | [09](09-dynamic-programming.md#21-burst-balloons) |
+| "generate all …" / "all combinations" | Backtracking | [10](10-greedy-backtracking-misc.md#-backtracking-the-universal-skeleton) |
+| "minimum/maximum" + a provable local choice | Greedy (**prove it!**) | [10](10-greedy-backtracking-misc.md#-greedy-proving-its-safe) |
+| "appears once, others twice" | XOR everything | [10](10-greedy-backtracking-misc.md#13-single-number-i-ii-iii) |
+| "prefix" / "autocomplete" / "dictionary" | Trie | [06](06-trees.md#19-trie-prefix-tree) |
+| "minimum X such that f(X) works" | **Binary search on the answer** | [07](07-heaps-intervals.md#7-kth-smallest-in-a-sorted-matrix) |
+| "values are 1..n, find missing/duplicate" | Cyclic sort or sign marking | [01b](01b-arrays-strings.md#35-first-missing-positive) |
 
 ---
 
@@ -53,216 +54,82 @@ If you only have time for 40 problems, these are the ones. Each unlocks a whole 
 
 | # | Problem | Pattern | Book |
 |---|---|---|---|
-| 1 | Two Sum | Hash map complement | [02](02-hashing.md#1-two-sum-) |
-| 2 | Best Time to Buy/Sell Stock | Running min | [01](01-arrays-strings.md#2-best-time-to-buy-and-sell-stock-) |
-| 3 | Product Except Self | Prefix × suffix | [01](01-arrays-strings.md#4-product-of-array-except-self-) |
-| 4 | Maximum Subarray | Kadane | [01](01-arrays-strings.md#5-maximum-subarray-kadane-) |
-| 5 | Maximum Product Subarray | Track max **and** min | [01](01-arrays-strings.md#6-maximum-product-subarray-) |
-| 6 | Find Min in Rotated Sorted | Binary search | [01](01-arrays-strings.md#7-find-minimum-in-rotated-sorted-array-) |
-| 7 | Search in Rotated Sorted | Binary search, one half sorted | [01](01-arrays-strings.md#8-search-in-rotated-sorted-array-) |
-| 8 | 3Sum | Sort + two pointers | [03](03-two-pointers-sliding-window.md#2-3sum-) |
-| 9 | Container With Most Water | Two pointers, move shorter | [03](03-two-pointers-sliding-window.md#6-container-with-most-water-) |
-| 10 | Trapping Rain Water | Two pointers / monotonic stack | [03](03-two-pointers-sliding-window.md#7-trapping-rain-water-) |
-| 11 | Longest Substring No Repeat | Sliding window | [03](03-two-pointers-sliding-window.md#20-longest-substring-without-repeating-characters-) |
-| 12 | Longest Repeating Char Replace | Sliding window + maxCount | [03](03-two-pointers-sliding-window.md#21-longest-repeating-character-replacement-) |
-| 13 | Minimum Window Substring | Sliding window + missing counter | [03](03-two-pointers-sliding-window.md#22-minimum-window-substring-) |
-| 14 | Group Anagrams | Count-array key | [02](02-hashing.md#3-group-anagrams-) |
-| 15 | Longest Consecutive Sequence | Set + start-of-run guard | [02](02-hashing.md#14-longest-consecutive-sequence-) |
-| 16 | LRU Cache | Hash map + doubly linked list | [02](02-hashing.md#19-lru-cache-) |
-| 17 | Reverse Linked List | 3-pointer reversal | [04](04-linked-lists.md#1-reverse-linked-list-) |
-| 18 | Linked List Cycle II | Floyd + restart from head | [04](04-linked-lists.md#8-linked-list-cycle-ii-find-the-entry-) |
-| 19 | Merge k Sorted Lists | Heap / divide & conquer | [04](04-linked-lists.md#13-merge-k-sorted-lists-) |
-| 20 | Valid Parentheses | Stack | [05](05-stacks-queues.md#1-valid-parentheses-) |
-| 21 | Daily Temperatures | Monotonic stack | [05](05-stacks-queues.md#15-daily-temperatures-) |
-| 22 | Largest Rectangle Histogram | Monotonic stack | [05](05-stacks-queues.md#16-largest-rectangle-in-histogram-) |
-| 23 | Sliding Window Maximum | Monotonic deque | [05](05-stacks-queues.md#26-sliding-window-maximum-) |
-| 24 | Maximum Depth of Binary Tree | Tree recursion | [06](06-trees.md#9-maximum-depth-) |
-| 25 | Diameter of Binary Tree | ⭐ both children vs one | [06](06-trees.md#12-diameter-of-binary-tree-) |
-| 26 | Binary Tree Max Path Sum | Same pattern as diameter | [06](06-trees.md#22-binary-tree-maximum-path-sum-) |
-| 27 | Validate BST | Pass bounds down | [06](06-trees.md#27-validate-bst-) |
-| 28 | Lowest Common Ancestor | Return "found or LCA" | [06](06-trees.md#33-lowest-common-ancestor-of-a-binary-tree-) |
-| 29 | Serialize/Deserialize Tree | Preorder + null markers | [06](06-trees.md#44-serialize-and-deserialize-binary-tree-) |
-| 30 | Number of Islands | Flood fill | [08](08-graphs.md#1-number-of-islands-) |
-| 31 | Rotting Oranges | Multi-source BFS | [08](08-graphs.md#3-rotting-oranges-) |
-| 32 | Course Schedule | Topological sort | [08](08-graphs.md#19-course-schedule-) |
-| 33 | Word Ladder | Implicit graph BFS | [08](08-graphs.md#13-word-ladder-) |
-| 34 | Network Delay Time | Dijkstra | [08](08-graphs.md#33-network-delay-time-dijkstra-) |
-| 35 | Climbing Stairs | 1D DP intro | [09](09-dynamic-programming.md#1-climbing-stairs-) |
-| 36 | House Robber | Rob vs skip | [09](09-dynamic-programming.md#2-house-robber-) |
-| 37 | Coin Change | Unbounded knapsack | [09](09-dynamic-programming.md#19-coin-change-minimum-coins-) |
-| 38 | Longest Increasing Subsequence | DP + patience O(n log n) | [09](09-dynamic-programming.md#5-longest-increasing-subsequence-) |
-| 39 | Edit Distance | 2D DP, 3 operations | [09](09-dynamic-programming.md#29-edit-distance-) |
-| 40 | Word Break | DP + dictionary set | [09](09-dynamic-programming.md#9-word-break-) |
+| 1 | Two Sum | Hash map complement | [01](01-arrays-strings.md#1-two-sum) |
+| 2 | Best Time to Buy/Sell Stock | Running min | [01](01-arrays-strings.md#2-best-time-to-buy-and-sell-stock) |
+| 3 | Product Except Self | Prefix × suffix | [01](01-arrays-strings.md#4-product-of-array-except-self) |
+| 4 | Maximum Subarray | Kadane | [01](01-arrays-strings.md#5-maximum-subarray-kadane) |
+| 5 | Maximum Product Subarray | Track max **and** min | [01](01-arrays-strings.md#6-maximum-product-subarray) |
+| 6 | Find Min in Rotated Sorted | Binary search | [01](01-arrays-strings.md#7-find-minimum-in-rotated-sorted-array) |
+| 7 | Search in Rotated Sorted | Binary search, one half sorted | [01](01-arrays-strings.md#8-search-in-rotated-sorted-array) |
+| 8 | 3Sum | Sort + two pointers | [03](03-two-pointers-sliding-window.md#2-3sum) |
+| 9 | Container With Most Water | Two pointers, move shorter | [03](03-two-pointers-sliding-window.md#4-container-with-most-water) |
+| 10 | Trapping Rain Water | Two pointers / monotonic stack | [03](03-two-pointers-sliding-window.md#5-trapping-rain-water) |
+| 11 | Longest Substring No Repeat | Sliding window | [01c](01c-arrays-strings.md#59-longest-substring-without-repeating) |
+| 12 | Longest Repeating Char Replace | Sliding window + maxCount | [01c](01c-arrays-strings.md#60-longest-repeating-character-replacement) |
+| 13 | Minimum Window Substring | Sliding window + missing counter | [03](03-two-pointers-sliding-window.md#10-minimum-window-substring) |
+| 14 | Group Anagrams | Count-array key | [01c](01c-arrays-strings.md#47-group-anagrams) |
+| 15 | Longest Consecutive Sequence | Set + start-of-run guard | [02](02-hashing.md#1-longest-consecutive-sequence) |
+| 16 | LRU Cache | Hash map + doubly linked list | [02](02-hashing.md#3-lru-cache) |
+| 17 | Reverse Linked List | 3-pointer reversal | [04](04-linked-lists.md#1-reverse-linked-list) |
+| 18 | Linked List Cycle II | Floyd + restart from head | [03](03-two-pointers-sliding-window.md#15-linked-list-cycle-floyds) |
+| 19 | Merge k Sorted Lists | Heap / divide & conquer | [04](04-linked-lists.md#5-merge-k-sorted-lists) |
+| 20 | Valid Parentheses | Stack | [01c](01c-arrays-strings.md#67-valid-parentheses) |
+| 21 | Daily Temperatures | Monotonic stack | [05](05-stacks-queues.md#6-daily-temperatures) |
+| 22 | Largest Rectangle Histogram | Monotonic stack | [05](05-stacks-queues.md#8-largest-rectangle-in-histogram) |
+| 23 | Sliding Window Maximum | Monotonic deque | [03](03-two-pointers-sliding-window.md#12-sliding-window-maximum) |
+| 24 | Maximum Depth of Binary Tree | Tree recursion | [06](06-trees.md#1-maximum-depth-of-binary-tree) |
+| 25 | Diameter of Binary Tree | ⭐ both children vs one | [06](06-trees.md#3-diameter-of-binary-tree) |
+| 26 | Binary Tree Max Path Sum | Same pattern as diameter | [06](06-trees.md#4-binary-tree-maximum-path-sum) |
+| 27 | Validate BST | Pass bounds down | [06](06-trees.md#10-validate-binary-search-tree) |
+| 28 | Lowest Common Ancestor | Return "found or LCA" | [06](06-trees.md#12-lowest-common-ancestor-bst--binary-tree) |
+| 29 | Serialize/Deserialize Tree | Preorder + null markers | [06](06-trees.md#14-serialize-and-deserialize) |
+| 30 | Number of Islands | Flood fill | [08](08-graphs.md#1-number-of-islands) |
+| 31 | Rotting Oranges | Multi-source BFS | [08](08-graphs.md#5-rotting-oranges) |
+| 32 | Course Schedule | Topological sort | [08](08-graphs.md#8-course-schedule-i--ii) |
+| 33 | Word Ladder | Implicit graph BFS | [08](08-graphs.md#7-word-ladder) |
+| 34 | Network Delay Time | Dijkstra | [08](08-graphs.md#17-network-delay-time-dijkstra) |
+| 35 | Climbing Stairs | 1D DP intro | [09](09-dynamic-programming.md#1-climbing-stairs--fibonacci-family) |
+| 36 | House Robber | Rob vs skip | [09](09-dynamic-programming.md#2-house-robber-i--ii) |
+| 37 | Coin Change | Unbounded knapsack | [09](09-dynamic-programming.md#3-coin-change) |
+| 38 | Longest Increasing Subsequence | DP + patience O(n log n) | [09](09-dynamic-programming.md#8-longest-increasing-subsequence) |
+| 39 | Edit Distance | 2D DP, 3 operations | [09](09-dynamic-programming.md#10-edit-distance) |
+| 40 | Word Break | DP + dictionary set | [01c](01c-arrays-strings.md#70-word-break) |
 
 ---
 
 ## 📚 Full Index by Book
 
-### [01 — Arrays & Strings](01-arrays-strings.md) · 70 problems
+Each book now carries its own **Contents table** at the top with correct, current links — treat that as the authoritative per-problem index. This section gives the topic breakdown only.
 
-**A. Fundamentals (1-12)**
-Two Sum 🟢 · Best Time Buy/Sell 🟢 · Contains Duplicate 🟢 · Product Except Self 🟡 · Maximum Subarray 🟡 · Maximum Product Subarray 🟡 · Find Min Rotated 🟡 · Search Rotated 🟡 · Search Rotated II 🟡 · First/Last Position 🟡 · Missing Number 🟢 · Single Number 🟢
+### [01 / 01b / 01c — Arrays & Strings](01-arrays-strings.md) · 70 problems across 3 files
+Part 1 (1–20): fundamentals, Kadane, binary search, prefix sums · Part 2 (21–45): sorting, in-place, matrix · Part 3 (46–70): strings, KMP, parsing
 
-**B. Prefix Sum & Ranges (13-24)**
-Range Sum Immutable 🟢 · Subarray Sum = K 🟡 · Continuous Subarray Sum 🟡 · Subarrays Div by K 🟡 · Contiguous Array 🟡 · Max Size Subarray Sum K 🟡 · Range Addition 🟡 · Corp Flight Bookings 🟡 · Car Pooling 🟡 · Find Pivot Index 🟢 · Range Sum 2D 🟡 · Max Sum Rectangle 🔴
+### [02 — Hashing](02-hashing.md) · 14 full-ladder entries
+Longest Consecutive Sequence · Subarray Sum Equals K · LRU/LFU Cache · Insert Delete GetRandom · 4Sum II · Isomorphic Strings · Find All Anagrams · Copy List w/ Random Pointer · Design HashMap · Consistent Hashing
 
-**C. Sorting-Based (25-34)**
-Merge Sorted Array 🟢 · Sort Colors 🟡 · Merge Intervals 🟡 · Insert Interval 🟡 · Non-overlapping Intervals 🟡 · Meeting Rooms II 🟡 · Largest Number 🟡 · Sort by Parity 🟢 · H-Index 🟡 · Top K Frequent 🟡
+### [03 — Two Pointers & Sliding Window](03-two-pointers-sliding-window.md) · 16 full-ladder entries
+Two Sum II · 3Sum family · Container/Trapping Water · Longest Substring K Distinct · Min Window Substring · Sliding Window Maximum · Subarrays w/ K Different · Floyd's Cycle Detection
 
-**D. In-Place (35-44)**
-Remove Duplicates 🟢 · Remove Duplicates II 🟡 · Remove Element 🟢 · Move Zeroes 🟢 · Rotate Array 🟡 · First Missing Positive 🔴 · Find All Duplicates 🟡 · Find Disappeared 🟢 · Set Matrix Zeroes 🟡 · Next Permutation 🟡
+### [04 — Linked Lists](04-linked-lists.md) · 20 full-ladder entries
+Reverse (+ II, k-Group) · Merge Two/k Lists · Remove Nth From End · Palindrome/Reorder List · Intersection of Lists · Add Two Numbers (I/II) · Sort List (merge sort) · Flatten Multilevel List
 
-**E. Matrix (45-54)**
-Rotate Image 🟡 · Spiral Matrix 🟡 · Spiral Matrix II 🟡 · Search 2D Matrix 🟡 · Search 2D Matrix II 🟡 · Diagonal Traverse 🟡 · Game of Life 🟡 · Transpose 🟢 · Valid Sudoku 🟡 · Diagonal Sum 🟢
+### [05 — Stacks & Queues](05-stacks-queues.md) · 20 full-ladder entries
+Min Stack · Queue/Stack from each other · Next Greater Element · Largest Rectangle in Histogram · Remove K Digits · 132 Pattern · Basic Calculator · Asteroid Collision · Design Circular Queue
 
-**F. Strings (55-70)**
-Valid Anagram 🟢 · Group Anagrams 🟡 · Valid Palindrome 🟢 · Valid Palindrome II 🟢 · Longest Common Prefix 🟢 · String to Integer 🟡 · strStr/KMP 🟡 · Longest Palindromic Substring 🟡 · Palindromic Substrings 🟡 · Reverse Words 🟡 · Zigzag Conversion 🟡 · Compare Versions 🟡 · Multiply Strings 🟡 · Add Strings 🟢 · Text Justification 🔴 · Encode/Decode Strings 🟡
+### [06 — Trees](06-trees.md) · 20 full-ladder entries
+Max Depth/Balanced/Diameter · Level Order family · Validate BST · Kth Smallest in BST · LCA (BST + general) · Construct from Traversals · Serialize/Deserialize · Path Sum I/II/III · Morris Traversal · Trie · Segment/Fenwick Tree
 
----
+### [07 — Heaps & Intervals](07-heaps-intervals.md) · 20 full-ladder entries
+Kth Largest (quickselect) · Find Median from Stream · Kth Smallest in Sorted Matrix · Task Scheduler · IPO · Employee Free Time · My Calendar · The Skyline Problem · Interval List Intersections · Min Taps/Jump Game II
 
-### [02 — Hashing](02-hashing.md) · 33 problems
-Two Sum 🟢 · Valid Anagram 🟢 · Group Anagrams 🟡 · Top K Frequent 🟡 · Top K Frequent Words 🟡 · First Unique Char 🟢 · Sort Chars by Freq 🟡 · Find All Anagrams 🟡 · Ransom Note 🟢 · Isomorphic Strings 🟢 · Word Pattern 🟢 · Contains Duplicate II 🟢 · Contains Duplicate III 🔴 · Longest Consecutive 🟡 · Happy Number 🟢 · Intersection 🟢 · Intersection II 🟢 · Valid Sudoku 🟡 · **LRU Cache** 🟡 · **LFU Cache** 🔴 · Insert/Delete/GetRandom 🟡 · …with Duplicates 🔴 · Design HashMap 🟢 · Design Twitter 🟡 · Underground System 🟡 · Time-Based KV Store 🟡 · Logger Rate Limiter 🟢 · Hit Counter 🟡 · Longest Substring No Repeat 🟡 · Subarray Sum = K 🟡 · **4Sum II** 🟡 · Copy List with Random 🟡 · Word Break 🟡
+### [08 — Graphs](08-graphs.md) · 25 full-ladder entries
+Number of Islands · Surrounded Regions · Rotting Oranges · Word Ladder · Course Schedule I/II · Clone Graph · Union-Find · Network Delay Time (Dijkstra) · Cheapest Flights (Bellman-Ford) · MST (Kruskal/Prim) · Critical Connections (Tarjan) · Bipartite Check · Reconstruct Itinerary (Hierholzer)
 
----
+### [09 — Dynamic Programming](09-dynamic-programming.md) · 28 full-ladder entries
+Climbing Stairs · House Robber I/II · Coin Change I/II · 0/1 Knapsack family · LIS (O(n log n)) · LCS/Edit Distance family · Unique Paths · Maximal Square · Stock Buy/Sell state machine (I–IV, cooldown) · Burst Balloons · Regex/Wildcard Matching · Dungeon Game · Longest Increasing Path
 
-### [03 — Two Pointers & Sliding Window](03-two-pointers-sliding-window.md) · 40 problems
-
-**A. Opposite Ends (1-12)**
-Two Sum II 🟡 · 3Sum 🟡 · 3Sum Closest 🟡 · 3Sum Smaller 🟡 · 4Sum 🟡 · Container Most Water 🟡 · **Trapping Rain Water** 🔴 · Valid Palindrome 🟢 · Reverse Vowels 🟢 · Sorted Squares 🟢 · Boats to Save People 🟡 · Partition Labels 🟡
-
-**B. Same Direction (13-19)**
-Remove Duplicates 🟢 · Move Zeroes 🟢 · Sort Colors 🟡 · Backspace Compare 🟢 · Is Subsequence 🟢 · Merge Sorted Array 🟢 · Interval Intersections 🟡
-
-**C. Variable Window (20-34)**
-Longest No Repeat 🟡 · Longest Repeating Replace 🟡 · **Minimum Window Substring** 🔴 · Permutation in String 🟡 · Find All Anagrams 🟡 · At Most K Distinct 🟡 · Fruit Into Baskets 🟡 · Min Size Subarray Sum 🟡 · Max Consecutive Ones III 🟡 · **K Different Integers** 🔴 · Nice Subarrays 🟡 · Product Less Than K 🟡 · Longest 1s After Delete 🟡 · Reduce X to Zero 🟡 · Max Points from Cards 🟡
-
-**D. Fixed Window (35-40)**
-Max Average Subarray 🟢 · **Sliding Window Maximum** 🔴 · Sliding Window Median 🔴 · Repeated DNA 🟡 · Minimum Window Subsequence 🔴 · At Least K Repeating 🟡
-
----
-
-### [04 — Linked Lists](04-linked-lists.md) · 28 problems
-Reverse List 🟢 · Reverse List II 🟡 · **Reverse in k-Group** 🔴 · Swap Pairs 🟡 · Palindrome List 🟢 · Middle of List 🟢 · Cycle 🟢 · **Cycle II** 🟡 · Remove Nth From End 🟡 · Happy Number 🟢 · **Find Duplicate Number** 🟡 · Merge Two Lists 🟢 · **Merge k Lists** 🔴 · Sort List 🟡 · Insertion Sort List 🟡 · Remove Duplicates 🟢 · Remove Duplicates II 🟡 · Remove Elements 🟢 · Partition List 🟡 · Odd Even List 🟡 · Rotate List 🟡 · **Reorder List** 🟡 · Add Two Numbers 🟡 · Add Two Numbers II 🟡 · **Copy List with Random** 🟡 · Flatten Multilevel 🟡 · LRU Cache 🟡 · Intersection of Lists 🟢
-
----
-
-### [05 — Stacks & Queues](05-stacks-queues.md) · 32 problems
-
-**A. Classic (1-12)**
-Valid Parentheses 🟢 · Min Stack 🟡 · Eval RPN 🟡 · Basic Calculator 🔴 · Basic Calculator II 🟡 · Decode String 🟡 · Simplify Path 🟡 · Remove Adjacent Dups 🟢 · …II 🟡 · Min Remove Valid Parens 🟡 · Score of Parentheses 🟡 · **Longest Valid Parentheses** 🔴
-
-**B. Monotonic Stack (13-23)**
-Next Greater I 🟢 · Next Greater II 🟡 · **Daily Temperatures** 🟡 · **Largest Rectangle** 🔴 · **Maximal Rectangle** 🔴 · Trapping Rain Water 🔴 · Sum of Subarray Mins 🟡 · Remove K Digits 🟡 · Create Max Number 🔴 · Remove Duplicate Letters 🟡 · 132 Pattern 🟡
-
-**C. Queues & Deques (24-30)**
-Queue from Stacks 🟢 · Stack from Queues 🟢 · **Sliding Window Maximum** 🔴 · **Shortest Subarray Sum ≥ K** 🔴 · Circular Queue 🟡 · Hit Counter 🟡 · Asteroid Collision 🟡 · Exclusive Time 🟡 · Basic Calculator III 🔴
-
----
-
-### [06 — Trees](06-trees.md) · 50 problems
-
-**A. Traversal (1-8)**
-Inorder 🟢 · Preorder/Postorder Iterative 🟡 · **Morris Traversal** 🔴 · Level Order 🟡 · Zigzag 🟡 · Right Side View 🟡 · Vertical Order 🔴 · Average of Levels 🟢
-
-**B. Depth & Structure (9-18)**
-Max Depth 🟢 · Min Depth 🟢 · Balanced Tree 🟢 · **Diameter** 🟢 · Same Tree 🟢 · Symmetric 🟢 · Subtree of Another 🟢 · Invert 🟢 · Merge Trees 🟢 · Count Complete Nodes 🟡
-
-**C. Paths (19-26)**
-Path Sum 🟢 · Path Sum II 🟡 · **Path Sum III** 🟡 · **Max Path Sum** 🔴 · Sum Root to Leaf 🟡 · Binary Tree Paths 🟢 · Longest Univalue Path 🟡 · Distance K 🟡
-
-**D. BST (27-40)**
-**Validate BST** 🟡 · Search 🟢 · Insert 🟡 · Delete 🟡 · Kth Smallest 🟡 · LCA of BST 🟢 · **LCA General** 🟡 · Sorted Array→BST 🟢 · Sorted List→BST 🟡 · BST Iterator 🟡 · Recover BST 🔴 · Range Sum 🟢 · Min Abs Difference 🟢 · Two Sum IV 🟢
-
-**E. Construction (41-47)**
-From Preorder+Inorder 🟡 · From Inorder+Postorder 🟡 · BST from Preorder 🟡 · **Serialize/Deserialize** 🔴 · Serialize BST 🟡 · Flatten to List 🟡 · Populate Next Right 🟡
-
-**F. Advanced (48-50)**
-Binary Tree Cameras 🔴 · House Robber III 🟡 · Distribute Coins 🟡
-
----
-
-### [07 — Heaps & Intervals](07-heaps-intervals.md) · 32 problems
-
-**A. Top-K (1-7)**
-Kth Largest 🟡 · Top K Frequent 🟡 · K Closest Points 🟡 · Kth Largest in Stream 🟢 · Sort by Frequency 🟡 · Kth Smallest in Matrix 🟡 · K Pairs Smallest Sums 🟡
-
-**B. Two Heaps (8-10)**
-**Median from Stream** 🔴 · Sliding Window Median 🔴 · IPO 🔴
-
-**C. Merging & Scheduling (11-18)**
-Merge k Lists 🔴 · **Smallest Range** 🔴 · Task Scheduler 🟡 · Reorganize String 🟡 · Rearrange k Distance 🔴 · Connect Sticks 🟡 · Last Stone Weight 🟢 · Ugly Number II 🟡
-
-**D. Intervals (19-30)**
-Merge Intervals 🟡 · Insert Interval 🟡 · Meeting Rooms 🟢 · **Meeting Rooms II** 🟡 · Non-overlapping 🟡 · Min Arrows 🟡 · Interval Intersections 🟡 · Employee Free Time 🔴 · My Calendar I 🟡 · II 🟡 · III 🔴 · Data Stream Disjoint Intervals 🔴 · Car Pooling 🟡 · **The Skyline Problem** 🔴
-
----
-
-### [08 — Graphs](08-graphs.md) · 50 problems
-
-**A. Grid (1-12)**
-**Number of Islands** 🟡 · Max Area Island 🟡 · **Rotting Oranges** 🟡 · 01 Matrix 🟡 · Surrounded Regions 🟡 · Pacific Atlantic 🟡 · Word Search 🟡 · **Word Search II** 🔴 · Distinct Islands 🟡 · Shortest Path Binary Matrix 🟡 · Walls and Gates 🟡 · Number of Enclaves 🟡
-
-**B. BFS Shortest Path (13-18)**
-**Word Ladder** 🔴 · Word Ladder II 🔴 · Open the Lock 🟡 · Min Genetic Mutation 🟡 · Jump Game IV 🟡 · Shortest Path w/ Obstacles 🔴
-
-**C. Topological Sort (19-24)**
-**Course Schedule** 🟡 · Course Schedule II 🟡 · **Alien Dictionary** 🔴 · Min Height Trees 🟡 · Sequence Reconstruction 🟡 · Parallel Courses 🟡
-
-**D. Union-Find (25-32)**
-Connected Components 🟡 · Graph Valid Tree 🟡 · Redundant Connection 🟡 · Accounts Merge 🟡 · **Islands II** 🔴 · Most Stones Removed 🟡 · Equality Equations 🟡 · Evaluate Division 🟡
-
-**E. Weighted Shortest Path (33-39)**
-**Network Delay Time** 🟡 · **Cheapest Flights K Stops** 🟡 · Max Probability Path 🟡 · Min Effort Path 🟡 · Swim in Rising Water 🔴 · Negative Cycle 🔴 · Floyd-Warshall City 🟡
-
-**F. MST & Advanced (40-50)**
-Connect Points (Prim) 🟡 · Connecting Cities (Kruskal) 🟡 · **Critical Connections** 🔴 · Clone Graph 🟡 · Course Schedule IV 🟡 · Is Bipartite 🟡 · Possible Bipartition 🟡 · Eventual Safe States 🟡 · **Reconstruct Itinerary** 🔴 · Min Vertices Reach All 🟡 · Snakes and Ladders 🟡
-
----
-
-### [09 — Dynamic Programming](09-dynamic-programming.md) · 60 problems
-
-**A. 1D Linear (1-12)**
-Climbing Stairs 🟢 · **House Robber** 🟡 · House Robber II 🟡 · Min Cost Stairs 🟢 · **LIS** 🟡 · Maximum Subarray 🟡 · Max Product Subarray 🟡 · Decode Ways 🟡 · Word Break 🟡 · Jump Game 🟡 · Jump Game II 🟡 · Stock w/ Cooldown 🟡
-
-**B. 2D Grid (13-18)**
-Unique Paths 🟡 · Unique Paths II 🟡 · Min Path Sum 🟡 · Triangle 🟡 · **Maximal Square** 🟡 · Dungeon Game 🔴
-
-**C. Knapsack (19-27)**
-**Coin Change** 🟡 · Coin Change II 🟡 · Combination Sum IV 🟡 · **Partition Equal Subset** 🟡 · Target Sum 🟡 · Last Stone Weight II 🟡 · Ones and Zeroes 🟡 · Perfect Squares 🟡 · Integer Break 🟡
-
-**D. Two Sequences (28-35)**
-**LCS** 🟡 · **Edit Distance** 🔴 · Distinct Subsequences 🔴 · Interleaving String 🟡 · **Regex Matching** 🔴 · Wildcard Matching 🔴 · Longest Palindromic Subseq 🟡 · Shortest Common Supersequence 🔴
-
-**E. Interval (36-40)**
-**Burst Balloons** 🔴 · Matrix Chain 🔴 · Palindrome Partitioning II 🔴 · Stone Game 🟡 · Min Cost Cut Stick 🔴
-
-**F. Bitmask (41-43)**
-TSP (Held-Karp) 🔴 · Partition K Subsets 🔴 · Shortest Path All Nodes 🔴
-
-**G. Tree & Digit (44-47)**
-House Robber III 🟡 · Max Path Sum 🔴 · Unique Digits 🟡 · Digit DP 🔴
-
-**H. Stock & Game (48-54)**
-Stock I 🟢 · II 🟡 · III 🔴 · IV 🔴 · w/ Fee 🟡 · Predict Winner 🟡 · Can I Win 🟡
-
-**I. Classics (55-60)**
-Longest Increasing Path 🔴 · Russian Doll Envelopes 🔴 · Job Scheduling 🔴 · Frog Jump 🔴 · Count Palindromic Subseq 🔴 · Cherry Pickup 🔴
-
----
-
-### [10 — Greedy, Backtracking, Bits, Math](10-greedy-backtracking-misc.md) · 45 problems
-
-**Greedy (1-15)**
-Jump Game 🟡 · Jump Game II 🟡 · **Gas Station** 🟡 · Task Scheduler 🟡 · Partition Labels 🟡 · Non-overlapping Intervals 🟡 · Min Arrows 🟡 · Two City Scheduling 🟡 · Boats 🟡 · **Candy** 🔴 · Queue Reconstruction 🟡 · Merge Triplets 🟡 · Valid Parenthesis String 🟡 · Min Deletions Unique Freq 🟡 · Hand of Straights 🟡
-
-**Backtracking (16-32)**
-**Subsets** 🟡 · Subsets II 🟡 · **Permutations** 🟡 · Permutations II 🟡 · Combinations 🟡 · **Combination Sum** 🟡 · II 🟡 · III 🟡 · Letter Combinations 🟡 · **Generate Parentheses** 🟡 · Word Search 🟡 · Palindrome Partitioning 🟡 · **N-Queens** 🔴 · Sudoku Solver 🔴 · Restore IP 🟡 · Word Break II 🔴 · Beautiful Arrangement 🟡
-
-**Bits (33-42)**
-Single Number 🟢 · II 🟡 · **III** 🟡 · Number of 1 Bits 🟢 · Counting Bits 🟢 · Reverse Bits 🟢 · Missing Number 🟢 · Sum Without + 🟡 · **Max XOR** 🟡 · Subsets via Bitmask 🟡
-
-**Math (43-45)**
-**Pow(x,n)** 🟡 · Sqrt(x) 🟢 · **Count Primes** 🟡 · GCD/LCM · Modular Arithmetic
+### [10 — Greedy, Backtracking, Bits & Math](10-greedy-backtracking-misc.md) · 25 full-ladder entries
+Jump Game · Gas Station · Candy · Permutations/Combinations/Subsets (+ dup variants) · N-Queens · Sudoku Solver · Generate Parentheses · Single Number family (XOR) · Pow(x,n) · GCD/Sieve of Eratosthenes · Random Pick with Weight · Majority Element (Boyer-Moore)
 
 ---
 

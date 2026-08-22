@@ -81,6 +81,20 @@ This fails for three reasons. First, a B-tree index on `(lat, lng)` can only eff
 
 The solution is to **convert 2D space into 1D keys** so that nearby points have nearby keys.
 
+```mermaid
+flowchart TD
+    Problem["🔍 Find nearby drivers<br/>for a pickup point"] --> Naive["❌ NAIVE: SQL range query<br/><b>WHERE lat BETWEEN..AND lng BETWEEN..</b><br/>B-tree can't range-scan 2 columns<br/>Index churns at 250K writes/sec<br/>Box ≠ circle, breaks near poles"]
+    Naive --> Fix["💡 Convert 2D space → 1D key<br/>so nearby points get nearby keys"]
+    Fix --> Geohash["⚠️ GEOHASH<br/>Interleave lat/lng bits → base32<br/>Prefix scan = proximity search<br/>Boundary problem: must query<br/>8 neighbour cells too"]
+    Fix --> H3["✅ H3 / S2 (hex/curve grid)<br/>Uber's actual choice<br/>All 6 neighbours equidistant<br/>Uniform for ETA + flow modeling"]
+
+    style Problem fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Naive fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Fix fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Geohash fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style H3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ### Approach A — Geohash
 
 ```
@@ -172,7 +186,68 @@ The solution is to **convert 2D space into 1D keys** so that nearby points have 
    distance matters a lot.
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 SQUARE GRID<br/>Diagonal neighbours 41%<br/>farther than edge ones<br/>Inconsistent radius"] -->|"is uniformity<br/>needed?"| B["⚡ GEOHASH<br/>1D prefix locality<br/>but cell boundary<br/>splits nearby points"]
+    B -->|"need uniform<br/>neighbour distance?"| C["🚀 H3 HEX GRID<br/>All 6 neighbours equidistant<br/><b>Uber's choice</b><br/>16 resolution levels"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 4. Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        Rider["Rider App<br/>HTTPS + WebSocket"]
+        Driver["Driver App<br/>WebSocket"]
+    end
+
+    subgraph Gateway["🚪 Gateway"]
+        GW["API Gateway<br/>auth · rate limit · routing"]
+    end
+
+    subgraph Services["⚙️ Service Layer"]
+        Trip["Trip Service"]
+        Dispatch["Dispatch Service<br/>(matching)"]
+        Location["Location Service<br/>250K writes/sec"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        TripsDB[("Trips DB<br/>Postgres, sharded by city")]
+        SupplyDemand[("Supply/Demand<br/>Redis")]
+        GeoIndex[("Redis Geo +<br/>in-memory H3 index")]
+    end
+
+    subgraph Async["📨 Async (Kafka)"]
+        Downstream["Payments · Pricing ·<br/>Analytics · Fraud · Notify"]
+    end
+
+    Rider --> GW
+    Driver --> GW
+    GW --> Trip
+    GW --> Dispatch
+    GW --> Location
+    Trip <--> Dispatch
+    Dispatch <--> Location
+    Trip --> TripsDB
+    Dispatch --> SupplyDemand
+    Location --> GeoIndex
+    TripsDB -.async.-> Downstream
+
+    style Rider fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Driver fill:#e1f5fe,stroke:#0277bd,color:#000
+    style GW fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Trip fill:#fff9c4,stroke:#f9a825,color:#000
+    style Dispatch fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Location fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style TripsDB fill:#f5f5f5,stroke:#757575,color:#000
+    style SupplyDemand fill:#f5f5f5,stroke:#757575,color:#000
+    style GeoIndex fill:#f5f5f5,stroke:#757575,color:#000
+    style Downstream fill:#f5f5f5,stroke:#757575,color:#000
+```
 
 ```
    ┌──────────┐                              ┌──────────┐
@@ -224,6 +299,25 @@ The solution is to **convert 2D space into 1D keys** so that nearby points have 
 ```
 
 ## 5. Deep Dive — The Matching Flow
+
+```mermaid
+flowchart TD
+    R1["① Rider requests<br/>POST /rides → 202 Accepted<br/>opens WebSocket for updates"] --> C1["② Find candidates<br/>H3 cell + k-ring 1,2<br/>filter online/eligible<br/>~10-50 candidates"]
+    C1 --> R2["③ Rank<br/>ETA (road network) · rating ·<br/>heading · fairness · demand"]
+    R2 --> O1["④ Offer sequentially<br/>~15s timeout per driver<br/><b>⭐ critical section</b>"]
+    O1 -->|"declined/timeout"| C1
+    O1 -->|"accepted"| A1["⑤ On accept<br/>atomic driver → ON_TRIP<br/>create trip · notify both"]
+    A1 --> D1["⑥ During trip<br/>location streamed to rider<br/>state machine advances"]
+    D1 --> Comp["⑦ On complete<br/>trip → COMPLETED<br/>driver → AVAILABLE<br/>emit trip.completed (async)"]
+
+    style R1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style C1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style R2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style O1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style A1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Comp fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```
    ① RIDER REQUESTS
@@ -292,6 +386,22 @@ WHERE  driver_id = :driver_id
 -- 0 rows affected → someone else got them → try the next candidate
 ```
 
+```mermaid
+flowchart TD
+    Two["Two riders request<br/>simultaneously"] --> Race["Both matching processes<br/>see driver as AVAILABLE"]
+    Race --> Lock["❌ Distributed lock?<br/>Can't guarantee exclusion if a<br/>process stalls past its lease<br/>(GC pause, network partition)"]
+    Race --> Cond["✅ Conditional atomic update<br/>UPDATE ... SET ASSIGNED<br/><b>WHERE status = AVAILABLE</b><br/>state IS the concurrency control"]
+    Cond -->|"1 row affected"| Win["Driver assigned<br/>trip created"]
+    Cond -->|"0 rows affected"| Lose["Someone beat us<br/>→ try next candidate"]
+
+    style Two fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Race fill:#fff9c4,stroke:#f9a825,color:#000
+    style Lock fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Cond fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Win fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Lose fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
 ```
    Or in Redis, with a Lua script for atomicity:
 
@@ -329,7 +439,21 @@ WHERE  driver_id = :driver_id
    │ Missing one update out of 100 changes nothing. This frees    │
    │ you from durability requirements entirely on the hot path.   │
    └──────────────────────────────────────────────────────────────┘
+```
 
+```mermaid
+flowchart TD
+    App["Driver app<br/>batched every 4s or on<br/>significant movement<br/>⭐ adaptive frequency"] --> GW["WebSocket gateway<br/>sticky by driver, geo-routed"]
+    GW --> Hot["🔥 HOT PATH<br/>In-memory H3 index<br/>~1M drivers × 100 bytes = 100MB<br/>no durability needed<br/><b>matching queries hit this</b>"]
+    GW --> Cold["🧊 COLD PATH<br/>Kafka (async)<br/>trip replay · analytics ·<br/>fraud · surge input<br/><b>NOT in request path</b>"]
+
+    style App fill:#e1f5fe,stroke:#0277bd,color:#000
+    style GW fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Hot fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Cold fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
+```
    DESIGN
 
    Driver app
@@ -362,6 +486,28 @@ WHERE  driver_id = :driver_id
 ```
 
 ### ⭐ Deep dive — the trip state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> REQUESTED: rider requests
+    REQUESTED --> MATCHING
+    MATCHING --> FAILED: no drivers
+    MATCHING --> ACCEPTED: driver accepts
+    MATCHING --> CANCELLED: rider cancels
+    ACCEPTED --> ARRIVED: driver at pickup
+    ARRIVED --> IN_PROGRESS: rider picked up
+    IN_PROGRESS --> COMPLETED: trip ends
+    FAILED --> [*]
+    CANCELLED --> [*]
+    COMPLETED --> [*]
+
+    note right of MATCHING
+        Explicit transitions mean
+        duplicate/out-of-order events
+        (bad mobile networks) are
+        idempotent or rejected
+    end note
+```
 
 ```
    ┌───────────┐  rider requests  ┌───────────┐
@@ -399,6 +545,25 @@ WHERE  driver_id = :driver_id
 ```
 
 ## 6. Surge Pricing
+
+```mermaid
+flowchart LR
+    Demand["Demand<br/>open ride requests"] --> Ratio["ratio =<br/>demand / supply"]
+    Supply["Supply<br/>available drivers"] --> Ratio
+    Ratio -->|"above threshold"| Mult["Surge multiplier<br/>per H3 cell"]
+    Mult --> PriceUp["↑ price<br/>some riders defer<br/>(demand ↓)"]
+    Mult --> EarnUp["↑ earnings<br/>drivers move in<br/>(supply ↑)"]
+    PriceUp --> Rebalance["Market rebalances"]
+    EarnUp --> Rebalance
+
+    style Demand fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Supply fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Ratio fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Mult fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style PriceUp fill:#fff9c4,stroke:#f9a825,color:#000
+    style EarnUp fill:#fff9c4,stroke:#f9a825,color:#000
+    style Rebalance fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```
    ┌──────────────────────────────────────────────────────────┐
@@ -567,6 +732,40 @@ Finally, I'd add a timeout on the whole request: if matching hasn't succeeded wi
 
 ## 3. Architecture — The Three Parts
 
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        Device["TV / Mobile / Browser"]
+    end
+
+    subgraph Control["☁️ Control Plane (AWS)"]
+        Micro["Hundreds of microservices<br/>signup · auth · browse · search ·<br/>recommendations · billing ·<br/>playback authorization"]
+    end
+
+    subgraph Data["🌐 Data Plane — Open Connect"]
+        OCA["Purpose-built appliances<br/>INSIDE ISP datacenters<br/>serves ~100% of video bytes"]
+    end
+
+    subgraph Pipeline["🎞️ Encoding Pipeline (AWS, offline)"]
+        Ingest["Ingest master"] --> Transcode["Transcode →<br/>~1,200 variants"]
+        Transcode --> Validate["Validate"]
+        Validate --> Distribute["Distribute to<br/>Open Connect appliances"]
+    end
+
+    Device -->|"metadata, auth, browse"| Micro
+    Device -->|"video bytes"| OCA
+    Distribute -.pushes content.-> OCA
+    Micro -.playback authorization.-> OCA
+
+    style Device fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Micro fill:#fff9c4,stroke:#f9a825,color:#000
+    style OCA fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Ingest fill:#f5f5f5,stroke:#757575,color:#000
+    style Transcode fill:#f5f5f5,stroke:#757575,color:#000
+    style Validate fill:#f5f5f5,stroke:#757575,color:#000
+    style Distribute fill:#e3f2fd,stroke:#1565c0,color:#000
+```
+
 ```
    ┌──────────────────────────────────────────────────────────────┐
    │ ① CONTROL PLANE (AWS)                                        │
@@ -612,6 +811,16 @@ Finally, I'd add a timeout on the whole request: if matching hasn't succeeded wi
    → No origin fetches during peak. No cache misses.
    → This is the opposite of a normal CDN, which fills reactively
      on a miss.
+```
+
+```mermaid
+flowchart LR
+    A["🐌 COMMERCIAL CDN<br/>Pay per GB<br/>Billions/year at Netflix scale<br/>No CDN had the capacity"] -->|"can we avoid<br/>the toll?"| B["⚡ SELF-BUILT CDN<br/>Reactive fill on cache miss<br/>still has cold-start misses<br/>at peak"]
+    B -->|"can we prefetch<br/>what's coming?"| C["🚀 OPEN CONNECT +<br/>PREDICTIVE FILL<br/>Push content off-peak,<br/>based on regional demand<br/>forecast — peak = 100% hit"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 4. Deep Dive — Adaptive Bitrate Streaming
@@ -662,6 +871,25 @@ Network bandwidth fluctuates constantly. A fixed bitrate either buffers on a bad
    serves segment files.
 ```
 
+```mermaid
+flowchart TD
+    Start["Before each segment"] --> Measure["Measure recent<br/>throughput"]
+    Measure --> Buffer["Check buffer level<br/>(seconds ready to play)"]
+    Buffer --> Decide{"Pick highest bitrate<br/>that throughput sustains<br/>AND keeps buffer safe"}
+    Decide -->|"bandwidth OK"| Up["Step UP<br/>conservatively"]
+    Decide -->|"bandwidth dropped"| Down["Step DOWN<br/>aggressively<br/><b>rebuffer is worse than<br/>lower quality</b>"]
+    Up --> Request["Request next<br/>segment at chosen bitrate"]
+    Down --> Request
+
+    style Start fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Measure fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Buffer fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Decide fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Up fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Down fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Request fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ### Per-title encoding — the optimization that saved petabytes
 
 ```
@@ -680,6 +908,16 @@ Network bandwidth fluctuates constantly. A fixed bitrate either buffers on a bad
    ⭐ EVEN FURTHER: per-SHOT encoding. Complexity varies within
      a title too — a static dialogue scene and an explosion have
      wildly different needs. Netflix encodes shot by shot.
+```
+
+```mermaid
+flowchart LR
+    A["🐌 FIXED LADDER<br/>Same 5 Mbps 1080p<br/>for every title<br/>Wastes bits on simple<br/>content, starves complex"] -->|"does complexity<br/>vary by title?"| B["⚡ PER-TITLE ENCODING<br/>Custom ladder per title<br/>~50% savings on simple<br/>content"]
+    B -->|"does it vary<br/>within a title?"| C["🚀 PER-SHOT ENCODING<br/><b>Netflix's actual choice</b><br/>Dialogue vs explosion get<br/>different bitrates"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 5. Deep Dive — Personalization
@@ -723,6 +961,38 @@ Network bandwidth fluctuates constantly. A fixed bitrate either buffers on a bad
      read time to write/batch time.
 ```
 
+```mermaid
+flowchart LR
+    subgraph Offline["🕐 Offline (hourly/daily)"]
+        Train["Train ranking models"] --> Precompute["Precompute candidate<br/>sets per user cohort"]
+        Precompute --> Write["Write to fast<br/>key-value store"]
+    end
+
+    subgraph NearRT["⏱️ Near-real-time"]
+        Adjust["Adjust for recent activity<br/>e.g. just finished S1 → show S2"]
+    end
+
+    subgraph ReqTime["⚡ Request time (<100ms)"]
+        Fetch["Fetch precomputed rows"]
+        Filter["Apply region/licensing filters"]
+        Rules["Continue-watching +<br/>freshness rules"]
+        Render["Render homepage"]
+        Fetch --> Filter --> Rules --> Render
+    end
+
+    Write --> Fetch
+    Adjust --> Filter
+
+    style Train fill:#f5f5f5,stroke:#757575,color:#000
+    style Precompute fill:#f5f5f5,stroke:#757575,color:#000
+    style Write fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Adjust fill:#fff9c4,stroke:#f9a825,color:#000
+    style Fetch fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Filter fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Rules fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Render fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 6. Deep Dive — Resilience
 
 Netflix essentially invented modern chaos engineering because their scale made failure constant.
@@ -750,6 +1020,30 @@ Netflix essentially invented modern chaos engineering because their scale made f
    │   ⭐ PLAYBACK NEVER STOPS. Everything else is optional.       │
    │     The product hierarchy is encoded into the architecture.  │
    └──────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+flowchart TD
+    Call["Cross-service call"] --> CB{"Circuit breaker<br/>(Hystrix/resilience4j)"}
+    CB -->|"service healthy"| Normal["Normal response"]
+    CB -->|"personalization down"| F1["✅ Fallback:<br/>generic popular list"]
+    CB -->|"search down"| F2["✅ Fallback:<br/>browse categories"]
+    CB -->|"artwork service down"| F3["✅ Fallback:<br/>default artwork"]
+    CB -->|"ratings down"| F4["✅ Fallback:<br/>hide ratings, keep playing"]
+    F1 --> Core["🎬 PLAYBACK<br/>never stops"]
+    F2 --> Core
+    F3 --> Core
+    F4 --> Core
+    Normal --> Core
+
+    style Call fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CB fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Normal fill:#e3f2fd,stroke:#1565c0,color:#000
+    style F1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style F2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style F3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style F4 fill:#fff9c4,stroke:#f9a825,color:#000
+    style Core fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups
@@ -891,6 +1185,16 @@ A home timeline is *"all tweets from everyone I follow, merged, newest first."* 
    ─── ⭐ OPTION C: HYBRID — what actually works ─────────────
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 FAN-OUT ON READ<br/>Write O(1)<br/>Read = query N followees<br/>+ merge<br/>~100M queries/sec — impossible"] -->|"reads dominate<br/>1000:1..."| B["⚡ FAN-OUT ON WRITE<br/>Read O(1) — fetch a list<br/>Write = push to N followers<br/>Celebrity = 100M writes/tweet"]
+    B -->|"...but celebrities<br/>break write side"| C["🚀 HYBRID<br/><b>Twitter's actual choice</b><br/>Fan out normal users<br/>Pull celebrities at read time<br/>merge by timestamp"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```
    ┌──────────────────────────────────────────────────────────────┐
    │                    THE HYBRID DESIGN                         │
@@ -915,6 +1219,22 @@ A home timeline is *"all tweets from everyone I follow, merged, newest first."* 
    ✅ Celebrity tweets are cached once and read by millions —
       the most cache-efficient possible arrangement
    ✅ Matches the actual power-law distribution of follower counts
+```
+
+```mermaid
+flowchart TD
+    Tweet["User posts a tweet"] --> Check{"follower_count<br/>< threshold (~10K)?"}
+    Check -->|"Yes — normal user"| FanOut["Fan out: push tweet_id<br/>to each follower's<br/>timeline list (async queue)"]
+    Check -->|"No — celebrity"| Skip["Do NOT fan out<br/>Store once. Full stop."]
+
+    FanOut --> Read["ON READ:<br/>① fetch precomputed list<br/>② fetch recent tweets from<br/>the few celebrities followed<br/>(heavily cached)<br/>③ merge by timestamp"]
+    Skip --> Read
+
+    style Tweet fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Check fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style FanOut fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Skip fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Read fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ### ⭐ Refinements that show depth
@@ -947,6 +1267,54 @@ A home timeline is *"all tweets from everyone I follow, merged, newest first."* 
 ```
 
 ## 4. Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        C["Client"]
+    end
+
+    subgraph Gateway["🚪 Gateway"]
+        GW["API Gateway"]
+    end
+
+    subgraph Services["⚙️ Service Layer"]
+        TS["Tweet Service<br/>(write path)"]
+        TL["Timeline Service<br/>(read path)"]
+        FO["Fan-out workers"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        TDB[("Tweets DB<br/>sharded by tweet_id")]
+        Kafka["Kafka"]
+        RTC[("Redis Timeline Cluster<br/>user_id → [tweet_id...]<br/>capped ~800")]
+        TCC[("Tweet Content Cache<br/>tweet_id → {text, author}")]
+        SG[("Social Graph<br/>follows, heavily cached")]
+    end
+
+    C --> GW
+    GW --> TS
+    GW --> TL
+    TS --> TDB
+    TS --> Kafka
+    Kafka --> FO
+    FO --> RTC
+    TL --> RTC
+    RTC --> TCC
+    FO -.reads.-> SG
+    TL -.reads.-> SG
+
+    style C fill:#e1f5fe,stroke:#0277bd,color:#000
+    style GW fill:#e3f2fd,stroke:#1565c0,color:#000
+    style TS fill:#fff9c4,stroke:#f9a825,color:#000
+    style TL fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style FO fill:#fff9c4,stroke:#f9a825,color:#000
+    style TDB fill:#f5f5f5,stroke:#757575,color:#000
+    style Kafka fill:#f5f5f5,stroke:#757575,color:#000
+    style RTC fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style TCC fill:#f5f5f5,stroke:#757575,color:#000
+    style SG fill:#f5f5f5,stroke:#757575,color:#000
+```
 
 ```
    ┌────────┐
@@ -1010,6 +1378,17 @@ A home timeline is *"all tweets from everyone I follow, merged, newest first."* 
      by asynchronous fan-out where latency doesn't matter.
 ```
 
+```mermaid
+flowchart LR
+    Follows[("follows table<br/>(follower_id, followee_id)")]
+    Follows --> Idx1["index(follower_id)<br/>'who do I follow'<br/>bounded, single-shard<br/>⭐ hot READ path"]
+    Follows --> Idx2["index(followee_id)<br/>'who follows me'<br/>⚠️ unbounded, scatter-gather<br/>used only by async fan-out"]
+
+    style Follows fill:#f5f5f5,stroke:#757575,color:#000
+    style Idx1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Idx2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
 ## 6. Deep Dive — The Celebrity Problem
 
 #### 💬 Beyond fan-out
@@ -1040,6 +1419,30 @@ The celebrity problem shows up in several places, not just fan-out:
       FIX: the content is identical for everyone, so it caches
       perfectly. Ensure the cache is warmed on write rather than
       populated by the first million readers.
+```
+
+```mermaid
+flowchart TD
+    Hot["⚠️ Celebrity tweet<br/>millions read same key"] --> P1["Problem: one Redis node<br/>gets all the traffic"]
+    P1 --> Fix1["✅ Replicate hot key across<br/>N nodes, read random replica"]
+    P1 --> Fix2["✅ Small L1 cache per app<br/>server, short TTL"]
+
+    Likes["⚠️ Millions of likes<br/>on one tweet"] --> P2["Problem: contention<br/>on one counter row"]
+    P2 --> Fix3["✅ Sharded counters<br/>counter:tweet:0..15<br/>increment random shard,<br/>sum on read"]
+
+    Post["⚠️ Celebrity tweets,<br/>millions refresh at once"] --> P3["Problem: thundering herd"]
+    P3 --> Fix4["✅ Warm cache on WRITE,<br/>not on first reader"]
+
+    style Hot fill:#ffcdd2,stroke:#c62828,color:#000
+    style P1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Fix1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Fix2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Likes fill:#ffcdd2,stroke:#c62828,color:#000
+    style P2 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Fix3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Post fill:#ffcdd2,stroke:#c62828,color:#000
+    style P3 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Fix4 fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ## 7. Failure Modes
@@ -1159,6 +1562,45 @@ The related contention problem is engagement counters. Millions of likes on one 
 
 ## 3. Architecture
 
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        CA["Client A"]
+        CB["Client B"]
+    end
+
+    subgraph Services["⚙️ Connection & Routing"]
+        Conn["Connection Servers<br/>Erlang/BEAM<br/>~1M connections/server"]
+        Registry[("Session Registry<br/>user → server<br/>Redis/distributed")]
+        Queue[("Message Queue<br/>per recipient,<br/>OFFLINE users only")]
+    end
+
+    subgraph External["🔔 External"]
+        Push["Push Notification<br/>APNs / FCM"]
+    end
+
+    subgraph Storage["🗄️ Storage"]
+        Blob[("Object Storage<br/>media — msg has URL + key only")]
+    end
+
+    CA <-->|"persistent connection"| Conn
+    CB <-->|"persistent connection"| Conn
+    Conn --> Registry
+    Conn -->|"B offline"| Queue
+    Queue --> Push
+    Push -.wakes app, reconnects.-> CB
+    CA -.uploads media.-> Blob
+    CB -.downloads media.-> Blob
+
+    style CA fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Conn fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Registry fill:#f5f5f5,stroke:#757575,color:#000
+    style Queue fill:#fff9c4,stroke:#f9a825,color:#000
+    style Push fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Blob fill:#f5f5f5,stroke:#757575,color:#000
+```
+
 ```
    ┌──────────┐                                    ┌──────────┐
    │ Client A │                                    │ Client B │
@@ -1191,6 +1633,22 @@ The related contention problem is engagement counters. Millions of likes on one 
 ```
 
 ## 4. Deep Dive — Message Delivery
+
+```mermaid
+stateDiagram-v2
+    [*] --> SENT: server receives msg,<br/>assigns ID + timestamp,<br/>ACKs to A (grey ✓)
+    SENT --> DELIVERED: B's device ACKs receipt<br/>(grey ✓✓)
+    DELIVERED --> READ: B opens chat,<br/>sends read receipt<br/>(blue ✓✓)
+    SENT --> QUEUED: B offline
+    QUEUED --> DELIVERED: B reconnects,<br/>push notification woke app
+    READ --> [*]: server DELETES message<br/>once delivered
+
+    note right of QUEUED
+        Only undelivered messages
+        are stored server-side —
+        delivered = deleted
+    end note
+```
 
 ```
    THE FLOW
@@ -1256,6 +1714,22 @@ If the server cannot read messages, then the server cannot: search them, generat
       ⭐ The server stores public keys only. It never sees a
         private key and cannot derive the shared secret.
 
+```mermaid
+flowchart LR
+    subgraph Server["Server (public keys only)"]
+        Bundle["B's key bundle:<br/>identity key (long-term)<br/>signed prekey (rotated)<br/>one-time prekeys (batch)"]
+    end
+
+    A["User A<br/>wants to message B"] -->|"① fetch B's bundle<br/>(B need not be online)"| Bundle
+    Bundle -->|"② return bundle"| A
+    A -->|"③ derive shared secret<br/>via X3DH"| Secret["Shared secret<br/>(computed locally,<br/>server never sees it)"]
+
+    style Server fill:#f5f5f5,stroke:#757575,color:#000
+    style Bundle fill:#e3f2fd,stroke:#1565c0,color:#000
+    style A fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Secret fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
    ② DOUBLE RATCHET
       Every message advances a key chain, so each message uses
       a DIFFERENT key.
@@ -1270,6 +1744,14 @@ If the server cannot read messages, then the server cannot: search them, generat
       │   entropy, so an attacker who stole a key LOSES       │
       │   access after the next ratchet.                      │
       └──────────────────────────────────────────────────────┘
+
+```mermaid
+flowchart LR
+    A["🐌 NAIVE<br/>Encrypt separately for<br/>each of N members<br/><b>O(N) work per message</b>"] -->|"can we share<br/>a key?"| B["🚀 SENDER KEYS<br/><b>Signal's actual choice</b><br/>Distribute symmetric key once<br/>(pairwise), then encrypt once<br/><b>O(1) per message</b><br/>O(N) only on membership change"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
    ③ GROUP MESSAGING — sender keys
       Naive: encrypt separately for each of N members → O(N) work
@@ -1321,6 +1803,14 @@ If the server cannot read messages, then the server cannot: search them, generat
    • Fall back to push notifications when the connection can't
      be maintained (backgrounded app, doze mode)
    • Resume sessions rather than full re-handshake where possible
+```
+
+```mermaid
+flowchart LR
+    A["🐌 NAIVE RECONNECT<br/>All clients retry<br/>immediately on drop<br/>Server restart →<br/><b>1M clients reconnect<br/>at once → falls over again</b>"] -->|"stagger the<br/>retries"| B["🚀 BACKOFF + JITTER<br/><b>WhatsApp's choice</b><br/>Exponential backoff,<br/>randomized jitter<br/>Load spreads over time"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups
@@ -1414,6 +1904,58 @@ The costs are real and architectural. No server-side search, so search must be o
 
 ## 3. Architecture
 
+```mermaid
+flowchart TD
+    subgraph Client["📱 Client Layer"]
+        C["Client"]
+    end
+
+    subgraph Storage1["🗄️ Media Storage"]
+        Obj[("Object Storage<br/>originals")]
+    end
+
+    subgraph Pipeline["⚙️ Media Processing Pipeline (async)"]
+        Resize["Resize into ~5 variants"]
+        Encode["Re-encode WebP/AVIF"]
+        Strip["Strip EXIF (privacy)"]
+        Blur["Generate blurhash"]
+        ML["ML: moderation,<br/>object/scene tagging"]
+    end
+
+    subgraph CDN["🌐 Delivery"]
+        CD[("Processed Media → CDN")]
+    end
+
+    subgraph MetaPath["📝 Metadata Path"]
+        API["API"] --> PostSvc["Post Service"]
+        PostSvc --> PG[("Postgres<br/>sharded by user_id")]
+        PostSvc --> Kafka["Kafka"]
+        Kafka --> Fanout["Feed fan-out"]
+        Kafka --> Search["Search indexing"]
+        Kafka --> Analytics["Analytics"]
+    end
+
+    C -->|"presigned URL upload<br/>bytes never touch app servers"| Obj
+    Obj -->|"event"| Resize --> Encode --> Strip --> Blur --> ML --> CD
+    C --> API
+
+    style C fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Obj fill:#f5f5f5,stroke:#757575,color:#000
+    style Resize fill:#fff9c4,stroke:#f9a825,color:#000
+    style Encode fill:#fff9c4,stroke:#f9a825,color:#000
+    style Strip fill:#fff9c4,stroke:#f9a825,color:#000
+    style Blur fill:#fff9c4,stroke:#f9a825,color:#000
+    style ML fill:#fff9c4,stroke:#f9a825,color:#000
+    style CD fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style API fill:#e3f2fd,stroke:#1565c0,color:#000
+    style PostSvc fill:#e3f2fd,stroke:#1565c0,color:#000
+    style PG fill:#f5f5f5,stroke:#757575,color:#000
+    style Kafka fill:#f5f5f5,stroke:#757575,color:#000
+    style Fanout fill:#f5f5f5,stroke:#757575,color:#000
+    style Search fill:#f5f5f5,stroke:#757575,color:#000
+    style Analytics fill:#f5f5f5,stroke:#757575,color:#000
+```
+
 ```
    ┌────────┐
    │ Client │
@@ -1459,6 +2001,14 @@ The costs are real and architectural. No server-side search, so search must be o
      independently                 Scales with S3, not with your fleet
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 NAIVE PROXY UPLOAD<br/>Client → App server → S3<br/>App bandwidth: 2× file size<br/>App servers tied up for<br/>entire upload<br/>Timeouts on large videos"] -->|"can the client<br/>go direct?"| B["🚀 PRESIGNED URL<br/><b>Instagram's actual choice</b><br/>Client → App: request URL<br/>Client → S3: PUT direct<br/>App bandwidth: ~0<br/>Scales with object storage"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 4. Deep Dive — Feed Ranking
 
 #### 💬 Why Instagram isn't chronological
@@ -1489,6 +2039,20 @@ A chronological feed shows you what's newest. A ranked feed shows you what you'r
    │     • freshness boost                                        │
    │     • integrity filters (policy violations, borderline)      │
    └──────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+flowchart TD
+    Pool["🌍 All posts<br/>(millions of candidates)"] --> S1["STAGE 1: Candidate Generation<br/>cheap, high-recall retrieval<br/>follows · similar accounts ·<br/>trending in interest clusters<br/><b>optimized for RECALL</b>"]
+    S1 -->|"thousands → hundreds"| S2["STAGE 2: Ranking<br/>expensive ML model scores:<br/>P(like)·P(comment)·P(share)·<br/>P(dwell)·P(negative feedback ↓)<br/><b>optimized for PRECISION</b>"]
+    S2 -->|"hundreds → ~50"| S3["STAGE 3: Re-ranking / Rules<br/>diversity · ad insertion ·<br/>freshness boost · integrity"]
+    S3 --> Feed["📱 Final feed<br/>~50 ordered posts"]
+
+    style Pool fill:#e1f5fe,stroke:#0277bd,color:#000
+    style S1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style S2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style S3 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Feed fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```
@@ -1556,6 +2120,28 @@ A chronological feed shows you what's newest. A ranked feed shows you what you'r
        or shard the viewer set.
 ```
 
+```mermaid
+flowchart LR
+    subgraph Posts["📷 Posts"]
+        P1["Permanent"] --- P2["Ranked feed"] --- P3["Public engagement"] --- P4["Grows forever"]
+    end
+    subgraph Stories["⏳ Stories"]
+        S1["Expire in 24h"] --- S2["Chronological per author"] --- S3["Private view list"] --- S4["Bounded working set"]
+    end
+
+    Stories --> TTL["✅ TTL-based storage<br/>Redis TTL / Cassandra TTL<br/>no deletion job needed<br/>storage cost bounded"]
+
+    style P1 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style P2 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style P3 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style P4 fill:#e3f2fd,stroke:#1565c0,color:#000
+    style S1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S4 fill:#fff9c4,stroke:#f9a825,color:#000
+    style TTL fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 6. Deep Dive — Media Storage Tiering
 
 ```
@@ -1584,6 +2170,25 @@ A chronological feed shows you what's newest. A ranked feed shows you what you'r
    ⚠️ Keep the ORIGINAL for re-processing (new formats, new
      resolutions, ML re-analysis), but keep it in cold storage.
      Serve only the derived variants.
+```
+
+```mermaid
+flowchart LR
+    Day0["Day 0-1<br/>~80% of views"] --> Hot["🔥 HOT<br/>CDN edge + hot storage<br/>0-7 days"]
+    Day1["Day 2-7<br/>~15%"] --> Warm["🌤️ WARM<br/>standard object storage<br/>7-90 days"]
+    Day2["Day 8-30<br/>~4%"] --> Cold["🧊 COLD<br/>infrequent-access tier<br/>90-365 days"]
+    Day3["After<br/>~1%, falling"] --> Archive["🗄️ ARCHIVE<br/>glacier-class<br/>1 year+"]
+
+    Hot -.lifecycle policy.-> Warm -.lifecycle policy.-> Cold -.lifecycle policy.-> Archive
+
+    style Day0 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Day1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Day2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Day3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Hot fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Warm fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Cold fill:#fff9c4,stroke:#f9a825,color:#000
+    style Archive fill:#f5f5f5,stroke:#757575,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups

@@ -86,6 +86,18 @@
    8. The network is homogeneous    → protocol negotiation, varied MTUs
 ```
 
+```mermaid
+flowchart TD
+    A["Network partition occurs<br/>(Fact 1: network is unreliable)"] --> B{"Can you tell if a<br/>node is dead or slow?"}
+    B -->|"no — a timeout is a guess"| C["Must choose:<br/>reject the request<br/>or serve possibly-stale data"]
+    C --> D["⭐ This single fact is the seed<br/>of CAP, FLP, and every<br/>consensus/replication tradeoff<br/>in this book"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+```
+
 ---
 
 ## 2. Failure Models
@@ -138,6 +150,21 @@
        a failure signal, not just errors
 ```
 
+```mermaid
+flowchart LR
+    A["CRASH-STOP<br/>fails, never returns"] --> B["CRASH-RECOVERY<br/>⭐ the realistic model<br/>fails, returns with stale state"]
+    B --> C["OMISSION<br/>drops some messages,<br/>not others"]
+    C --> D["⚠️ GRAY FAILURE<br/>degraded, not detected<br/>'slow is the new down'"]
+    D --> E["⚠️ BYZANTINE<br/>arbitrary/malicious behavior<br/>needs 3f+1 nodes"]
+
+    style A fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+```
+*Easiest to tolerate on the left, hardest on the right. Assume crash-recovery inside your own datacenter; gray failures are what actually page you at 3am.*
+
 ---
 
 ## 3. The FLP Impossibility Result
@@ -188,6 +215,25 @@
      a request on the critical path. Consensus is for small,
      critical metadata — leader election, configuration,
      membership — not for high-volume data operations.
+```
+
+```mermaid
+flowchart TD
+    A["FLP: no deterministic consensus<br/>in a fully async system + 1 crash fault"] --> B{"Which assumption<br/>do you weaken?"}
+    B --> C["① Partial synchrony<br/>⭐ Raft & Paxos<br/>use TIMEOUTS as failure detectors"]
+    B --> D["② Randomization<br/>terminate with probability 1<br/>(Ben-Or, some BFT protocols)"]
+    B --> E["③ Failure detectors<br/>assume an oracle that eventually<br/>identifies crashed nodes"]
+
+    C --> F["Safety ALWAYS preserved<br/>Liveness only during sync periods"]
+    F --> G["⭐ Never put consensus<br/>on the high-volume<br/>request path"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ---
@@ -325,6 +371,26 @@
      around it" rather than "pretend the error is zero."
 ```
 
+```mermaid
+flowchart TD
+    A{"Need to order<br/>distributed events?"} --> B{"Just need a<br/>total order for<br/>tie-breaking?"}
+    B -->|"yes"| C["✅ Lamport clock<br/>simple counter<br/>⚠️ can't detect concurrency"]
+    B -->|"need to detect<br/>true concurrency"| D["✅ Vector clock<br/>per-node counter vector<br/>⚠️ grows with N nodes"]
+    A --> E{"Want physical-time<br/>meaning too?"}
+    E -->|"yes, without vector growth"| F["✅ Hybrid Logical Clock<br/>physical + logical counter<br/>never goes backwards"]
+    A --> G{"Need global strict<br/>serializability?"}
+    G -->|"yes, willing to pay<br/>hardware + latency cost"| H["✅ TrueTime<br/>interval [earliest, latest]<br/>+ commit-wait ⭐"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style G fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style H fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ---
 
 ## 5. Consensus: Paxos and Raft
@@ -384,6 +450,24 @@
    • A candidate winning a MAJORITY becomes leader.
 ```
 
+```mermaid
+stateDiagram-v2
+    [*] --> Follower
+    Follower --> Candidate: election timeout<br/>(randomized 150-300ms)<br/>no heartbeat received
+    Candidate --> Candidate: split vote,<br/>new randomized timeout
+    Candidate --> Leader: wins majority of votes
+    Candidate --> Follower: discovers current leader<br/>or higher term
+    Leader --> Follower: discovers higher term<br/>(stale leader detected)
+
+    classDef followerStyle fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    classDef candidateStyle fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    classDef leaderStyle fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    class Follower followerStyle
+    class Candidate candidateStyle
+    class Leader leaderStyle
+```
+*Terms are a logical clock — they're how stale leaders are detected and rejected. Randomized timeouts prevent every follower from splitting the vote simultaneously.*
+
 ```
    ── ② LOG REPLICATION ────────────────────────────────────────
 
@@ -409,6 +493,25 @@
      the PRECEDING entry, and a follower rejects the append if
      it doesn't match. Rejection causes the leader to walk
      backwards until it finds the point of agreement.
+```
+
+```mermaid
+flowchart TD
+    A["Client sends write"] --> B["Leader appends to<br/>its own log (uncommitted)"]
+    B --> C["Leader sends AppendEntries<br/>to all followers in parallel"]
+    C --> D{"Majority of nodes<br/>have stored the entry?"}
+    D -->|"no, still waiting"| C
+    D -->|"⭐ yes"| E["Entry is COMMITTED"]
+    E --> F["Applied to state machine"]
+    F --> G["Client acknowledged"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ```
@@ -444,6 +547,20 @@
      3 nodes → 1 failure    5 nodes → 2 failures
      ⚠️ EVEN cluster sizes gain nothing: 4 nodes still only
        tolerate 1 failure, so always use an odd number.
+```
+
+```mermaid
+flowchart TD
+    A["Two majorities of<br/>the same N nodes"] --> B["⭐ MUST overlap<br/>in at least one node"]
+    B --> C["5 nodes → majority = 3<br/>{A,B,C} ∩ {C,D,E} = {C}"]
+    C --> D["Overlapping node carries<br/>knowledge from old majority<br/>to new one"]
+    D --> E["New leader is guaranteed to<br/>know everything the previous<br/>majority committed"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ### Paxos in one paragraph
@@ -506,6 +623,20 @@
    │ W=2, R=2  (N=3)  │ ⭐ BALANCED. Survives one failure on      │
    │                  │ both paths. The usual choice.            │
    └──────────────────┴──────────────────────────────────────────┘
+```
+
+```mermaid
+flowchart TD
+    A{"What matters more:<br/>read speed or write speed?"} -->|"neither, want max speed,<br/>no consistency guarantee"| B["W=1, R=1<br/>❌ no overlap guarantee<br/><i>caches, metrics</i>"]
+    A -->|"fast reads over writes"| C["W=N, R=1<br/>⚠️ one node down<br/>blocks ALL writes"]
+    A -->|"fast writes over reads"| D["W=1, R=N<br/>⚠️ one node down<br/>blocks ALL reads"]
+    A -->|"balanced, tolerate<br/>1 failure either way"| E["✅ W=2, R=2 (N=3)<br/>⭐ the standard choice"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```
@@ -603,6 +734,21 @@
    └──────────────────────────────────────────────────────────────┘
 ```
 
+```mermaid
+flowchart LR
+    A["Linearizability<br/>real-time recency<br/>coordination on every op"] --> B["Sequential<br/>same order for all,<br/>no real-time guarantee"]
+    B --> C["Causal<br/>⭐ strongest model still<br/>always-available (AP ceiling)"]
+    C --> D["Session guarantees<br/>read-your-writes,<br/>monotonic reads/writes"]
+    D --> E["Eventual<br/>⚠️ converges eventually,<br/>no guarantee when"]
+
+    style A fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:3px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+```
+*Strongest on the left (most coordination, highest cost), weakest on the right (least coordination, cheapest). Causal is the practical ceiling for a system that must stay available under partition.*
+
 ```
    ⭐ LINEARIZABILITY vs SERIALIZABILITY — the classic confusion
 
@@ -652,6 +798,22 @@
      out of order, duplicated, delayed — and every replica
      still converges to the identical state. No consensus,
      no leader, no coordination.
+```
+
+```mermaid
+flowchart TD
+    A["Merge function ⊔"] --> B["Associative<br/>(a⊔b)⊔c = a⊔(b⊔c)<br/><i>grouping doesn't matter</i>"]
+    A --> C["Commutative<br/>a⊔b = b⊔a<br/><i>order doesn't matter</i>"]
+    A --> D["Idempotent<br/>a⊔a = a<br/><i>duplicates don't matter</i>"]
+    B --> E["⭐ Guaranteed convergence<br/>under any delivery order,<br/>duplication, or delay"]
+    C --> E
+    D --> E
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ### The two families
@@ -715,6 +877,20 @@
      [Amazon's cart](05-case-studies-3.md#3-deep-dive--the-cart).
 ```
 
+```mermaid
+flowchart LR
+    A["Replica A:<br/>add(x) tag t1"] --> C["Merge"]
+    B["Replica B:<br/>remove(x), only<br/>observed t1"] --> C
+    D["Replica A:<br/>add(x) again, tag t2<br/>(concurrent with B's remove)"] --> C
+    C --> E["Result: {x: {t2}}<br/>⭐ x IS present — ADD WINS"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```
    ⚠️ THE REAL COSTS OF CRDTs
 
@@ -774,6 +950,27 @@
      • Long-running business processes
      • Anywhere availability matters more than strict atomicity
      → use SAGAS instead
+```
+
+```mermaid
+flowchart TD
+    A["Multi-step transaction<br/>across services/nodes"] --> B{"Single DB cluster,<br/>short, low-contention,<br/>coordinator co-located?"}
+    B -->|"yes"| C["✅ 2PC<br/>strict atomicity"]
+    B -->|"no — WAN, long-running,<br/>availability matters more"| D["✅ Saga<br/>local txns + compensations"]
+
+    C --> C1["⚠️ Coordinator crash after<br/>PREPARE = participants<br/>block holding locks forever"]
+    D --> D1{"Who drives the steps?"}
+    D1 -->|"need visibility,<br/>testability"| E["Orchestration<br/>✅ flow visible/resumable<br/>❌ coupling point"]
+    D1 -->|"simple fan-out,<br/>loose coupling"| F["Choreography<br/>✅ loose coupling<br/>❌ hard to debug"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 ### Sagas
@@ -886,6 +1083,29 @@
      cause flapping membership and needless rebalancing.
 ```
 
+```mermaid
+flowchart TD
+    A["① Direct probe<br/>A pings B"] --> B{"B responds?"}
+    B -->|"yes"| C["✅ B is alive"]
+    B -->|"no response"| D["② Indirect probe<br/>A asks k other nodes<br/>to ping B"]
+    D --> E{"Any of them<br/>reach B?"}
+    E -->|"yes"| C
+    E -->|"no"| F["③ Suspicion<br/>B marked SUSPECT<br/>(gossiped, not final)"]
+    F --> G{"B refutes<br/>before timeout?"}
+    G -->|"yes"| C
+    G -->|"no"| H["⑤ Death<br/>B declared dead,<br/>gossiped to cluster"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style F fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style G fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style H fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+```
+*The indirect-probe step is what distinguishes "B is actually down" from "the A→B link is broken" — a genuinely important distinction gossip-based membership gets right that naive heartbeats don't.*
+
 ---
 
 ## 11. Probabilistic Data Structures
@@ -897,6 +1117,29 @@
      approximate answer in kilobytes beats an exact answer in
      gigabytes — especially when the exact answer would require
      memory you don't have.
+```
+
+```mermaid
+flowchart TD
+    A{"What question<br/>are you answering<br/>at scale?"} --> B["'Have I seen<br/>this element before?'"]
+    A --> C["'How many DISTINCT<br/>elements have I seen?'"]
+    A --> D["'How FREQUENTLY has<br/>this element appeared?'"]
+    A --> E["'What's the p99<br/>of this stream?'"]
+
+    B --> B1["✅ Bloom Filter<br/>no false negatives<br/>~9.6 bits/elem @ 1% FP"]
+    C --> C1["✅ HyperLogLog<br/>~12 KB, ~0.81% error<br/>⭐ mergeable across shards"]
+    D --> D1["✅ Count-Min Sketch<br/>never underestimates<br/>(takes the MIN)"]
+    E --> E1["✅ T-Digest<br/>accurate percentiles,<br/>no full sample storage"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style C1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ### Bloom Filter — "definitely not present" or "maybe present"

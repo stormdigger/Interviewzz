@@ -1,493 +1,535 @@
-# 🕸️ Graphs — 50 Problems
+# 🕸️ Graphs
 
 > Graph problems look intimidating but reduce to a small set of algorithms. The real skill is **recognizing that a problem is a graph problem** — grids, dependencies, word transformations, and state machines are all graphs in disguise.
 
-**Prerequisite:** [Patterns & Foundations](00-patterns.md)
+**Prerequisite:** [Patterns & Foundations](00-patterns.md) · **Format:** [see the sample](FORMAT-SAMPLE.md)
 
 ---
 
-## 🧠 Representations & Templates
+## 🧠 The Algorithm Selection Chart
+
+```mermaid
+flowchart TD
+    Q{"What are you<br/>looking for?"}
+    Q -->|"connectivity ·<br/>reachability · components"| A["⭐ DFS or BFS<br/><b>O(V + E)</b>"]
+    Q -->|"SHORTEST path,<br/>UNWEIGHTED"| B["⭐ BFS<br/><b>O(V + E)</b><br/>⚠️ never DFS"]
+    Q -->|"shortest path,<br/>POSITIVE weights"| C["⭐ DIJKSTRA<br/><b>O(E log V)</b>"]
+    Q -->|"shortest path,<br/>NEGATIVE weights"| D["⭐ BELLMAN-FORD<br/><b>O(V·E)</b><br/>detects negative cycles"]
+    Q -->|"ALL pairs<br/>shortest paths"| E["⭐ FLOYD-WARSHALL<br/><b>O(V³)</b>"]
+    Q -->|"ordering with<br/>dependencies"| F["⭐ TOPOLOGICAL SORT<br/>Kahn's or DFS"]
+    Q -->|"dynamic connectivity ·<br/>'are these connected?'"| G["⭐ UNION-FIND<br/>~O(1) amortized"]
+    Q -->|"cheapest set of edges<br/>connecting everything"| H["⭐ MST<br/>Kruskal or Prim"]
+    Q -->|"0/1 edge weights"| I["⭐ 0-1 BFS<br/>deque, <b>O(V + E)</b>"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style E fill:#ffcdd2,stroke:#c62828,color:#000
+    style F fill:#bbdefb,stroke:#1565c0,stroke-width:2px,color:#000
+    style G fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+    style H fill:#b2dfdb,stroke:#00695c,color:#000
+    style I fill:#d1c4e9,stroke:#4527a0,color:#000
+```
+
+## ⭐ The Single Most Important Rule
+
+```mermaid
+flowchart LR
+    A["⭐ For an UNWEIGHTED shortest path,<br/>BFS is CORRECT and DFS is NOT"] --> B["BFS explores in order of<br/>DISTANCE from the source"]
+    B --> C["⭐ So the FIRST time it reaches a<br/>node, it has done so by the<br/>shortest possible path"]
+    C --> D["⚠️ DFS may reach a node by a long<br/>detour and mark it visited,<br/>blocking the short route"]
+
+    style A fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+```
+
+## ⭐ Graph Representations
 
 ```cpp
-// ADJACENCY LIST — the default. O(V+E) space.
+// ADJACENCY LIST — the default. O(V + E) space.
 vector<vector<int>> adj(n);
-for (auto& e : edges) { adj[e[0]].push_back(e[1]); adj[e[1]].push_back(e[0]); }
+adj[u].push_back(v);
 
-// Weighted
-vector<vector<pair<int,int>>> adj(n);              // {neighbor, weight}
-
-// ADJACENCY MATRIX — O(V²) space. Only for dense graphs or V ≤ ~500.
+// ADJACENCY MATRIX — O(V²) space. Use only when the graph is DENSE
+// or you need O(1) "is there an edge u→v?"
 vector<vector<int>> mat(n, vector<int>(n, 0));
 
-// GRID as an implicit graph — ⭐ extremely common
-const int dr[] = {-1, 1, 0, 0}, dc[] = {0, 0, -1, 1};
-```
-
-### The algorithm selector
-
-```
-                        What is being asked?
-                                │
-   ┌──────────────┬─────────────┼──────────────┬─────────────────┐
-   ▼              ▼             ▼              ▼                 ▼
- SHORTEST      CONNECTIVITY  ORDERING      ALL PATHS         MST
- PATH          COMPONENTS    DEPENDENCIES  / CYCLES
-   │              │             │              │                 │
-   ▼              ▼             ▼              ▼                 ▼
- unweighted    DFS/BFS        Topological     DFS +           Kruskal(DSU)
-   → BFS       or DSU         sort            backtracking     or Prim(heap)
- weighted ≥0                  (Kahn or DFS)
-   → Dijkstra  DSU also for
- negative      DYNAMIC
-   → Bellman-  connectivity
-     Ford
- all pairs
-   → Floyd-Warshall
- {0,1} weights
-   → 0-1 BFS (deque)
+// ⭐ GRID as an implicit graph — no adjacency list needed at all
+int dr[] = {-1, 1, 0, 0};
+int dc[] = { 0, 0,-1, 1};
 ```
 
 ---
 
-## A. Grid Traversal
+## 📑 Contents
 
-### 1. Number of Islands 🟡
-> Given a grid of `'1'` (land) and `'0'` (water), count how many separate islands there are. Land connects horizontally and vertically.
+| # | Problem | Diff | Type | Optimal |
+|---|---|---|---|---|
+| [1](#1-number-of-islands) | Number of Islands | 🟡 | 🔵 **Full** | O(RC) flood fill |
+| [2](#2-max-area-of-island--island-perimeter) | Max Area / Perimeter | 🟢 | ⚪ Variation | same DFS |
+| [3](#3-surrounded-regions) | Surrounded Regions | 🟡 | 🔵 **Full** | ⭐ invert: start from the border |
+| [4](#4-pacific-atlantic-water-flow) | Pacific Atlantic Water Flow | 🟡 | ⚪ Variation | ⭐ reverse the flow |
+| [5](#5-rotting-oranges) | Rotting Oranges | 🟡 | 🔵 **Full** | ⭐ multi-source BFS |
+| [6](#6-01-matrix--walls-and-gates) | 01 Matrix / Walls and Gates | 🟡 | ⚪ Variation | multi-source BFS |
+| [7](#7-word-ladder) | Word Ladder | 🔴 | 🔵 **Full** | ⭐ BFS + bidirectional |
+| [8](#8-course-schedule-i--ii) | Course Schedule I / II | 🟡 | 🔵 **Full** | ⭐ topological sort |
+| [9](#9-alien-dictionary) | Alien Dictionary | 🔴 | ⚪ Variation | build edges, then topo |
+| [10](#10-minimum-height-trees) | Minimum Height Trees | 🟡 | ⚪ Variation | ⭐ peel leaves inward |
+| [11](#11-clone-graph) | Clone Graph | 🟡 | 🔵 **Full** | DFS + a visited map |
+| [12](#12-graph-valid-tree) | Graph Valid Tree | 🟡 | 🔵 **Full** | ⭐ n−1 edges + connected |
+| [13](#13-number-of-connected-components) | Connected Components | 🟡 | ⚪ Variation | union-find or DFS |
+| [14](#14-union-find-the-structure) | Union-Find (the structure) | 🟡 | 🔵 **Full** | ⭐ path compression + rank |
+| [15](#15-redundant-connection) | Redundant Connection | 🟡 | ⚪ Variation | first union that fails |
+| [16](#16-accounts-merge) | Accounts Merge | 🟡 | ⚪ Variation | union-find on strings |
+| [17](#17-network-delay-time-dijkstra) | Network Delay Time (Dijkstra) | 🟡 | 🔵 **Full** | ⭐ O(E log V) |
+| [18](#18-cheapest-flights-within-k-stops) | Cheapest Flights Within K Stops | 🟡 | 🔵 **Full** | ⭐ Bellman-Ford, k+1 rounds |
+| [19](#19-path-with-minimum-effort) | Path With Minimum Effort | 🟡 | ⚪ Variation | Dijkstra on max-edge |
+| [20](#20-swim-in-rising-water) | Swim in Rising Water | 🔴 | ⚪ Variation | same as #19 |
+| [21](#21-minimum-spanning-tree-kruskal--prim) | MST (Kruskal + Prim) | 🟡 | 🔵 **Full** | O(E log E) / O(E log V) |
+| [22](#22-critical-connections-bridges) | Critical Connections (Bridges) | 🔴 | 🔵 **Full** | ⭐ Tarjan low-link |
+| [23](#23-word-search-ii) | Word Search II | 🔴 | ⚪ Variation | ⭐ Trie + DFS pruning |
+| [24](#24-bipartite-graph-check) | Bipartite Check | 🟡 | 🔵 **Full** | 2-colouring via BFS |
+| [25](#25-reconstruct-itinerary-eulerian) | Reconstruct Itinerary | 🔴 | 🔵 **Full** | ⭐ Hierholzer |
 
-#### 💬 Think of it like this
-Imagine the grid is a real map and you have a bucket of black paint. You walk the map cell by cell. The moment you step on a piece of land you've never seen before, you shout **"new island!"** and increment your counter. Then — before moving on — you pour paint over that *entire* island: you flood from where you stand to every connected land cell, painting each one black so you can never count it again.
+---
 
-By the time you finish scanning the whole map, every island has been painted exactly once, and your counter holds the answer.
+# 1. Number of Islands
 
-The "pouring paint" step is the recursion. It spreads outward in all four directions, and each cell it touches gets marked so the spread doesn't bounce back.
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The flood-fill template**
 
-#### 📊 Watching it work
+> Count connected groups of `'1'` in a grid.
+
+## 🗺️ Approach Ladder
+
+```mermaid
+flowchart LR
+    A["⚡ DFS FLOOD FILL<br/><b>O(RC)</b> / O(RC) stack"] --> B["⚡ BFS FLOOD FILL<br/><b>O(RC)</b> / O(min(R,C)) queue<br/>⭐ safer for huge grids"]
+    B --> C["⚡ UNION-FIND<br/><b>O(RC·α)</b><br/>⭐ needed only if the grid CHANGES"]
+
+    style A fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+```
+
+## 💬 The idea
+
+```mermaid
+flowchart TD
+    A["scan every cell"] --> B{"is it land AND<br/>not yet visited?"}
+    B -->|"no"| A
+    B -->|"yes"| C["⭐ count++ — a NEW island"]
+    C --> D["⭐ FLOOD FILL: mark this cell<br/>and every connected land cell"]
+    D --> E["Those cells can never<br/>start another island"]
+    E --> A
+
+    N["⭐ The key realization: one scan finds<br/>the islands, and the flood fill ensures<br/>each is counted exactly ONCE"] -.-> C
+
+    style B fill:#fff9c4,stroke:#f9a825,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style N fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+```
 
 ```
-   START                    Scan finds (0,0) = land → count = 1
-   ┌───┬───┬───┬───┐        Flood fill spreads from there:
-   │ 1 │ 1 │ 0 │ 0 │
-   ├───┼───┼───┼───┤          (0,0)→(0,1)→(1,1)   all become 0
-   │ 0 │ 1 │ 0 │ 1 │
-   ├───┼───┼───┼───┤        ┌───┬───┬───┬───┐
-   │ 0 │ 0 │ 0 │ 1 │        │ 0 │ 0 │ 0 │ 0 │   island 1 erased
-   └───┴───┴───┴───┘        ├───┼───┼───┼───┤
-                            │ 0 │ 0 │ 0 │ 1 │
-   Keep scanning...         ├───┼───┼───┼───┤
-   find (1,3) = land        │ 0 │ 0 │ 0 │ 1 │
-   → count = 2              └───┴───┴───┴───┘
-   flood (1,3) and (2,3)
-                            ┌───┬───┬───┬───┐
-                            │ 0 │ 0 │ 0 │ 0 │   grid fully erased
-                            ├───┼───┼───┼───┤
-                            │ 0 │ 0 │ 0 │ 0 │   ANSWER = 2
-                            ├───┼───┼───┼───┤
-                            │ 0 │ 0 │ 0 │ 0 │
-                            └───┴───┴───┴───┘
-```
+   GRID                    AFTER PROCESSING
 
-#### How the flood spreads from one cell
+   1 1 0 0 0               🅐 🅐 0 0 0
+   1 1 0 0 0     ⭐ →      🅐 🅐 0 0 0
+   0 0 1 0 0               0 0 🅑 0 0
+   0 0 0 1 1               0 0 0 🅒 🅒
 
-```
-            (r-1, c)
-               ▲
-               │
-   (r, c-1) ◀──●──▶ (r, c+1)      each arrow is a recursive call
-               │                   each call repeats the same 4 arrows
-               ▼                   until it hits water or the edge
-            (r+1, c)
+   ⭐ 3 islands. Each flood fill consumes an entire
+     connected group in one go.
 ```
 
 ```cpp
-int numIslands(vector<vector<char>>& g) {
-    int R = g.size(), C = g[0].size(), count = 0;
+class Solution {
+    int R, C;
 
-    // "Pour paint" — erase every land cell connected to (r,c)
-    function<void(int,int)> sink = [&](int r, int c) {
-        // Stop if we walked off the map, or hit water/already-painted land
+    void flood(vector<vector<char>>& g, int r, int c) {
+        // ⭐ ONE guard handles bounds AND already-visited
         if (r < 0 || r >= R || c < 0 || c >= C || g[r][c] != '1') return;
 
-        g[r][c] = '0';          // ⭐ paint it — this is our "visited" marker
-                                //    (no separate visited array needed)
+        g[r][c] = '0';                          // ⭐ mark IMMEDIATELY, before recursing
 
-        sink(r-1, c);           // spread up
-        sink(r+1, c);           // spread down
-        sink(r, c-1);           // spread left
-        sink(r, c+1);           // spread right
-    };
+        flood(g, r - 1, c);
+        flood(g, r + 1, c);
+        flood(g, r, c - 1);
+        flood(g, r, c + 1);
+    }
 
-    // Walk every cell; each unpainted land cell starts a NEW island
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c)
-            if (g[r][c] == '1') { ++count; sink(r, c); }
+public:
+    int numIslands(vector<vector<char>>& g) {
+        if (g.empty()) return 0;
+        R = g.size(); C = g[0].size();
 
-    return count;
-}
+        int count = 0;
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c)
+                if (g[r][c] == '1') { ++count; flood(g, r, c); }
+        return count;
+    }
+};
 ```
 
-**Why is this O(R·C) and not worse?** Every cell is painted at most once. Once painted it returns immediately on any future visit. So the total work across *all* flood fills is bounded by the number of cells.
+```
+   ⭐⭐ MARK BEFORE RECURSING, NOT AFTER
 
-⚠️ **Real-world gotcha:** recursion depth can reach R·C. On a 1000×1000 all-land grid that's a million stack frames and your program crashes. In production or for large inputs, convert to BFS with a queue, or DFS with an explicit stack.
+   If you recurse first and mark afterwards, two neighbouring
+   cells each recurse into the other before either is marked
+   → infinite recursion → stack overflow.
 
----
+   ⭐ Marking on entry is the universal rule for graph DFS.
+```
 
-### 2. Max Area of Island 🟡
+⚠️ **Recursion depth is O(R·C)** in the worst case (an all-land grid). On a 1000×1000 grid that's a million frames — **stack overflow**. Use the BFS version when grids may be large.
+
+## 🔁 BFS version — safer on big grids
 ```cpp
-int maxAreaOfIsland(vector<vector<int>>& g) {
-    int R = g.size(), C = g[0].size(), best = 0;
-    function<int(int,int)> area = [&](int r, int c) -> int {
-        if (r < 0 || r >= R || c < 0 || c >= C || g[r][c] != 1) return 0;
-        g[r][c] = 0;
-        return 1 + area(r-1,c) + area(r+1,c) + area(r,c-1) + area(r,c+1);
-    };
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) best = max(best, area(r, c));
-    return best;
+void floodBFS(vector<vector<char>>& g, int sr, int sc) {
+    queue<pair<int,int>> q;
+    q.push({sr, sc});
+    g[sr][sc] = '0';                            // ⭐ mark on ENQUEUE, not dequeue
+
+    int dr[] = {-1,1,0,0}, dc[] = {0,0,-1,1};
+    while (!q.empty()) {
+        auto [r, c] = q.front(); q.pop();
+        for (int d = 0; d < 4; ++d) {
+            int nr = r + dr[d], nc = c + dc[d];
+            if (nr >= 0 && nr < R && nc >= 0 && nc < C && g[nr][nc] == '1') {
+                g[nr][nc] = '0';                // ⭐⭐ mark on ENQUEUE
+                q.push({nr, nc});
+            }
+        }
+    }
 }
+```
+
+⚠️ **Marking on dequeue instead of enqueue** lets the same cell enter the queue multiple times — the queue can blow up to O(RC) and the complexity degrades.
+
+## 📌 Pattern Card
+```
+SIGNAL   connected regions in a grid
+KEY      scan + flood fill · ⭐ mark on ENTRY (DFS) or ENQUEUE (BFS)
+         ⚠️ DFS recursion depth can overflow on large grids
+RELATED  Max Area of Island · Surrounded Regions · Number of Distinct Islands
 ```
 
 ---
 
-### 3. Rotting Oranges 🟡
-> Grid of `0` (empty), `1` (fresh orange), `2` (rotten). Every minute, a rotten orange rots its 4 neighbours. Return the minutes until nothing fresh remains, or `-1` if impossible.
+# 2. Max Area of Island / Island Perimeter
+🟢 ⚪ **Variations of #1** — same traversal, different accumulator.
 
-#### 💬 Think of it like this
-This is rot **spreading like a wave**. At minute 0, several oranges are already rotten — maybe five of them, scattered around the box. At minute 1, all five simultaneously infect their neighbours. At minute 2, that whole new ring infects *its* neighbours.
+```cpp
+// Max area — DFS returns a count instead of void
+int area(vector<vector<int>>& g, int r, int c) {
+    if (r < 0 || r >= R || c < 0 || c >= C || g[r][c] != 1) return 0;
+    g[r][c] = 0;
+    return 1 + area(g,r-1,c) + area(g,r+1,c) + area(g,r,c-1) + area(g,r,c+1);
+}
 
-The critical realization: you do **not** run a separate simulation from each rotten orange. You put *all* of them into the queue at the start, and let one single wave expand from all of them at once. This is called **multi-source BFS**, and it answers "distance to the *nearest* source" for every cell in one pass.
+// Perimeter — ⭐ no traversal needed at all
+int islandPerimeter(vector<vector<int>>& g) {
+    int perim = 0;
+    for (int r = 0; r < (int)g.size(); ++r)
+        for (int c = 0; c < (int)g[0].size(); ++c)
+            if (g[r][c] == 1) {
+                perim += 4;                     // ⭐ each cell starts with 4 sides
+                if (r > 0 && g[r-1][c]) perim -= 2;   // ⭐ shared edge removes 2
+                if (c > 0 && g[r][c-1]) perim -= 2;
+            }
+    return perim;
+}
+```
+⭐ **Perimeter needs only counting, not traversal.** Every adjacency removes two sides — one from each cell. Checking only up and left avoids double-counting.
 
-The minute counter is just "how many rings has the wave expanded." That's why we process the queue one full level at a time.
+---
 
-#### 📊 The wave expanding
+# 3. Surrounded Regions
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Invert the problem**
+
+> Flip every `'O'` region that does **not** touch the border.
+
+## 💬 Why solving the complement is far easier
+
+```mermaid
+flowchart TD
+    A["❌ DIRECT: for each O-region,<br/>check whether it touches the border"] --> B["⚠️ Requires tracking per-region<br/>state and a second pass to flip"]
+    B --> C["⭐ INVERT: find the regions that<br/>DO touch the border — they're<br/>reachable by DFS FROM the border"]
+    C --> D["⭐ Mark those as safe.<br/>Everything still 'O' is surrounded."]
+    D --> E["✅ One traversal, no bookkeeping"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```
-   minute 0              minute 1              minute 2
-   ┌───┬───┬───┐        ┌───┬───┬───┐        ┌───┬───┬───┐
-   │ 2 │ 1 │ 1 │        │ 2 │ 2 │ 1 │        │ 2 │ 2 │ 2 │
-   ├───┼───┼───┤        ├───┼───┼───┤        ├───┼───┼───┤
-   │ 1 │ 1 │ 0 │        │ 2 │ 1 │ 0 │        │ 2 │ 2 │ 0 │
-   ├───┼───┼───┤        ├───┼───┼───┤        ├───┼───┼───┤
-   │ 0 │ 1 │ 1 │        │ 0 │ 1 │ 1 │        │ 0 │ 2 │ 1 │
-   └───┴───┴───┘        └───┴───┴───┘        └───┴───┴───┘
-   fresh = 6            fresh = 4            fresh = 2
-
-                          minute 3              minute 4
-                        ┌───┬───┬───┐        ┌───┬───┬───┐
-                        │ 2 │ 2 │ 2 │        │ 2 │ 2 │ 2 │
-                        ├───┼───┼───┤        ├───┼───┼───┤
-                        │ 2 │ 2 │ 0 │        │ 2 │ 2 │ 0 │
-                        ├───┼───┼───┤        ├───┼───┼───┤
-                        │ 0 │ 2 │ 2 │        │ 0 │ 2 │ 2 │
-                        └───┴───┴───┘        └───┴───┴───┘
-                        fresh = 0  →  ANSWER = 4
+   BEFORE          MARK FROM BORDER      AFTER
+   X X X X         X X X X               X X X X
+   X O O X    ⭐→  X O O X          →    X X X X
+   X X O X         X X O X               X X X X
+   X O X X         X # X X               X O X X
+                     ▲
+              ⭐ reachable from the border → survives
 ```
 
-#### Why `int sz = q.size()` matters
+```cpp
+class Solution {
+    int R, C;
+    void mark(vector<vector<char>>& b, int r, int c) {
+        if (r < 0 || r >= R || c < 0 || c >= C || b[r][c] != 'O') return;
+        b[r][c] = '#';                          // ⭐ temporary "safe" marker
+        mark(b,r-1,c); mark(b,r+1,c); mark(b,r,c-1); mark(b,r,c+1);
+    }
+public:
+    void solve(vector<vector<char>>& b) {
+        if (b.empty()) return;
+        R = b.size(); C = b[0].size();
+
+        // ⭐ start ONLY from the border
+        for (int r = 0; r < R; ++r) { mark(b, r, 0); mark(b, r, C-1); }
+        for (int c = 0; c < C; ++c) { mark(b, 0, c); mark(b, R-1, c); }
+
+        for (auto& row : b)
+            for (char& ch : row) {
+                if (ch == 'O') ch = 'X';        // ⭐ surrounded → flip
+                else if (ch == '#') ch = 'O';   // ⭐ safe → restore
+            }
+    }
+};
+```
+
+⭐ **"Start from the boundary" is a recurring grid trick.** It also solves Pacific Atlantic Water Flow, Number of Enclaves, and Escape the Large Maze.
+
+---
+
+# 4. Pacific Atlantic Water Flow
+🟡 ⚪ **Variation of #3** — ⭐ **reverse the flow direction**.
+
+```mermaid
+flowchart TD
+    A["❌ DIRECT: from each cell,<br/>can water reach both oceans?<br/><b>O((RC)²)</b>"] --> B["⭐ REVERSE: start at each ocean<br/>and flow UPHILL"]
+    B --> C["Two traversals, one per ocean,<br/>each marking reachable cells"]
+    C --> D["⭐ The answer is the INTERSECTION<br/>of the two reachable sets"]
+    D --> E(["<b>O(RC)</b>"])
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```cpp
+class Solution {
+    int R, C;
+    void flow(vector<vector<int>>& h, vector<vector<bool>>& seen, int r, int c, int prev) {
+        if (r < 0 || r >= R || c < 0 || c >= C) return;
+        if (seen[r][c] || h[r][c] < prev) return;   // ⭐⭐ UPHILL: >= prev only
+
+        seen[r][c] = true;
+        flow(h,seen,r-1,c,h[r][c]); flow(h,seen,r+1,c,h[r][c]);
+        flow(h,seen,r,c-1,h[r][c]); flow(h,seen,r,c+1,h[r][c]);
+    }
+public:
+    vector<vector<int>> pacificAtlantic(vector<vector<int>>& h) {
+        if (h.empty()) return {};
+        R = h.size(); C = h[0].size();
+
+        vector<vector<bool>> pac(R, vector<bool>(C)), atl(R, vector<bool>(C));
+
+        for (int r = 0; r < R; ++r) {
+            flow(h, pac, r, 0,     INT_MIN);    // ⭐ Pacific: left edge
+            flow(h, atl, r, C - 1, INT_MIN);    // ⭐ Atlantic: right edge
+        }
+        for (int c = 0; c < C; ++c) {
+            flow(h, pac, 0,     c, INT_MIN);    // top
+            flow(h, atl, R - 1, c, INT_MIN);    // bottom
+        }
+
+        vector<vector<int>> out;
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c)
+                if (pac[r][c] && atl[r][c]) out.push_back({r, c});   // ⭐ intersection
+        return out;
+    }
+};
+```
+⭐ **`h[r][c] < prev` return** encodes "water flows downhill, so searching backwards means climbing" — the comparison is flipped relative to the natural direction.
+
+---
+
+# 5. Rotting Oranges
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Multi-source BFS**
+
+> Every minute, rotten oranges rot their orthogonal neighbours. How many minutes until none are fresh?
+
+## 💬 Why all sources start in the queue together
+
+```mermaid
+flowchart TD
+    A["⚠️ Running BFS from each rotten<br/>orange separately would be<br/>O(sources × RC) and would need<br/>a min over all the results"] --> B["⭐ MULTI-SOURCE BFS:<br/>put ALL rotten oranges into the<br/>queue at time 0"]
+    B --> C["⭐ BFS then expands them as a<br/>single unified frontier"]
+    C --> D["Each cell is reached by whichever<br/>source is nearest — automatically"]
+    D --> E["⭐ The number of level iterations<br/>IS the answer"]
+
+    style A fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
 
 ```
-   Queue at the start of minute 1:  [ A ][ B ][ C ]
-                                     └────sz=3────┘
+   TIME 0          TIME 1          TIME 2
 
-   We process EXACTLY these 3, and the new cells they add
-   go behind them — they belong to minute 2, not minute 1.
+   2 1 1           2 2 1           2 2 2
+   1 1 0    ⭐→    2 1 0    ⭐→    2 2 0
+   0 1 1           0 1 1           0 2 1
 
-   After processing:  [ D ][ E ][ F ][ G ]   ← next level
-                       └───── minute 2 ─────┘
-
-   Without freezing sz, the loop would run into the newly
-   added cells and the minute counter would be meaningless.
+   ⭐ The frontier expands one ring per minute — exactly what
+     BFS levels represent.
 ```
 
 ```cpp
 int orangesRotting(vector<vector<int>>& g) {
     int R = g.size(), C = g[0].size(), fresh = 0;
     queue<pair<int,int>> q;
+
     for (int r = 0; r < R; ++r)
         for (int c = 0; c < C; ++c) {
-            if (g[r][c] == 2) q.push({r, c});      // ⭐ MULTI-SOURCE BFS
+            if (g[r][c] == 2) q.push({r, c});   // ⭐ EVERY source starts enqueued
             else if (g[r][c] == 1) ++fresh;
         }
 
-    int minutes = 0;
+    if (fresh == 0) return 0;                   // ⚠️ nothing to rot → 0, not −1
+
+    int minutes = 0, dr[] = {-1,1,0,0}, dc[] = {0,0,-1,1};
+
     while (!q.empty() && fresh) {
-        int sz = q.size();
+        int sz = q.size();                      // ⭐ freeze the level size
         for (int i = 0; i < sz; ++i) {
             auto [r, c] = q.front(); q.pop();
             for (int d = 0; d < 4; ++d) {
                 int nr = r + dr[d], nc = c + dc[d];
-                if (nr < 0 || nr >= R || nc < 0 || nc >= C || g[nr][nc] != 1) continue;
-                g[nr][nc] = 2; --fresh;
-                q.push({nr, nc});
+                if (nr >= 0 && nr < R && nc >= 0 && nc < C && g[nr][nc] == 1) {
+                    g[nr][nc] = 2;
+                    --fresh;
+                    q.push({nr, nc});
+                }
             }
         }
-        ++minutes;
+        ++minutes;                              // ⭐ one full level = one minute
     }
-    return fresh ? -1 : minutes;
+    return fresh ? -1 : minutes;                // ⚠️ unreachable fresh oranges
 }
 ```
-**Key insight:** **Multi-source BFS** — seed the queue with *all* starting points. This computes the distance from the nearest source to every cell in one pass, rather than running BFS per source.
+
+⚠️ **`&& fresh` in the loop condition** prevents counting an extra minute after the last orange rots — a very common off-by-one here.
+
+## 📌 Pattern Card
+```
+SIGNAL   simultaneous spread from MULTIPLE starting points
+KEY      ⭐ enqueue ALL sources before the BFS begins
+         level count = time elapsed
+RELATED  01 Matrix · Walls and Gates · Shortest Bridge · Map of Highest Peak
+```
 
 ---
 
-### 4. 01 Matrix (distance to nearest 0) 🟡
+# 6. 01 Matrix / Walls and Gates
+🟡 ⚪ **Variations of #5** — multi-source BFS from all zeros / all gates.
+
 ```cpp
-vector<vector<int>> updateMatrix(vector<vector<int>>& m) {
-    int R = m.size(), C = m[0].size();
+vector<vector<int>> updateMatrix(vector<vector<int>>& mat) {
+    int R = mat.size(), C = mat[0].size();
     vector<vector<int>> dist(R, vector<int>(C, -1));
     queue<pair<int,int>> q;
+
     for (int r = 0; r < R; ++r)
         for (int c = 0; c < C; ++c)
-            if (m[r][c] == 0) { dist[r][c] = 0; q.push({r, c}); }
+            if (mat[r][c] == 0) { dist[r][c] = 0; q.push({r, c}); }   // ⭐ all sources
 
+    int dr[] = {-1,1,0,0}, dc[] = {0,0,-1,1};
     while (!q.empty()) {
         auto [r, c] = q.front(); q.pop();
         for (int d = 0; d < 4; ++d) {
             int nr = r + dr[d], nc = c + dc[d];
-            if (nr < 0 || nr >= R || nc < 0 || nc >= C || dist[nr][nc] != -1) continue;
-            dist[nr][nc] = dist[r][c] + 1;
-            q.push({nr, nc});
+            if (nr >= 0 && nr < R && nc >= 0 && nc < C && dist[nr][nc] == -1) {
+                dist[nr][nc] = dist[r][c] + 1;  // ⭐ distance propagates outward
+                q.push({nr, nc});
+            }
         }
     }
     return dist;
 }
 ```
+⭐ **`dist[nr][nc] == -1` doubles as the visited check** — once assigned, a cell is never revisited, and BFS guarantees the first assignment is the minimum.
 
 ---
 
-### 5. Surrounded Regions 🟡
-```cpp
-void solve(vector<vector<char>>& b) {
-    if (b.empty()) return;
-    int R = b.size(), C = b[0].size();
-    function<void(int,int)> mark = [&](int r, int c) {
-        if (r < 0 || r >= R || c < 0 || c >= C || b[r][c] != 'O') return;
-        b[r][c] = '#';                             // ⭐ safe: connected to a border
-        mark(r-1,c); mark(r+1,c); mark(r,c-1); mark(r,c+1);
-    };
-    for (int r = 0; r < R; ++r) { mark(r, 0); mark(r, C-1); }
-    for (int c = 0; c < C; ++c) { mark(0, c); mark(R-1, c); }
+# 7. Word Ladder
 
-    for (auto& row : b) for (char& ch : row)
-        ch = (ch == '#') ? 'O' : 'X';
-}
-```
-**Key insight:** Invert the problem — instead of finding surrounded regions, find the *unsurrounded* ones by starting from the borders.
+🔴 **Hard** · 🔵 Full ladder · ⭐ **A graph you must construct mentally**
 
----
+> Transform `beginWord` into `endWord`, one letter at a time, each step a dictionary word. Shortest length?
 
-### 6. Pacific Atlantic Water Flow 🟡
-```cpp
-vector<vector<int>> pacificAtlantic(vector<vector<int>>& h) {
-    int R = h.size(), C = h[0].size();
-    vector<vector<bool>> pac(R, vector<bool>(C, false)), atl = pac;
+## 💬 Recognizing the graph
 
-    function<void(int,int,vector<vector<bool>>&)> dfs =
-        [&](int r, int c, vector<vector<bool>>& vis) {
-        vis[r][c] = true;
-        for (int d = 0; d < 4; ++d) {
-            int nr = r + dr[d], nc = c + dc[d];
-            if (nr < 0 || nr >= R || nc < 0 || nc >= C) continue;
-            if (vis[nr][nc] || h[nr][nc] < h[r][c]) continue;   // ⭐ flow UPHILL
-            dfs(nr, nc, vis);
-        }
-    };
+```mermaid
+flowchart TD
+    A["⭐ NODES = words<br/>EDGES = 'differs by one letter'"] --> B["⭐ 'shortest transformation'<br/>= shortest path, unweighted"]
+    B --> C["→ BFS"]
+    C --> D{"how to find<br/>neighbours?"}
+    D -->|"❌ compare against<br/>every word"| E["O(N × L) per node"]
+    D -->|"⭐ generate all L×25<br/>one-letter mutations"| F["O(26L) per node —<br/>independent of dictionary size"]
 
-    for (int r = 0; r < R; ++r) { dfs(r, 0, pac); dfs(r, C-1, atl); }
-    for (int c = 0; c < C; ++c) { dfs(0, c, pac); dfs(R-1, c, atl); }
-
-    vector<vector<int>> out;
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c)
-            if (pac[r][c] && atl[r][c]) out.push_back({r, c});
-    return out;
-}
-```
-**Key insight:** Reverse the flow direction. Instead of asking "can this cell reach the ocean?" for every cell, ask "which cells can the ocean reach going uphill?" — two traversals instead of R·C.
-
----
-
-### 7. Word Search 🟡
-```cpp
-bool exist(vector<vector<char>>& b, string word) {
-    int R = b.size(), C = b[0].size();
-    function<bool(int,int,int)> dfs = [&](int r, int c, int i) -> bool {
-        if (i == (int)word.size()) return true;
-        if (r < 0 || r >= R || c < 0 || c >= C || b[r][c] != word[i]) return false;
-        char tmp = b[r][c];
-        b[r][c] = '#';                             // ⭐ mark, recurse, UNMARK
-        bool found = dfs(r-1,c,i+1) || dfs(r+1,c,i+1)
-                  || dfs(r,c-1,i+1) || dfs(r,c+1,i+1);
-        b[r][c] = tmp;                             // backtrack
-        return found;
-    };
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) if (dfs(r, c, 0)) return true;
-    return false;
-}
-```
-**Key insight:** Unlike island-counting, this is **backtracking** — the mark must be undone so other paths can reuse the cell.
-
----
-
-### 8. Word Search II (Trie + backtracking) 🔴
-```cpp
-struct TrieNode {
-    TrieNode* child[26] = {};
-    string word;                                   // ⭐ store the full word at the end
-};
-
-vector<string> findWords(vector<vector<char>>& b, vector<string>& words) {
-    TrieNode* root = new TrieNode();
-    for (auto& w : words) {
-        TrieNode* cur = root;
-        for (char c : w) {
-            if (!cur->child[c-'a']) cur->child[c-'a'] = new TrieNode();
-            cur = cur->child[c-'a'];
-        }
-        cur->word = w;
-    }
-
-    int R = b.size(), C = b[0].size();
-    vector<string> out;
-    function<void(int,int,TrieNode*)> dfs = [&](int r, int c, TrieNode* node) {
-        if (r < 0 || r >= R || c < 0 || c >= C || b[r][c] == '#') return;
-        char ch = b[r][c];
-        TrieNode* nxt = node->child[ch-'a'];
-        if (!nxt) return;                          // ⭐ prune: no word has this prefix
-
-        if (!nxt->word.empty()) { out.push_back(nxt->word); nxt->word.clear(); }  // dedupe
-
-        b[r][c] = '#';
-        for (int d = 0; d < 4; ++d) dfs(r+dr[d], c+dc[d], nxt);
-        b[r][c] = ch;
-    };
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) dfs(r, c, root);
-    return out;
-}
-```
-**Key insight:** Searching each word independently is O(words × R × C × 4^L). The trie searches **all words simultaneously** and prunes the instant no word shares the current prefix.
-
----
-
-### 9. Number of Distinct Islands 🟡
-```cpp
-int numDistinctIslands(vector<vector<int>>& g) {
-    int R = g.size(), C = g[0].size();
-    unordered_set<string> shapes;
-    function<void(int,int,string&,char)> dfs = [&](int r, int c, string& path, char dir) {
-        if (r < 0 || r >= R || c < 0 || c >= C || g[r][c] != 1) return;
-        g[r][c] = 0;
-        path += dir;
-        dfs(r-1,c,path,'U'); dfs(r+1,c,path,'D');
-        dfs(r,c-1,path,'L'); dfs(r,c+1,path,'R');
-        path += 'B';                               // ⭐ backtrack marker
-    };
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c)
-            if (g[r][c] == 1) { string p; dfs(r, c, p, 'S'); shapes.insert(p); }
-    return shapes.size();
-}
-```
-⚠️ The `'B'` backtrack marker is essential — without it, differently-shaped islands can produce the same path string.
-
----
-
-### 10. Shortest Path in Binary Matrix 🟡
-```cpp
-int shortestPathBinaryMatrix(vector<vector<int>>& g) {
-    int n = g.size();
-    if (g[0][0] || g[n-1][n-1]) return -1;
-    queue<pair<int,int>> q{{{0,0}}};
-    g[0][0] = 1;                                   // mark visited
-    int dist = 1;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            auto [r, c] = q.front(); q.pop();
-            if (r == n-1 && c == n-1) return dist;
-            for (int dr2 = -1; dr2 <= 1; ++dr2)    // ⭐ 8-directional
-                for (int dc2 = -1; dc2 <= 1; ++dc2) {
-                    int nr = r + dr2, nc = c + dc2;
-                    if (nr < 0 || nr >= n || nc < 0 || nc >= n || g[nr][nc]) continue;
-                    g[nr][nc] = 1;
-                    q.push({nr, nc});
-                }
-        }
-        ++dist;
-    }
-    return -1;
-}
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#ffcdd2,stroke:#c62828,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
+```
+   ⭐ GENERATING NEIGHBOURS OF "hot"
 
-### 11. Walls and Gates 🟡
-```cpp
-void wallsAndGates(vector<vector<int>>& rooms) {
-    int R = rooms.size(), C = rooms[0].size();
-    queue<pair<int,int>> q;
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c)
-            if (rooms[r][c] == 0) q.push({r, c});  // multi-source from all gates
+     _ot → aot bot cot ... hot ... zot
+     h_t → hat hbt hct ... hot ... hzt
+     ho_ → hoa hob hoc ... hot ... hoz
 
-    while (!q.empty()) {
-        auto [r, c] = q.front(); q.pop();
-        for (int d = 0; d < 4; ++d) {
-            int nr = r + dr[d], nc = c + dc[d];
-            if (nr < 0 || nr >= R || nc < 0 || nc >= C || rooms[nr][nc] != INT_MAX) continue;
-            rooms[nr][nc] = rooms[r][c] + 1;
-            q.push({nr, nc});
-        }
-    }
-}
+   Check each against the dictionary set — O(1) per lookup.
+   ⭐ Total 3 × 25 = 75 candidates, regardless of whether the
+     dictionary holds 100 words or 100,000.
 ```
 
----
-
-### 12. Number of Enclaves / Closed Islands 🟡
-```cpp
-int numEnclaves(vector<vector<int>>& g) {
-    int R = g.size(), C = g[0].size();
-    function<void(int,int)> sink = [&](int r, int c) {
-        if (r < 0 || r >= R || c < 0 || c >= C || g[r][c] != 1) return;
-        g[r][c] = 0;
-        for (int d = 0; d < 4; ++d) sink(r+dr[d], c+dc[d]);
-    };
-    for (int r = 0; r < R; ++r) { sink(r, 0); sink(r, C-1); }
-    for (int c = 0; c < C; ++c) { sink(0, c); sink(R-1, c); }
-
-    int cnt = 0;
-    for (auto& row : g) for (int x : row) cnt += x;
-    return cnt;
-}
-```
-
----
-
-## B. BFS Shortest Path
-
-### 13. Word Ladder 🔴
 ```cpp
 int ladderLength(string begin, string end, vector<string>& wordList) {
     unordered_set<string> dict(wordList.begin(), wordList.end());
-    if (!dict.count(end)) return 0;
+    if (!dict.count(end)) return 0;             // ⚠️ unreachable target
 
-    queue<string> q{{begin}};
-    dict.erase(begin);
+    queue<string> q;
+    q.push(begin);
+    dict.erase(begin);                          // ⭐ erasing IS the visited marker
+
     int steps = 1;
     while (!q.empty()) {
         int sz = q.size();
         for (int i = 0; i < sz; ++i) {
             string w = q.front(); q.pop();
             if (w == end) return steps;
-            for (int j = 0; j < (int)w.size(); ++j) {      // ⭐ generate neighbors
-                char orig = w[j];
-                for (char c = 'a'; c <= 'z'; ++c) {
-                    w[j] = c;
-                    if (dict.erase(w)) q.push(w);          // erase = mark visited
+
+            for (int p = 0; p < (int)w.size(); ++p) {   // ⭐ each position
+                char orig = w[p];
+                for (char c = 'a'; c <= 'z'; ++c) {     // ⭐ each letter
+                    w[p] = c;
+                    if (dict.count(w)) {
+                        q.push(w);
+                        dict.erase(w);          // ⭐ mark visited by removing
+                    }
                 }
-                w[j] = orig;
+                w[p] = orig;                    // ⭐ restore before the next position
             }
         }
         ++steps;
@@ -495,334 +537,251 @@ int ladderLength(string begin, string end, vector<string>& wordList) {
     return 0;
 }
 ```
-**Complexity:** O(N · L · 26).
-**Key insight:** The graph is **implicit** — you generate neighbors on the fly rather than building an adjacency list. Generating all 26·L variants is far cheaper than comparing every pair of words (O(N²·L)).
 
-🎤 **Follow-up:** bidirectional BFS from both ends roughly halves the search depth, turning b^d into 2·b^(d/2).
+## ⭐ Bidirectional BFS — the follow-up
 
----
+```mermaid
+flowchart TD
+    A["⭐ Search from BOTH ends<br/>simultaneously"] --> B["Each frontier only needs to<br/>travel HALF the distance"]
+    B --> C["⭐ b^(d/2) + b^(d/2)<br/>instead of b^d"]
+    C --> D["⭐ Always expand the SMALLER<br/>frontier — keeps growth balanced"]
+    D --> E["Stop when the frontiers INTERSECT"]
 
-### 14. Word Ladder II (all shortest paths) 🔴
-```cpp
-vector<vector<string>> findLadders(string begin, string end, vector<string>& wordList) {
-    unordered_set<string> dict(wordList.begin(), wordList.end());
-    if (!dict.count(end)) return {};
-
-    unordered_map<string, vector<string>> parents;
-    unordered_set<string> level{begin};
-    dict.erase(begin);
-    bool found = false;
-
-    while (!level.empty() && !found) {
-        unordered_set<string> next;
-        for (const string& w : level) dict.erase(w);       // ⭐ erase the whole level
-        for (const string& w : level) {
-            string cur = w;
-            for (int j = 0; j < (int)cur.size(); ++j) {
-                char orig = cur[j];
-                for (char c = 'a'; c <= 'z'; ++c) {
-                    cur[j] = c;
-                    if (!dict.count(cur)) continue;
-                    next.insert(cur);
-                    parents[cur].push_back(w);             // record ALL parents
-                    if (cur == end) found = true;
-                }
-                cur[j] = orig;
-            }
-        }
-        level = move(next);
-    }
-
-    vector<vector<string>> out;
-    vector<string> path{end};
-    function<void(const string&)> backtrack = [&](const string& w) {
-        if (w == begin) { vector<string> p(path.rbegin(), path.rend()); out.push_back(p); return; }
-        for (const string& p : parents[w]) { path.push_back(p); backtrack(p); path.pop_back(); }
-    };
-    if (found) backtrack(end);
-    return out;
-}
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-**Key insight:** Erase visited words **per level**, not per node — otherwise you lose alternate shortest paths that arrive at the same depth.
 
----
+```
+   ⭐⭐ WHY BIDIRECTIONAL IS DRAMATICALLY FASTER
 
-### 15. Open the Lock 🟡
-```cpp
-int openLock(vector<string>& deadends, string target) {
-    unordered_set<string> dead(deadends.begin(), deadends.end());
-    if (dead.count("0000")) return -1;
-    if (target == "0000") return 0;
+   With branching factor b and distance d:
+     one-directional  →  b^d nodes
+     bidirectional    →  2 · b^(d/2) nodes
 
-    queue<string> q{{"0000"}};
-    unordered_set<string> seen{"0000"};
-    int steps = 0;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            string s = q.front(); q.pop();
-            if (s == target) return steps;
-            for (int j = 0; j < 4; ++j) {
-                for (int d : {1, -1}) {
-                    string nxt = s;
-                    nxt[j] = '0' + ((nxt[j] - '0' + d + 10) % 10);   // ⭐ wrap
-                    if (!dead.count(nxt) && seen.insert(nxt).second) q.push(nxt);
-                }
-            }
-        }
-        ++steps;
-    }
-    return -1;
-}
+   For b = 26 and d = 6:
+     26^6 ≈ 309,000,000
+     2 · 26^3 ≈ 35,000        ⭐ ~9000× fewer
+
+   ⚠️ It requires knowing the TARGET in advance. That rules it
+     out for open-ended searches.
 ```
 
 ---
 
-### 16. Minimum Genetic Mutation 🟡
-```cpp
-int minMutation(string start, string end, vector<string>& bank) {
-    unordered_set<string> dict(bank.begin(), bank.end());
-    if (!dict.count(end)) return -1;
-    queue<string> q{{start}};
-    int steps = 0;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            string s = q.front(); q.pop();
-            if (s == end) return steps;
-            for (int j = 0; j < (int)s.size(); ++j) {
-                char orig = s[j];
-                for (char c : {'A','C','G','T'}) {
-                    s[j] = c;
-                    if (dict.erase(s)) q.push(s);
-                }
-                s[j] = orig;
-            }
-        }
-        ++steps;
-    }
-    return -1;
-}
+# 8. Course Schedule I / II
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Topological sort, both ways**
+
+> Prerequisites form a directed graph. Can all courses be finished (I)? In what order (II)?
+
+## 💬 The core equivalence
+
+```mermaid
+flowchart LR
+    A["'can I finish all courses?'"] --> B["⭐ = 'is the graph ACYCLIC?'"]
+    B --> C["⭐ = 'does a topological<br/>ordering exist?'"]
+    C --> D["A cycle means mutual<br/>prerequisites → impossible"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,color:#000
 ```
 
----
+## Approach A — Kahn's algorithm (BFS) ⭐ preferred
 
-### 17. Jump Game III / IV 🟡
-```cpp
-int minJumps(vector<int>& a) {                     // Jump Game IV
-    int n = a.size();
-    unordered_map<int, vector<int>> byValue;
-    for (int i = 0; i < n; ++i) byValue[a[i]].push_back(i);
+```mermaid
+flowchart TD
+    A["compute IN-DEGREE for every node<br/>(how many prerequisites it has)"] --> B["⭐ enqueue every node with<br/>in-degree 0 — no prerequisites"]
+    B --> C["pop a node, append it<br/>to the ordering"]
+    C --> D["⭐ for each neighbour,<br/>decrement its in-degree"]
+    D --> E{"did it reach 0?"}
+    E -->|"yes"| F["enqueue it — now unblocked"]
+    E -->|"no"| C
+    F --> C
+    C --> G{"processed count<br/>== n ?"}
+    G -->|"yes"| H(["✅ valid ordering"])
+    G -->|"no"| I(["❌ ⭐ a CYCLE exists —<br/>those nodes never hit in-degree 0"])
 
-    queue<int> q{{0}};
-    vector<bool> seen(n, false);
-    seen[0] = true;
-    int steps = 0;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int k = 0; k < sz; ++k) {
-            int i = q.front(); q.pop();
-            if (i == n - 1) return steps;
-
-            for (int j : byValue[a[i]])            // teleport to equal values
-                if (!seen[j]) { seen[j] = true; q.push(j); }
-            byValue[a[i]].clear();                 // ⭐ CRITICAL: avoid O(n²)
-
-            for (int j : {i - 1, i + 1})
-                if (j >= 0 && j < n && !seen[j]) { seen[j] = true; q.push(j); }
-        }
-        ++steps;
-    }
-    return -1;
-}
-```
-⚠️ Clearing the value bucket after use is what keeps this O(n). Without it, a value repeated n times gives O(n²).
-
----
-
-### 18. Shortest Path with Obstacles Elimination 🔴
-```cpp
-int shortestPath(vector<vector<int>>& g, int k) {
-    int R = g.size(), C = g[0].size();
-    if (k >= R + C - 2) return R + C - 2;          // enough to go straight
-
-    vector<vector<int>> best(R, vector<int>(C, -1));  // max remaining k seen
-    queue<tuple<int,int,int>> q{{{0,0,k}}};        // ⭐ STATE includes k
-    best[0][0] = k;
-    int steps = 0;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            auto [r, c, rem] = q.front(); q.pop();
-            if (r == R-1 && c == C-1) return steps;
-            for (int d = 0; d < 4; ++d) {
-                int nr = r + dr[d], nc = c + dc[d];
-                if (nr < 0 || nr >= R || nc < 0 || nc >= C) continue;
-                int nrem = rem - g[nr][nc];
-                if (nrem < 0 || best[nr][nc] >= nrem) continue;   // ⭐ dominated
-                best[nr][nc] = nrem;
-                q.push({nr, nc, nrem});
-            }
-        }
-        ++steps;
-    }
-    return -1;
-}
-```
-**Key insight:** **The state is (position, resource remaining)**, not just position. Reaching a cell with more eliminations left is strictly better, so a lower-`rem` visit can be pruned.
-
----
-
-## C. Topological Sort
-
-### 19. Course Schedule 🟡
-> `n` courses, and a list of prerequisite pairs `[a, b]` meaning "you must take `b` before `a`". Can you finish all courses?
-
-#### 💬 Think of it like this
-Picture a university course catalogue. Some courses are gateways — you can take them right now because they have no prerequisites. Everything else is blocked behind something.
-
-The natural strategy is exactly how a real student plans:
-1. Find every course you can take **right now** (nothing blocking it).
-2. Take them. That "unlocks" some other courses — each one loses a prerequisite.
-3. Any course whose last prerequisite just got satisfied becomes available. Add it to your list.
-4. Repeat until nothing is left available.
-
-At the end, if you managed to schedule all `n` courses, you're done. If some courses were **never** unlocked, they must be stuck in a circular dependency — A needs B, B needs C, C needs A. Nobody can ever start.
-
-The number tracking "how many prerequisites am I still waiting on" is called **in-degree**. This whole procedure is **Kahn's algorithm** for topological sort.
-
-#### 📊 Tracing it
-
-```
-   Courses: 0,1,2,3     Prerequisites:  1←0   2←0   3←1   3←2
-                        (arrow means "unlocks")
-
-           ┌───┐
-           │ 0 │  in-degree 0  ← can take immediately
-           └─┬─┘
-        ┌────┴────┐
-        ▼         ▼
-      ┌───┐     ┌───┐
-      │ 1 │     │ 2 │   in-degree 1 each
-      └─┬─┘     └─┬─┘
-        └────┬────┘
-             ▼
-           ┌───┐
-           │ 3 │  in-degree 2
-           └───┘
-
-   STEP 1  in-degrees: [0]=0  [1]=1  [2]=1  [3]=2
-           queue = [0]                      taken = 0
-
-   STEP 2  take 0 → decrement its targets
-           in-degrees: [1]=0  [2]=0  [3]=2
-           queue = [1, 2]                   taken = 1
-
-   STEP 3  take 1 → decrement 3
-           in-degrees: [2]=0  [3]=1
-           queue = [2]                      taken = 2
-
-   STEP 4  take 2 → decrement 3 → now 0!
-           in-degrees: [3]=0
-           queue = [3]                      taken = 3
-
-   STEP 5  take 3                           taken = 4 ✅
-
-           taken == n  →  return true
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style H fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style I fill:#ffcdd2,stroke:#c62828,stroke-width:3px,color:#000
 ```
 
-#### What a cycle looks like
-
 ```
-      ┌───┐        ┌───┐
-      │ 0 │───────▶│ 1 │        Nobody has in-degree 0.
-      └───┘        └───┘        The queue starts EMPTY.
-        ▲            │          taken = 0, but n = 2.
-        └────────────┘          0 != 2  →  return false ❌
+   ⭐⭐ THE CYCLE-DETECTION INSIGHT
+
+   A node in a cycle ALWAYS has at least one unprocessed
+   prerequisite — its predecessor in the cycle. So its
+   in-degree never reaches 0, and it's never enqueued.
+
+   ⭐ Therefore: processed < n  ⟺  a cycle exists.
+     No extra cycle-detection machinery is needed.
 ```
 
 ```cpp
-bool canFinish(int n, vector<vector<int>>& pre) {
+vector<int> findOrder(int n, vector<vector<int>>& prereq) {
     vector<vector<int>> adj(n);
     vector<int> indeg(n, 0);
-    for (auto& p : pre) { adj[p[1]].push_back(p[0]); ++indeg[p[0]]; }
 
-    queue<int> q;
-    for (int i = 0; i < n; ++i) if (!indeg[i]) q.push(i);
-
-    int done = 0;
-    while (!q.empty()) {
-        int u = q.front(); q.pop();
-        ++done;
-        for (int v : adj[u]) if (--indeg[v] == 0) q.push(v);
+    for (auto& p : prereq) {
+        adj[p[1]].push_back(p[0]);              // ⭐ p[1] must come BEFORE p[0]
+        ++indeg[p[0]];
     }
-    return done == n;                              // ⭐ fewer than n → cycle
-}
-```
-
----
-
-### 20. Course Schedule II 🟡
-```cpp
-vector<int> findOrder(int n, vector<vector<int>>& pre) {
-    vector<vector<int>> adj(n);
-    vector<int> indeg(n, 0);
-    for (auto& p : pre) { adj[p[1]].push_back(p[0]); ++indeg[p[0]]; }
 
     queue<int> q;
-    for (int i = 0; i < n; ++i) if (!indeg[i]) q.push(i);
+    for (int i = 0; i < n; ++i) if (!indeg[i]) q.push(i);   // ⭐ no prerequisites
 
     vector<int> order;
     while (!q.empty()) {
         int u = q.front(); q.pop();
         order.push_back(u);
-        for (int v : adj[u]) if (--indeg[v] == 0) q.push(v);
+
+        for (int v : adj[u])
+            if (--indeg[v] == 0) q.push(v);     // ⭐ just became unblocked
     }
-    return (int)order.size() == n ? order : vector<int>{};
+
+    return (int)order.size() == n ? order : vector<int>{};   // ⭐ cycle check
 }
+```
+
+## Approach B — DFS with three colours
+
+```
+   ⭐ THE THREE STATES
+
+     WHITE (0) — unvisited
+     GRAY  (1) — ⭐ currently on the recursion stack
+     BLACK (2) — fully explored, no cycle beneath it
+
+   ⭐⭐ Encountering a GRAY node means a BACK EDGE —
+     you've looped back onto your own path. That is a cycle.
+
+   ⚠️ Encountering a BLACK node is FINE — it's just a node
+     you've already fully explored via a different route.
+     Treating black as a cycle is the classic bug here.
+```
+
+```cpp
+class Solution {
+    vector<vector<int>> adj;
+    vector<int> color;
+    vector<int> order;
+
+    bool dfs(int u) {
+        color[u] = 1;                           // ⭐ GRAY — on the current path
+        for (int v : adj[u]) {
+            if (color[v] == 1) return false;    // ⭐⭐ BACK EDGE → cycle
+            if (color[v] == 0 && !dfs(v)) return false;
+        }
+        color[u] = 2;                           // ⭐ BLACK — done
+        order.push_back(u);                     // ⭐ POST-ORDER append
+        return true;
+    }
+
+public:
+    vector<int> findOrder(int n, vector<vector<int>>& prereq) {
+        adj.assign(n, {});
+        color.assign(n, 0);
+
+        for (auto& p : prereq) adj[p[1]].push_back(p[0]);
+
+        for (int i = 0; i < n; ++i)
+            if (color[i] == 0 && !dfs(i)) return {};
+
+        reverse(order.begin(), order.end());    // ⭐⭐ post-order REVERSED = topo order
+        return order;
+    }
+};
+```
+
+⭐ **Why reversed post-order works:** a node is appended only after all its descendants. So in the final list, dependencies appear *after* their dependents — reversing puts them before.
+
+## 📌 Pattern Card
+```
+SIGNAL   dependencies · ordering · "can this be scheduled?"
+KEY      Kahn's: in-degree 0 queue; ⭐ processed < n means a CYCLE
+         DFS: three colours; ⭐ GRAY = back edge = cycle
+         ⭐ reversed post-order IS the topological order
+RELATED  Alien Dictionary · Parallel Courses · Sequence Reconstruction
 ```
 
 ---
 
-### 21. Alien Dictionary 🔴
+# 9. Alien Dictionary
+🔴 ⚪ **Variation of #8** — the hard part is *building* the graph.
+
+```mermaid
+flowchart TD
+    A["words are sorted in an<br/>unknown alphabet"] --> B["⭐ Compare ADJACENT words only"]
+    B --> C["⭐ The FIRST differing character<br/>gives exactly one edge"]
+    C --> D["⚠️ Everything after that first<br/>difference tells you NOTHING"]
+    D --> E["⚠️ INVALID INPUT: 'abc' before 'ab'<br/>— a prefix must come first"]
+    E --> F["Then run a standard<br/>topological sort"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style E fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+```
+
 ```cpp
 string alienOrder(vector<string>& words) {
     unordered_map<char, unordered_set<char>> adj;
-    unordered_map<char,int> indeg;
-    for (auto& w : words) for (char c : w) indeg[c] = 0;   // ⭐ register all chars
+    unordered_map<char, int> indeg;
+
+    for (auto& w : words) for (char c : w) indeg[c];   // ⭐ register every letter
 
     for (int i = 0; i + 1 < (int)words.size(); ++i) {
-        const string &a = words[i], &b = words[i+1];
-        int len = min(a.size(), b.size());
-        // ⚠️ INVALID: a longer word cannot precede its own prefix
-        if (a.size() > b.size() && a.compare(0, len, b) == 0) return "";
-        for (int j = 0; j < len; ++j) {
+        const string &a = words[i], &b = words[i + 1];
+
+        // ⚠️ invalid: a longer word cannot precede its own prefix
+        if (a.size() > b.size() && a.compare(0, b.size(), b) == 0) return "";
+
+        for (int j = 0; j < (int)min(a.size(), b.size()); ++j)
             if (a[j] != b[j]) {
-                if (adj[a[j]].insert(b[j]).second) ++indeg[b[j]];
-                break;                             // ⭐ only the FIRST difference
+                if (adj[a[j]].insert(b[j]).second) ++indeg[b[j]];  // ⭐ dedupe edges
+                break;                          // ⭐⭐ ONLY the first difference
             }
-        }
     }
 
     queue<char> q;
     for (auto& [c, d] : indeg) if (!d) q.push(c);
+
     string out;
     while (!q.empty()) {
-        char u = q.front(); q.pop();
-        out += u;
-        for (char v : adj[u]) if (--indeg[v] == 0) q.push(v);
+        char c = q.front(); q.pop();
+        out += c;
+        for (char nxt : adj[c]) if (--indeg[nxt] == 0) q.push(nxt);
     }
-    return out.size() == indeg.size() ? out : "";  // cycle → invalid
+    return out.size() == indeg.size() ? out : "";   // ⭐ cycle check
 }
 ```
-**Key insight:** Only the *first* differing character between adjacent words gives ordering information. The prefix check is the edge case most people miss.
+⚠️ **Deduplicating edges matters.** Adding the same edge twice inflates the in-degree, and the node never reaches 0 — a phantom cycle.
 
 ---
 
-### 22. Minimum Height Trees 🟡
+# 10. Minimum Height Trees
+🟡 ⚪ **Variation** — ⭐ peel leaves inward, like a topological sort on an undirected tree.
+
+```mermaid
+flowchart TD
+    A["❌ Trying every node as root<br/>is O(n²)"] --> B["⭐ INSIGHT: the answer is the<br/>CENTROID(S) of the tree"]
+    B --> C["⭐ Repeatedly remove all current<br/>leaves — the last 1 or 2<br/>nodes remaining are the centroids"]
+    C --> D["⭐ At most 2, never 3 —<br/>3 centroids would imply a cycle"]
+
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
 ```cpp
 vector<int> findMinHeightTrees(int n, vector<vector<int>>& edges) {
-    if (n == 1) return {0};
+    if (n == 1) return {0};                     // ⚠️ single node
+
     vector<unordered_set<int>> adj(n);
     for (auto& e : edges) { adj[e[0]].insert(e[1]); adj[e[1]].insert(e[0]); }
 
@@ -830,827 +789,916 @@ vector<int> findMinHeightTrees(int n, vector<vector<int>>& edges) {
     for (int i = 0; i < n; ++i) if (adj[i].size() == 1) leaves.push_back(i);
 
     int remaining = n;
-    while (remaining > 2) {                        // ⭐ at most 2 centroids
+    while (remaining > 2) {                     // ⭐ stop at 1 or 2 centroids
         remaining -= leaves.size();
         vector<int> next;
+
         for (int leaf : leaves) {
             int nb = *adj[leaf].begin();
-            adj[nb].erase(leaf);
-            if (adj[nb].size() == 1) next.push_back(nb);
+            adj[nb].erase(leaf);                // ⭐ peel the leaf off
+            if (adj[nb].size() == 1) next.push_back(nb);   // ⭐ became a leaf
         }
         leaves = move(next);
     }
     return leaves;
 }
 ```
-**Key insight:** Peel leaves layer by layer, like topological sort on an undirected tree. The last one or two remaining nodes are the centroids.
 
 ---
 
-### 23. Sequence Reconstruction 🟡
-```cpp
-bool sequenceReconstruction(vector<int>& nums, vector<vector<int>>& seqs) {
-    int n = nums.size();
-    vector<unordered_set<int>> adj(n + 1);
-    vector<int> indeg(n + 1, 0);
-    unordered_set<int> seen;
+# 11. Clone Graph
 
-    for (auto& s : seqs)
-        for (int i = 0; i < (int)s.size(); ++i) {
-            if (s[i] < 1 || s[i] > n) return false;
-            seen.insert(s[i]);
-            if (i && adj[s[i-1]].insert(s[i]).second) ++indeg[s[i]];
-        }
-    if ((int)seen.size() != n) return false;
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The visited map IS the clone map**
 
-    queue<int> q;
-    for (int i = 1; i <= n; ++i) if (!indeg[i]) q.push(i);
+```mermaid
+flowchart TD
+    A["⚠️ Cycles mean naive recursion<br/>never terminates"] --> B["⭐ A map from original → clone<br/>serves BOTH purposes:<br/>visited-set AND lookup table"]
+    B --> C["⭐ Create the clone and register it<br/>BEFORE recursing into neighbours"]
+    C --> D["Then a cycle returning to this node<br/>finds the existing clone"]
 
-    int idx = 0;
-    while (!q.empty()) {
-        if (q.size() > 1) return false;            // ⭐ ambiguous → not unique
-        int u = q.front(); q.pop();
-        if (nums[idx++] != u) return false;
-        for (int v : adj[u]) if (--indeg[v] == 0) q.push(v);
-    }
-    return idx == n;
-}
+    style A fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-**Key insight:** A **unique** topological order requires exactly one node with in-degree zero at every step.
-
----
-
-### 24. Parallel Courses 🟡
-```cpp
-int minimumSemesters(int n, vector<vector<int>>& relations) {
-    vector<vector<int>> adj(n + 1);
-    vector<int> indeg(n + 1, 0);
-    for (auto& r : relations) { adj[r[0]].push_back(r[1]); ++indeg[r[1]]; }
-
-    queue<int> q;
-    for (int i = 1; i <= n; ++i) if (!indeg[i]) q.push(i);
-
-    int semesters = 0, done = 0;
-    while (!q.empty()) {
-        int sz = q.size();                         // ⭐ a whole level per semester
-        for (int i = 0; i < sz; ++i) {
-            int u = q.front(); q.pop();
-            ++done;
-            for (int v : adj[u]) if (--indeg[v] == 0) q.push(v);
-        }
-        ++semesters;
-    }
-    return done == n ? semesters : -1;
-}
-```
-
----
-
-## D. Union-Find
-
-#### 💬 What Union-Find actually is
-Imagine a room of people forming friend groups. You need to answer two questions very fast, over and over:
-- *"Are these two people in the same group?"*
-- *"Merge these two groups."*
-
-Union-Find (a.k.a. Disjoint Set Union, DSU) does this by giving every group a **leader**. To check if two people are in the same group, find each one's leader and compare. To merge, point one leader at the other.
-
-The naive version degenerates into long chains. Two optimizations fix it:
-
-**Path compression** — after finding your leader, everyone you walked past gets re-pointed *directly* at the leader, so next time is instant.
-
-```
-   BEFORE find(4)              AFTER find(4)
-
-     1  ← leader                 1  ← leader
-     ▲                         ▲ ▲ ▲
-     2                         │ │ │
-     ▲                         2 3 4    everyone points straight to the top
-     3
-     ▲
-     4
-```
-
-**Union by rank** — always attach the *shorter* tree under the taller one, so trees stay shallow.
-
-```
-   merging these two:        ❌ bad (deepens)      ✅ good (stays flat)
-
-     1        5                  5                    1
-     ▲       ▲ ▲                 ▲                   ▲ ▲ ▲
-     2       6 7                 1                   2 5 ...
-                                 ▲                     ▲ ▲
-                                 2                     6 7
-```
-
-Together these make every operation effectively **O(1)** (formally O(α(n)), where α is the inverse Ackermann function — under 5 for any input that fits in the universe).
-
-**When to use DSU instead of DFS:** when connectivity changes **dynamically**. If edges arrive one at a time and you must answer questions in between, DFS would mean re-scanning the whole graph after every addition. DSU absorbs each edge in constant time.
 
 ```cpp
-struct DSU {
-    vector<int> p, r;
-    int comps;
-    DSU(int n) : p(n), r(n, 0), comps(n) { iota(p.begin(), p.end(), 0); }
-    int find(int x) { return p[x] == x ? x : p[x] = find(p[x]); }
-    bool unite(int a, int b) {
-        a = find(a); b = find(b);
-        if (a == b) return false;
-        if (r[a] < r[b]) swap(a, b);
-        p[b] = a;
-        if (r[a] == r[b]) ++r[a];
-        --comps;
-        return true;
+class Solution {
+    unordered_map<Node*, Node*> mp;             // ⭐ original → clone
+public:
+    Node* cloneGraph(Node* node) {
+        if (!node) return nullptr;
+
+        auto it = mp.find(node);
+        if (it != mp.end()) return it->second;  // ⭐ already cloned
+
+        Node* copy = new Node(node->val);
+        mp[node] = copy;                        // ⭐⭐ REGISTER BEFORE recursing
+
+        for (Node* nb : node->neighbors)
+            copy->neighbors.push_back(cloneGraph(nb));
+
+        return copy;
     }
 };
 ```
-
-### 25. Number of Connected Components 🟡
-```cpp
-int countComponents(int n, vector<vector<int>>& edges) {
-    DSU dsu(n);
-    for (auto& e : edges) dsu.unite(e[0], e[1]);
-    return dsu.comps;
-}
-```
+⚠️ **Registering after the recursion** causes infinite recursion on any cycle — the same principle as marking on entry in flood fill.
 
 ---
 
-### 26. Graph Valid Tree 🟡
+# 12. Graph Valid Tree
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Two conditions, and both are needed**
+
+```mermaid
+flowchart TD
+    A["⭐ A graph is a TREE iff:"] --> B["① exactly n−1 edges"]
+    A --> C["② fully connected"]
+    B --> D["⭐ Together these IMPLY acyclic —<br/>you don't check cycles separately"]
+    C --> D
+    D --> E["⚠️ Either condition alone is<br/>insufficient: n−1 edges can still<br/>form a cycle plus an isolated node"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style E fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+```
+
+```
+   ⚠️ WHY n−1 EDGES ALONE ISN'T ENOUGH
+
+     n = 4, edges = [0-1, 1-2, 0-2]     ← 3 edges = n−1 ✅
+                     node 3 is isolated
+
+   ⭐ There's a triangle (a cycle) AND a disconnected node.
+     Exactly n−1 edges, but not a tree.
+```
+
 ```cpp
 bool validTree(int n, vector<vector<int>>& edges) {
-    if ((int)edges.size() != n - 1) return false;  // ⭐ a tree has exactly n-1 edges
-    DSU dsu(n);
-    for (auto& e : edges) if (!dsu.unite(e[0], e[1])) return false;  // cycle
-    return true;
+    if ((int)edges.size() != n - 1) return false;   // ⭐ condition ①
+
+    vector<int> parent(n);
+    iota(parent.begin(), parent.end(), 0);
+
+    function<int(int)> find = [&](int x) {
+        return parent[x] == x ? x : parent[x] = find(parent[x]);   // ⭐ path compression
+    };
+
+    for (auto& e : edges) {
+        int a = find(e[0]), b = find(e[1]);
+        if (a == b) return false;               // ⭐ a cycle → not a tree
+        parent[a] = b;
+    }
+    return true;                                // ⭐ n−1 edges + no cycle ⟹ connected
 }
 ```
-**Key insight:** `n-1` edges plus no cycle implies connected. Checking both properties separately is unnecessary.
+⭐ **With exactly n−1 edges and no cycle, connectivity follows automatically** — so a single union-find pass settles it.
 
 ---
 
-### 27. Redundant Connection 🟡
+# 13. Number of Connected Components
+🟡 ⚪ **Variation of #12** — count the surviving union-find roots.
+
+```cpp
+int countComponents(int n, vector<vector<int>>& edges) {
+    vector<int> parent(n);
+    iota(parent.begin(), parent.end(), 0);
+    int components = n;                         // ⭐ start with n singletons
+
+    function<int(int)> find = [&](int x) {
+        return parent[x] == x ? x : parent[x] = find(parent[x]);
+    };
+
+    for (auto& e : edges) {
+        int a = find(e[0]), b = find(e[1]);
+        if (a != b) { parent[a] = b; --components; }   // ⭐ each merge reduces by 1
+    }
+    return components;
+}
+```
+⭐ **Counting down from n** is cleaner than counting distinct roots afterwards.
+
+---
+
+# 14. Union-Find (The Structure)
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Two optimizations, both essential**
+
+## 💬 What union-find is for
+
+```mermaid
+flowchart LR
+    A["DFS/BFS answers<br/>'are these connected?'<br/>in <b>O(V+E)</b> per query"] -->|"⭐ when edges are<br/>ADDED over time"| B["UNION-FIND answers it in<br/>~<b>O(1)</b> amortized"]
+    B --> C["⚠️ But it CANNOT handle<br/>edge DELETION"]
+
+    style A fill:#fff9c4,stroke:#f9a825,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style C fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#000
+```
+
+## ⭐ The two optimizations
+
+```mermaid
+flowchart TD
+    A["Naive: each node points<br/>at its parent"] --> B["⚠️ Chains can grow to length n<br/>→ find() becomes O(n)"]
+
+    B --> C["⭐ OPT 1 — PATH COMPRESSION<br/>during find(), point every node<br/>on the path DIRECTLY at the root"]
+    B --> D["⭐ OPT 2 — UNION BY RANK/SIZE<br/>always attach the SMALLER tree<br/>under the LARGER one"]
+
+    C --> E["⭐ TOGETHER: O(α(n)) amortized,<br/>where α is the inverse Ackermann<br/>function — under 5 for any n<br/>that fits in the universe"]
+    D --> E
+
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐ PATH COMPRESSION IN ACTION
+
+   BEFORE find(4)          AFTER find(4)
+
+        1                       1
+        |                     / | \
+        2                    2  3  4
+        |                    ⭐ all now point straight at the root
+        3
+        |
+        4
+
+   ⭐ The next find() on ANY of these is O(1).
+```
+
+```cpp
+class UnionFind {
+    vector<int> parent, rank_;
+    int components;
+
+public:
+    UnionFind(int n) : parent(n), rank_(n, 0), components(n) {
+        iota(parent.begin(), parent.end(), 0);
+    }
+
+    int find(int x) {
+        if (parent[x] != x)
+            parent[x] = find(parent[x]);        // ⭐ PATH COMPRESSION
+        return parent[x];
+    }
+
+    bool unite(int a, int b) {
+        int ra = find(a), rb = find(b);
+        if (ra == rb) return false;             // ⭐ already connected
+
+        // ⭐ UNION BY RANK — keeps the tree shallow
+        if (rank_[ra] < rank_[rb]) swap(ra, rb);
+        parent[rb] = ra;
+        if (rank_[ra] == rank_[rb]) ++rank_[ra];   // ⭐ rank grows only on a tie
+
+        --components;
+        return true;
+    }
+
+    bool connected(int a, int b) { return find(a) == find(b); }
+    int  count() const { return components; }
+};
+```
+
+⭐ **`unite` returning bool is deliberately useful** — `false` means "these were already connected", which directly answers cycle-detection and redundant-edge questions.
+
+## 📌 Pattern Card
+```
+SIGNAL   dynamic connectivity · "are these in the same group?"
+         edges arrive incrementally
+KEY      ⭐ path compression + union by rank → O(α(n))
+         ⭐ unite() returning false = a cycle was found
+RELATED  Redundant Connection · Accounts Merge · Kruskal's MST
+         Number of Provinces · Satisfiability of Equality Equations
+```
+
+---
+
+# 15. Redundant Connection
+🟡 ⚪ **Variation of #14** — the first union that fails is the answer.
+
 ```cpp
 vector<int> findRedundantConnection(vector<vector<int>>& edges) {
-    DSU dsu(edges.size() + 1);
-    for (auto& e : edges) if (!dsu.unite(e[0], e[1])) return e;   // first cycle edge
+    UnionFind uf(edges.size() + 1);             // ⭐ nodes are 1-indexed
+
+    for (auto& e : edges)
+        if (!uf.unite(e[0], e[1])) return e;    // ⭐ already connected → this edge
+                                                //    closes a cycle
     return {};
 }
 ```
+⭐ **Because edges are processed in input order**, the first failure is by definition the last edge that could be removed — exactly what the problem asks for.
 
 ---
 
-### 28. Accounts Merge 🟡
+# 16. Accounts Merge
+🟡 ⚪ **Variation of #14** — union-find over strings via an index map.
+
 ```cpp
 vector<vector<string>> accountsMerge(vector<vector<string>>& accounts) {
-    DSU dsu(accounts.size());
-    unordered_map<string,int> owner;                // email -> account index
-    for (int i = 0; i < (int)accounts.size(); ++i)
-        for (int j = 1; j < (int)accounts[i].size(); ++j) {
-            const string& e = accounts[i][j];
-            auto it = owner.find(e);
-            if (it != owner.end()) dsu.unite(i, it->second);   // ⭐ shared email
-            else owner[e] = i;
+    unordered_map<string,int> emailId;          // ⭐ email → a stable integer id
+    unordered_map<string,string> emailName;
+    int next = 0;
+
+    for (auto& acc : accounts)
+        for (int i = 1; i < (int)acc.size(); ++i) {
+            if (!emailId.count(acc[i])) emailId[acc[i]] = next++;
+            emailName[acc[i]] = acc[0];
         }
 
-    unordered_map<int, set<string>> merged;         // set → sorted output
-    for (auto& [e, i] : owner) merged[dsu.find(i)].insert(e);
+    UnionFind uf(next);
+    for (auto& acc : accounts)
+        for (int i = 2; i < (int)acc.size(); ++i)
+            uf.unite(emailId[acc[1]], emailId[acc[i]]);   // ⭐ chain to the first email
+
+    unordered_map<int, vector<string>> groups;
+    for (auto& [email, id] : emailId)
+        groups[uf.find(id)].push_back(email);   // ⭐ group by ROOT
 
     vector<vector<string>> out;
-    for (auto& [root, emails] : merged) {
-        vector<string> acc{accounts[root][0]};
-        acc.insert(acc.end(), emails.begin(), emails.end());
-        out.push_back(move(acc));
+    for (auto& [root, emails] : groups) {
+        sort(emails.begin(), emails.end());      // ⚠️ required by the problem
+        vector<string> row{emailName[emails[0]]};
+        row.insert(row.end(), emails.begin(), emails.end());
+        out.push_back(move(row));
     }
     return out;
 }
 ```
+⭐ **Mapping strings to integers first** is the standard adapter — union-find fundamentally wants dense integer ids.
 
 ---
 
-### 29. Number of Islands II (dynamic) 🔴
-```cpp
-vector<int> numIslands2(int m, int n, vector<vector<int>>& positions) {
-    DSU dsu(m * n);
-    vector<bool> isLand(m * n, false);
-    int count = 0;
-    vector<int> out;
+# 17. Network Delay Time (Dijkstra)
 
-    for (auto& p : positions) {
-        int r = p[0], c = p[1], id = r * n + c;
-        if (isLand[id]) { out.push_back(count); continue; }   // duplicate
-        isLand[id] = true;
-        ++count;
-        for (int d = 0; d < 4; ++d) {
-            int nr = r + dr[d], nc = c + dc[d];
-            if (nr < 0 || nr >= m || nc < 0 || nc >= n) continue;
-            int nid = nr * n + nc;
-            if (isLand[nid] && dsu.unite(id, nid)) --count;    // ⭐ merged two islands
-        }
-        out.push_back(count);
-    }
-    return out;
-}
-```
-**Key insight:** This is exactly what DSU is for — **dynamic** connectivity, where DFS would require re-scanning the whole grid after every addition.
+🟡 **Medium** · 🔵 Full ladder · ⭐ **The canonical Dijkstra**
 
----
+## 💬 Why Dijkstra works, and when it doesn't
 
-### 30. Most Stones Removed 🟡
-```cpp
-int removeStones(vector<vector<int>>& stones) {
-    DSU dsu(stones.size());
-    unordered_map<int,int> rowFirst, colFirst;
-    for (int i = 0; i < (int)stones.size(); ++i) {
-        int r = stones[i][0], c = stones[i][1];
-        if (rowFirst.count(r)) dsu.unite(i, rowFirst[r]); else rowFirst[r] = i;
-        if (colFirst.count(c)) dsu.unite(i, colFirst[c]); else colFirst[c] = i;
-    }
-    return stones.size() - dsu.comps;              // ⭐ each component leaves 1 stone
-}
+```mermaid
+flowchart TD
+    A["⭐ THE GREEDY INVARIANT<br/>The unvisited node with the<br/>smallest tentative distance has<br/>its FINAL distance already"] --> B["Why? Any alternative route would<br/>have to pass through another<br/>unvisited node — which is<br/>already at least as far"]
+    B --> C["⭐ ...and edges only ADD distance"]
+    C --> D["⚠️ THAT is why NEGATIVE weights<br/>break Dijkstra: a later edge could<br/>REDUCE the total, invalidating<br/>the finalized value"]
+    D --> E["⭐ Negative weights → BELLMAN-FORD"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
----
-
-### 31. Satisfiability of Equality Equations 🟡
-```cpp
-bool equationsPossible(vector<string>& equations) {
-    DSU dsu(26);
-    for (auto& e : equations)
-        if (e[1] == '=') dsu.unite(e[0]-'a', e[3]-'a');       // ⭐ process == FIRST
-    for (auto& e : equations)
-        if (e[1] == '!' && dsu.find(e[0]-'a') == dsu.find(e[3]-'a')) return false;
-    return true;
-}
 ```
+   TRACE  edges 1→2 (w=1), 2→3 (w=1), 1→3 (w=4), source = 1
 
----
-
-### 32. Evaluate Division 🟡
-```cpp
-vector<double> calcEquation(vector<vector<string>>& eq, vector<double>& vals,
-                            vector<vector<string>>& queries) {
-    unordered_map<string, vector<pair<string,double>>> adj;
-    for (int i = 0; i < (int)eq.size(); ++i) {
-        adj[eq[i][0]].push_back({eq[i][1], vals[i]});
-        adj[eq[i][1]].push_back({eq[i][0], 1.0 / vals[i]});   // ⭐ weighted, both ways
-    }
-
-    vector<double> out;
-    for (auto& q : queries) {
-        if (!adj.count(q[0]) || !adj.count(q[1])) { out.push_back(-1.0); continue; }
-        unordered_set<string> seen;
-        function<double(const string&, const string&, double)> dfs =
-            [&](const string& cur, const string& target, double prod) -> double {
-            if (cur == target) return prod;
-            seen.insert(cur);
-            for (auto& [nb, w] : adj[cur])
-                if (!seen.count(nb)) {
-                    double r = dfs(nb, target, prod * w);
-                    if (r > 0) return r;
-                }
-            return -1.0;
-        };
-        out.push_back(dfs(q[0], q[1], 1.0));
-    }
-    return out;
-}
+   ┌──────────────┬───────────────┬───────────────────────────┐
+   │ pop from PQ  │ dist          │ action                    │
+   ├──────────────┼───────────────┼───────────────────────────┤
+   │ (0, node 1)  │ {1:0}         │ relax 1→2 (1), 1→3 (4)    │
+   │ (1, node 2)  │ {1:0,2:1,3:4} │ relax 2→3 → 1+1 = 2 < 4 ⭐ │
+   │ (2, node 3)  │ {1:0,2:1,3:2} │ ⭐ improved!               │
+   │ (4, node 3)  │      —        │ ⚠️ STALE — dist[3]=2 < 4,  │
+   │              │               │    skip it                │
+   └──────────────┴───────────────┴───────────────────────────┘
 ```
-**Key insight:** A weighted graph where the path product is the answer. Weighted DSU also solves this in near-O(1) per query.
-
----
-
-## E. Shortest Path (Weighted)
-
-### 33. Network Delay Time (Dijkstra) 🟡
-> A network of `n` nodes. `times[i] = [u, v, w]` means a signal from `u` reaches `v` in `w` time. Starting from node `k`, how long until **all** nodes receive it? Return `-1` if some node is unreachable.
-
-#### 💬 Think of it like this
-BFS finds shortest paths when every edge costs the same — count the hops. But here edges have **different costs**, so "fewest hops" is no longer "fastest." A 3-hop route down cheap edges can beat a 1-hop expensive one.
-
-Dijkstra fixes this with a simple greedy rule: **always expand from the closest unfinished node.**
-
-Concretely, keep a "best known time" for every node, all starting at infinity except the source at 0. Then repeatedly pull out the node with the smallest known time. Because every edge cost is non-negative, once you pull a node out you can be *certain* its time is final — no route through a node further away could ever come back and beat it.
-
-From that node, try to improve its neighbours ("relax" them), and put the improved ones back in the priority queue.
-
-#### 📊 Tracing it
-
-```
-   Graph, source = 1
-
-        1 ──2──▶ 2 ──1──▶ 3
-        │                 ▲
-        └───────5─────────┘
-
-   dist = [_, 0, ∞, ∞]      heap = {(0,node1)}
-
-   ─── pop (0, node1) ──────────────────────────────
-   relax 1→2 cost 2:  0 + 2 = 2  <  ∞   ✅ dist[2]=2, push (2,node2)
-   relax 1→3 cost 5:  0 + 5 = 5  <  ∞   ✅ dist[3]=5, push (5,node3)
-
-   dist = [_, 0, 2, 5]      heap = {(2,n2), (5,n3)}
-
-   ─── pop (2, node2) ──────────────────────────────
-   relax 2→3 cost 1:  2 + 1 = 3  <  5   ✅ dist[3]=3, push (3,node3)
-
-   dist = [_, 0, 2, 3]      heap = {(3,n3), (5,n3)}
-                                            └── STALE! ignore it later
-
-   ─── pop (3, node3) ──────────────────────────────
-   3 == dist[3] → fresh, process (no outgoing edges)
-
-   ─── pop (5, node3) ──────────────────────────────
-   5 > dist[3] which is 3  →  ⭐ STALE, skip it
-
-   Answer = max(0, 2, 3) = 3
-```
-
-#### Why the "stale entry" check exists
-
-```
-   C++ priority_queue CANNOT update a value already inside it.
-
-   So when we find a better route to node 3, we don't edit the
-   old (5, node3) entry — we just push a new (3, node3).
-
-   heap now holds BOTH:   (3, node3)   (5, node3)
-                           ▲            ▲
-                        the truth    outdated garbage
-
-   The line `if (d > dist[u]) continue;` throws away the garbage
-   when it eventually surfaces. This is called LAZY DELETION.
-```
-
-⚠️ **Dijkstra breaks with negative edges.** The whole guarantee rests on "once popped, it's final" — a negative edge could later reduce a finalized distance, and Dijkstra never revisits. Use Bellman-Ford instead.
 
 ```cpp
 int networkDelayTime(vector<vector<int>>& times, int n, int k) {
-    vector<vector<pair<int,int>>> adj(n + 1);
+    vector<vector<pair<int,int>>> adj(n + 1);   // node → {neighbour, weight}
     for (auto& t : times) adj[t[0]].push_back({t[1], t[2]});
 
     vector<int> dist(n + 1, INT_MAX);
-    priority_queue<pair<int,int>, vector<pair<int,int>>, greater<>> pq;
     dist[k] = 0;
+
+    // ⭐ MIN-heap of {distance, node} — pair sorts by distance first
+    priority_queue<pair<int,int>, vector<pair<int,int>>, greater<>> pq;
     pq.push({0, k});
 
     while (!pq.empty()) {
         auto [d, u] = pq.top(); pq.pop();
-        if (d > dist[u]) continue;                 // ⭐ stale entry, skip
-        for (auto& [v, w] : adj[u])
-            if (d + w < dist[v]) { dist[v] = d + w; pq.push({dist[v], v}); }
+
+        if (d > dist[u]) continue;              // ⭐⭐ STALE entry — skip it
+
+        for (auto& [v, w] : adj[u]) {
+            if (dist[u] + w < dist[v]) {        // ⭐ relaxation
+                dist[v] = dist[u] + w;
+                pq.push({dist[v], v});          // ⭐ push, don't decrease-key
+            }
+        }
     }
 
-    int mx = 0;
+    int worst = 0;
     for (int i = 1; i <= n; ++i) {
-        if (dist[i] == INT_MAX) return -1;
-        mx = max(mx, dist[i]);
+        if (dist[i] == INT_MAX) return -1;      // ⚠️ unreachable node
+        worst = max(worst, dist[i]);
     }
-    return mx;
+    return worst;
 }
 ```
-**Key insight:** The `if (d > dist[u]) continue` line implements **lazy deletion** — C++'s priority queue can't update keys, so you push duplicates and skip outdated ones.
+
+```
+   ⭐⭐ THE "LAZY DELETION" PATTERN
+
+   A textbook Dijkstra uses decrease-key, which std::priority_queue
+   doesn't support. Instead we PUSH A DUPLICATE with the better
+   distance and skip stale entries on pop:
+
+       if (d > dist[u]) continue;
+
+   ⭐ The heap can hold up to O(E) entries instead of O(V), but
+     the complexity is still O(E log E) = O(E log V), and the
+     code is far simpler. This is what everyone actually does.
+```
+
+## 📌 Pattern Card
+```
+SIGNAL   shortest path with POSITIVE weights
+KEY      min-heap of {dist, node} · relax · ⭐ skip stale pops
+         ⚠️ negative weights BREAK the greedy invariant
+RELATED  Path With Minimum Effort · Swim in Rising Water · Cheapest Flights
+         Network Delay · Minimum Cost to Reach Destination in Time
+```
 
 ---
 
-### 34. Cheapest Flights Within K Stops 🟡
+# 18. Cheapest Flights Within K Stops
+
+🟡 **Medium** · 🔵 Full ladder · ⭐ **Where Dijkstra fails and Bellman-Ford wins**
+
+## ⚠️ Why plain Dijkstra is wrong here
+
+```mermaid
+flowchart TD
+    A["⭐ The constraint is on STOPS,<br/>not just cost"] --> B["⚠️ Dijkstra finalizes a node at its<br/>CHEAPEST distance"]
+    B --> C["❌ But a cheap path may use too many<br/>stops, while a pricier path with<br/>fewer stops is the valid answer"]
+    C --> D["⭐ FIX: Bellman-Ford, relaxing<br/>exactly k+1 times"]
+    D --> E["⭐ After round i, dist[] holds the<br/>best cost using AT MOST i edges"]
+
+    style B fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style C fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
-int findCheapestPrice(int n, vector<vector<int>>& flights, int src, int dst, int k) {
+int findCheapestPrice(int n, vector<vector<int>>& flights,
+                      int src, int dst, int k) {
     vector<int> dist(n, INT_MAX);
     dist[src] = 0;
-    for (int i = 0; i <= k; ++i) {                 // ⭐ Bellman-Ford, k+1 relaxations
-        vector<int> tmp = dist;                    // ⭐ MUST use the previous round
+
+    for (int round = 0; round <= k; ++round) {  // ⭐ k stops = k+1 edges
+        vector<int> next = dist;                // ⭐⭐ SNAPSHOT — critical
+
         for (auto& f : flights) {
-            if (dist[f[0]] == INT_MAX) continue;
-            tmp[f[1]] = min(tmp[f[1]], dist[f[0]] + f[2]);
+            int u = f[0], v = f[1], w = f[2];
+            if (dist[u] != INT_MAX && dist[u] + w < next[v])
+                next[v] = dist[u] + w;
         }
-        dist = move(tmp);
+        dist = move(next);
     }
     return dist[dst] == INT_MAX ? -1 : dist[dst];
 }
 ```
-⚠️ **The `tmp` copy is essential.** Relaxing in place would let a path use more than `i+1` edges in round `i`, breaking the stop limit. This is the single most common bug in this problem.
 
----
-
-### 35. Path with Maximum Probability 🟡
-```cpp
-double maxProbability(int n, vector<vector<int>>& edges, vector<double>& prob,
-                      int start, int end) {
-    vector<vector<pair<int,double>>> adj(n);
-    for (int i = 0; i < (int)edges.size(); ++i) {
-        adj[edges[i][0]].push_back({edges[i][1], prob[i]});
-        adj[edges[i][1]].push_back({edges[i][0], prob[i]});
-    }
-
-    vector<double> best(n, 0.0);
-    priority_queue<pair<double,int>> pq;           // ⭐ MAX-heap for probability
-    best[start] = 1.0;
-    pq.push({1.0, start});
-
-    while (!pq.empty()) {
-        auto [p, u] = pq.top(); pq.pop();
-        if (u == end) return p;
-        if (p < best[u]) continue;
-        for (auto& [v, w] : adj[u])
-            if (p * w > best[v]) { best[v] = p * w; pq.push({best[v], v}); }
-    }
-    return 0.0;
-}
 ```
-**Key insight:** Dijkstra works for any *monotonic* path metric, not just additive distance — here it's multiplicative probability, maximized.
+   ⭐⭐ WHY THE SNAPSHOT COPY IS MANDATORY
+
+   Without `next`, a relaxation within the SAME round could
+   chain: relax u→v, then immediately use the new dist[v] to
+   relax v→w. That path used TWO edges in one round.
+
+   ⭐ Copying freezes the previous round's values, so each round
+     adds EXACTLY one edge to every path. That's what makes the
+     "at most k+1 edges" guarantee hold.
+```
+
+⭐ **Bellman-Ford's other superpower:** run one extra round after V−1. If anything still improves, a **negative cycle** exists. Dijkstra can't detect that at all.
 
 ---
 
-### 36. Path with Minimum Effort 🟡
+# 19. Path With Minimum Effort
+🟡 ⚪ **Variation of #17** — Dijkstra where "distance" means the **maximum single edge**, not the sum.
+
+```mermaid
+flowchart LR
+    A["standard Dijkstra:<br/>dist = sum of weights"] -->|"⭐ swap the combine operator"| B["minimax Dijkstra:<br/>dist = max edge on the path"]
+    B --> C["⭐ relax with<br/>max(dist[u], w) &lt; dist[v]"]
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```cpp
 int minimumEffortPath(vector<vector<int>>& h) {
     int R = h.size(), C = h[0].size();
     vector<vector<int>> effort(R, vector<int>(C, INT_MAX));
-    priority_queue<tuple<int,int,int>, vector<tuple<int,int,int>>, greater<>> pq;
-    effort[0][0] = 0;
-    pq.push({0, 0, 0});
 
+    priority_queue<tuple<int,int,int>, vector<tuple<int,int,int>>, greater<>> pq;
+    pq.push({0, 0, 0});
+    effort[0][0] = 0;
+
+    int dr[] = {-1,1,0,0}, dc[] = {0,0,-1,1};
     while (!pq.empty()) {
         auto [e, r, c] = pq.top(); pq.pop();
-        if (r == R-1 && c == C-1) return e;
-        if (e > effort[r][c]) continue;
+
+        if (r == R-1 && c == C-1) return e;     // ⭐ first arrival IS optimal
+        if (e > effort[r][c]) continue;         // ⭐ stale
+
         for (int d = 0; d < 4; ++d) {
             int nr = r + dr[d], nc = c + dc[d];
             if (nr < 0 || nr >= R || nc < 0 || nc >= C) continue;
-            int ne = max(e, abs(h[nr][nc] - h[r][c]));   // ⭐ MINIMAX, not sum
-            if (ne < effort[nr][nc]) { effort[nr][nc] = ne; pq.push({ne, nr, nc}); }
+
+            // ⭐⭐ MAX instead of SUM
+            int ne = max(e, abs(h[nr][nc] - h[r][c]));
+            if (ne < effort[nr][nc]) {
+                effort[nr][nc] = ne;
+                pq.push({ne, nr, nc});
+            }
         }
     }
     return 0;
 }
 ```
-**Key insight:** "Minimize the maximum edge on the path" — Dijkstra with `max` replacing `+`. Binary search on the answer plus a connectivity check also works.
+⭐ **Dijkstra works for any combine operator that is monotonic and never decreases** — `max` qualifies, which is why the same skeleton applies unchanged.
 
 ---
 
-### 37. Swim in Rising Water 🔴
-```cpp
-int swimInWater(vector<vector<int>>& g) {
-    int n = g.size();
-    vector<vector<bool>> seen(n, vector<bool>(n, false));
-    priority_queue<tuple<int,int,int>, vector<tuple<int,int,int>>, greater<>> pq;
-    pq.push({g[0][0], 0, 0});
-    seen[0][0] = true;
+# 20. Swim in Rising Water
+🔴 ⚪ **Identical to #19** — the "effort" is the maximum elevation on the path.
 
-    while (!pq.empty()) {
-        auto [t, r, c] = pq.top(); pq.pop();
-        if (r == n-1 && c == n-1) return t;
-        for (int d = 0; d < 4; ++d) {
-            int nr = r + dr[d], nc = c + dc[d];
-            if (nr < 0 || nr >= n || nc < 0 || nc >= n || seen[nr][nc]) continue;
-            seen[nr][nc] = true;
-            pq.push({max(t, g[nr][nc]), nr, nc});  // ⭐ minimax again
-        }
-    }
-    return -1;
-}
+```cpp
+// ⭐ Same code as minimumEffortPath, with one line changed:
+int ne = max(e, grid[nr][nc]);                  // ⭐ max CELL value, not max delta
 ```
 
+⭐ **An equally valid alternative:** binary search on the answer (time `t`), then check reachability with a plain BFS using only cells ≤ `t`. **O(RC log(RC))** — the same "binary search on the answer" pattern as [Kth Smallest in a Sorted Matrix](07-heaps-intervals.md#7-kth-smallest-in-a-sorted-matrix).
+
 ---
 
-### 38. Bellman-Ford / Negative Cycle Detection 🔴
-```cpp
-bool hasNegativeCycle(int n, vector<vector<int>>& edges) {
-    vector<long long> dist(n, 0);                  // 0 = virtual source to all
-    for (int i = 0; i < n - 1; ++i)
-        for (auto& e : edges)
-            dist[e[1]] = min(dist[e[1]], dist[e[0]] + e[2]);
+# 21. Minimum Spanning Tree (Kruskal + Prim)
 
-    for (auto& e : edges)                          // ⭐ one extra pass
-        if (dist[e[0]] + e[2] < dist[e[1]]) return true;   // still improving → cycle
-    return false;
-}
+🟡 **Medium** · 🔵 Full ladder · **Two algorithms, two shapes**
+
+```mermaid
+flowchart TD
+    Q{"Which MST algorithm?"}
+    Q -->|"SPARSE graph,<br/>edges given as a list"| A["⭐ KRUSKAL<br/>sort edges, union-find<br/><b>O(E log E)</b>"]
+    Q -->|"DENSE graph,<br/>adjacency available"| B["⭐ PRIM<br/>grow from one node<br/><b>O(E log V)</b>"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style A fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
-**Key insight:** After `V-1` relaxations every shortest path is final (a simple path has at most `V-1` edges). Any further improvement proves a negative cycle.
 
----
+## Kruskal — ⭐ sort globally, union locally
 
-### 39. Floyd-Warshall — City With Smallest Number of Neighbors 🟡
-```cpp
-int findTheCity(int n, vector<vector<int>>& edges, int threshold) {
-    const int INF = 1e9;
-    vector<vector<int>> d(n, vector<int>(n, INF));
-    for (int i = 0; i < n; ++i) d[i][i] = 0;
-    for (auto& e : edges) d[e[0]][e[1]] = d[e[1]][e[0]] = e[2];
+```mermaid
+flowchart TD
+    A["sort ALL edges by weight"] --> B["for each edge, cheapest first"]
+    B --> C{"do its endpoints already<br/>share a component?"}
+    C -->|"yes"| D["⭐ skip — adding it<br/>would create a cycle"]
+    C -->|"no"| E["⭐ take it, union the components"]
+    E --> F{"n−1 edges taken?"}
+    F -->|"yes"| G(["✅ MST complete"])
+    F -->|"no"| B
+    D --> B
 
-    for (int k = 0; k < n; ++k)                    // ⭐ k MUST be the outer loop
-        for (int i = 0; i < n; ++i)
-            for (int j = 0; j < n; ++j)
-                d[i][j] = min(d[i][j], d[i][k] + d[k][j]);
-
-    int best = -1, bestCount = n + 1;
-    for (int i = 0; i < n; ++i) {
-        int cnt = 0;
-        for (int j = 0; j < n; ++j) if (i != j && d[i][j] <= threshold) ++cnt;
-        if (cnt <= bestCount) { bestCount = cnt; best = i; }
-    }
-    return best;
-}
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
-⚠️ `k` outer is mandatory. The invariant is "after iteration k, `d[i][j]` uses only intermediates from `{0..k}`" — reordering the loops breaks it.
 
----
-
-## F. MST & Advanced
-
-### 40. Min Cost to Connect All Points (Prim) 🟡
 ```cpp
 int minCostConnectPoints(vector<vector<int>>& pts) {
-    int n = pts.size(), total = 0, visited = 0;
-    vector<bool> inMST(n, false);
-    vector<int> minCost(n, INT_MAX);
-    minCost[0] = 0;
+    int n = pts.size();
+    vector<tuple<int,int,int>> edges;
 
-    for (int it = 0; it < n; ++it) {
-        int u = -1;
-        for (int i = 0; i < n; ++i)                // O(V²) Prim — fine for dense
-            if (!inMST[i] && (u == -1 || minCost[i] < minCost[u])) u = i;
-        inMST[u] = true;
-        total += minCost[u];
-        for (int v = 0; v < n; ++v) {
-            if (inMST[v]) continue;
-            int w = abs(pts[u][0]-pts[v][0]) + abs(pts[u][1]-pts[v][1]);
-            minCost[v] = min(minCost[v], w);
+    for (int i = 0; i < n; ++i)                 // ⭐ complete graph
+        for (int j = i + 1; j < n; ++j)
+            edges.push_back({abs(pts[i][0]-pts[j][0]) + abs(pts[i][1]-pts[j][1]), i, j});
+
+    sort(edges.begin(), edges.end());           // ⭐ cheapest first
+
+    UnionFind uf(n);
+    int total = 0, taken = 0;
+
+    for (auto& [w, u, v] : edges) {
+        if (uf.unite(u, v)) {                   // ⭐ false = would form a cycle
+            total += w;
+            if (++taken == n - 1) break;        // ⭐ MST has exactly n−1 edges
         }
     }
     return total;
 }
 ```
 
----
+## Prim — ⭐ grow one connected blob
 
-### 41. Connecting Cities With Minimum Cost (Kruskal) 🟡
 ```cpp
-int minimumCost(int n, vector<vector<int>>& connections) {
-    sort(connections.begin(), connections.end(),
-         [](auto& a, auto& b){ return a[2] < b[2]; });   // ⭐ cheapest first
-    DSU dsu(n + 1);
-    int total = 0, used = 0;
-    for (auto& c : connections)
-        if (dsu.unite(c[0], c[1])) { total += c[2]; if (++used == n - 1) break; }
-    return used == n - 1 ? total : -1;
+int minCostConnectPointsPrim(vector<vector<int>>& pts) {
+    int n = pts.size(), total = 0, visited = 0;
+    vector<bool> inMST(n, false);
+
+    priority_queue<pair<int,int>, vector<pair<int,int>>, greater<>> pq;
+    pq.push({0, 0});                            // ⭐ start anywhere
+
+    while (visited < n) {
+        auto [w, u] = pq.top(); pq.pop();
+        if (inMST[u]) continue;                 // ⭐ stale entry
+
+        inMST[u] = true;
+        total += w;
+        ++visited;
+
+        for (int v = 0; v < n; ++v)             // ⭐ push all edges to outside nodes
+            if (!inMST[v])
+                pq.push({abs(pts[u][0]-pts[v][0]) + abs(pts[u][1]-pts[v][1]), v});
+    }
+    return total;
 }
 ```
-**Key insight:** Kruskal = sort edges + DSU. Prim = grow from one vertex with a heap. Kruskal is better for sparse graphs, Prim for dense.
+
+```
+   ⭐⭐ THE CUT PROPERTY — why both are correct
+
+   For ANY partition of the vertices into two sets, the
+   CHEAPEST edge crossing that partition belongs to some MST.
+
+   ⭐ Kruskal uses it globally: the cheapest edge joining two
+     different components is safe.
+   ⭐ Prim uses it locally: the cheapest edge leaving the
+     grown blob is safe.
+
+   Same theorem, two different sweeps. ∎
+```
 
 ---
 
-### 42. Critical Connections (Tarjan's bridges) 🔴
-```cpp
-vector<vector<int>> criticalConnections(int n, vector<vector<int>>& connections) {
-    vector<vector<int>> adj(n);
-    for (auto& c : connections) { adj[c[0]].push_back(c[1]); adj[c[1]].push_back(c[0]); }
+# 22. Critical Connections (Bridges)
 
-    vector<int> disc(n, -1), low(n, 0);
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Tarjan's low-link**
+
+> Find every edge whose removal disconnects the graph.
+
+## 💬 The low-link idea
+
+```mermaid
+flowchart TD
+    A["⭐ disc[u] = when DFS first<br/>discovered u (a timestamp)"] --> C
+    B["⭐ low[u] = the EARLIEST disc<br/>reachable from u's subtree,<br/>using at most one back edge"] --> C
+    C{"for edge u → v:<br/>is low[v] &gt; disc[u] ?"}
+    C -->|"YES"| D["⭐⭐ BRIDGE — v's subtree has<br/>NO alternative route back<br/>above u"]
+    C -->|"NO"| E["a back edge bypasses this<br/>edge → not critical"]
+
+    style A fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
+   ⭐ INTUITION IN ONE SENTENCE
+
+   An edge u–v is a bridge exactly when the only way out of
+   v's subtree is back through u itself. If any node down
+   there has a back edge climbing above u, the edge is
+   redundant.
+```
+
+```cpp
+class Solution {
+    vector<vector<int>> adj;
+    vector<int> disc, low;
     vector<vector<int>> bridges;
     int timer = 0;
 
-    function<void(int,int)> dfs = [&](int u, int parent) {
-        disc[u] = low[u] = timer++;
+    void dfs(int u, int parent) {
+        disc[u] = low[u] = timer++;             // ⭐ discovery time
+
         for (int v : adj[u]) {
-            if (v == parent) continue;
-            if (disc[v] == -1) {
+            if (v == parent) continue;          // ⚠️ don't reuse the tree edge
+
+            if (disc[v] == -1) {                // unvisited → tree edge
                 dfs(v, u);
-                low[u] = min(low[u], low[v]);
-                if (low[v] > disc[u]) bridges.push_back({u, v});  // ⭐ a bridge
+                low[u] = min(low[u], low[v]);   // ⭐ inherit the child's reach
+
+                if (low[v] > disc[u])           // ⭐⭐ BRIDGE
+                    bridges.push_back({u, v});
             } else {
-                low[u] = min(low[u], disc[v]);     // back edge
+                low[u] = min(low[u], disc[v]);  // ⭐ back edge — use disc, NOT low
             }
         }
-    };
-    dfs(0, -1);
-    return bridges;
-}
+    }
+
+public:
+    vector<vector<int>> criticalConnections(int n, vector<vector<int>>& conns) {
+        adj.assign(n, {});
+        disc.assign(n, -1);
+        low.assign(n, -1);
+
+        for (auto& c : conns) { adj[c[0]].push_back(c[1]); adj[c[1]].push_back(c[0]); }
+
+        dfs(0, -1);
+        return bridges;
+    }
+};
 ```
-**Key insight:** `low[v]` is the earliest discovery time reachable from `v`'s subtree via at most one back edge. If `low[v] > disc[u]`, nothing in `v`'s subtree can reach `u` or above except through edge `(u,v)` — so it's a bridge.
+
+⚠️ **On a back edge, use `disc[v]`, not `low[v]`.** Using `low[v]` can propagate reachability the DFS tree doesn't actually provide, producing wrong answers on some graphs.
+
+⚠️ **`v == parent` skips only the tree edge.** With genuine parallel edges you must skip by edge id instead, since a duplicate edge *does* provide an alternative route.
+
+⭐ **Articulation points** use nearly identical code with `low[v] >= disc[u]`, plus a special case for the root (it's an articulation point iff it has more than one DFS child).
 
 ---
 
-### 43. Clone Graph 🟡
+# 23. Word Search II
+🔴 ⚪ **Variation** — see the [Trie discussion](06-trees.md#19-trie-prefix-tree).
+
 ```cpp
-Node* cloneGraph(Node* node) {
-    unordered_map<Node*, Node*> copies;
-    function<Node*(Node*)> dfs = [&](Node* n) -> Node* {
-        if (!n) return nullptr;
-        auto it = copies.find(n);
-        if (it != copies.end()) return it->second; // ⭐ already cloned
-        Node* c = new Node(n->val);
-        copies[n] = c;                             // ⭐ register BEFORE recursing
-        for (Node* nb : n->neighbors) c->neighbors.push_back(dfs(nb));
-        return c;
-    };
-    return dfs(node);
-}
+class Solution {
+    struct Node { Node* kids[26] = {}; string word; };
+    Node* root = new Node();
+    vector<string> out;
+    int R, C;
+
+    void dfs(vector<vector<char>>& b, int r, int c, Node* node) {
+        if (r < 0 || r >= R || c < 0 || c >= C) return;
+
+        char ch = b[r][c];
+        if (ch == '#' || !node->kids[ch - 'a']) return;   // ⭐⭐ PRUNE instantly
+
+        node = node->kids[ch - 'a'];
+        if (!node->word.empty()) {
+            out.push_back(node->word);
+            node->word.clear();                 // ⭐ dedupe — found it once
+        }
+
+        b[r][c] = '#';                          // ⭐ mark visited
+        dfs(b,r-1,c,node); dfs(b,r+1,c,node);
+        dfs(b,r,c-1,node); dfs(b,r,c+1,node);
+        b[r][c] = ch;                           // ⭐⭐ RESTORE — backtracking
+    }
+
+public:
+    vector<string> findWords(vector<vector<char>>& b, vector<string>& words) {
+        for (auto& w : words) {                 // build the trie
+            Node* n = root;
+            for (char c : w) {
+                if (!n->kids[c-'a']) n->kids[c-'a'] = new Node();
+                n = n->kids[c-'a'];
+            }
+            n->word = w;                        // ⭐ store the word AT the end node
+        }
+
+        R = b.size(); C = b[0].size();
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c) dfs(b, r, c, root);
+        return out;
+    }
+};
 ```
-⚠️ Registering the copy *before* recursing is what prevents infinite recursion on cycles.
+⭐ **Storing the full word at the terminal node** avoids reconstructing it from the path — a small but meaningful simplification.
 
 ---
 
-### 44. Course Schedule IV (reachability) 🟡
-```cpp
-vector<bool> checkIfPrerequisite(int n, vector<vector<int>>& pre, vector<vector<int>>& q) {
-    vector<vector<bool>> reach(n, vector<bool>(n, false));
-    for (auto& p : pre) reach[p[0]][p[1]] = true;
+# 24. Bipartite Graph Check
 
-    for (int k = 0; k < n; ++k)                    // transitive closure
-        for (int i = 0; i < n; ++i)
-            for (int j = 0; j < n; ++j)
-                if (reach[i][k] && reach[k][j]) reach[i][j] = true;
+🟡 **Medium** · 🔵 Full ladder · **2-colouring**
 
-    vector<bool> out;
-    for (auto& x : q) out.push_back(reach[x[0]][x[1]]);
-    return out;
-}
+```mermaid
+flowchart TD
+    A["⭐ 'bipartite' = the nodes split into<br/>two groups with NO edge inside<br/>a group"] --> B["= colourable with 2 colours<br/>such that no edge joins<br/>same-coloured nodes"]
+    B --> C["BFS/DFS assigning alternating colours"]
+    C --> D{"a neighbour already has<br/>the SAME colour?"}
+    D -->|"yes"| E(["❌ ⭐ an ODD-LENGTH cycle exists<br/>→ not bipartite"])
+    D -->|"no"| F(["✅ bipartite"])
+
+    style B fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
+```
+   ⭐ THE THEOREM
+     A graph is bipartite ⟺ it contains NO odd-length cycle.
 
-### 45. Is Graph Bipartite? 🟡
+     Walking around an even cycle alternates back to the
+     starting colour ✅
+     Walking around an odd cycle arrives with a CONFLICT ❌
+```
+
 ```cpp
-bool isBipartite(vector<vector<int>>& g) {
-    int n = g.size();
-    vector<int> color(n, 0);                       // 0 = uncolored, 1/-1 = two sides
-    for (int s = 0; s < n; ++s) {
-        if (color[s]) continue;
-        queue<int> q{{s}};
-        color[s] = 1;
+bool isBipartite(vector<vector<int>>& graph) {
+    int n = graph.size();
+    vector<int> color(n, -1);                   // ⭐ −1 = uncoloured
+
+    for (int start = 0; start < n; ++start) {   // ⚠️ handle DISCONNECTED components
+        if (color[start] != -1) continue;
+
+        queue<int> q;
+        q.push(start);
+        color[start] = 0;
+
         while (!q.empty()) {
             int u = q.front(); q.pop();
-            for (int v : g[u]) {
-                if (!color[v]) { color[v] = -color[u]; q.push(v); }
-                else if (color[v] == color[u]) return false;   // ⭐ odd cycle
+            for (int v : graph[u]) {
+                if (color[v] == -1) {
+                    color[v] = 1 - color[u];    // ⭐ flip the colour
+                    q.push(v);
+                } else if (color[v] == color[u]) {
+                    return false;               // ⭐ conflict → odd cycle
+                }
             }
         }
     }
     return true;
 }
 ```
-**Key insight:** A graph is bipartite iff it has no odd-length cycle. Two-coloring via BFS detects exactly that. Note the outer loop — the graph may be disconnected.
+⚠️ **The outer loop over every start node** is essential — a graph can be disconnected, and each component must be checked independently.
 
 ---
 
-### 46. Possible Bipartition 🟡
-```cpp
-bool possibleBipartition(int n, vector<vector<int>>& dislikes) {
-    vector<vector<int>> adj(n + 1);
-    for (auto& d : dislikes) { adj[d[0]].push_back(d[1]); adj[d[1]].push_back(d[0]); }
-    vector<int> color(n + 1, 0);
-    for (int s = 1; s <= n; ++s) {
-        if (color[s]) continue;
-        queue<int> q{{s}}; color[s] = 1;
-        while (!q.empty()) {
-            int u = q.front(); q.pop();
-            for (int v : adj[u]) {
-                if (!color[v]) { color[v] = -color[u]; q.push(v); }
-                else if (color[v] == color[u]) return false;
-            }
-        }
-    }
-    return true;
-}
+# 25. Reconstruct Itinerary (Eulerian)
+
+🔴 **Hard** · 🔵 Full ladder · ⭐ **Hierholzer's algorithm**
+
+> Use **every** ticket exactly once. Return the lexicographically smallest itinerary.
+
+## ⚠️ Why plain greedy DFS fails
+
+```mermaid
+flowchart TD
+    A["❌ NAIVE: always fly to the<br/>lexicographically smallest<br/>next airport"] --> B["⚠️ You can strand yourself at a<br/>dead end with tickets unused"]
+    B --> C["⭐ HIERHOLZER'S FIX:<br/>append a node to the route only<br/>AFTER exhausting all its edges"]
+    C --> D["⭐ Then REVERSE the result"]
+    D --> E["Dead ends are appended FIRST,<br/>so after reversal they land LAST —<br/>exactly where they belong"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
----
-
-### 47. Find Eventual Safe States 🟡
-```cpp
-vector<int> eventualSafeNodes(vector<vector<int>>& g) {
-    int n = g.size();
-    vector<int> color(n, 0);                       // 0=white 1=gray(in path) 2=black(safe)
-    function<bool(int)> safe = [&](int u) -> bool {
-        if (color[u]) return color[u] == 2;
-        color[u] = 1;                              // gray: on the current DFS path
-        for (int v : g[u]) if (!safe(v)) return false;
-        color[u] = 2;
-        return true;
-    };
-    vector<int> out;
-    for (int i = 0; i < n; ++i) if (safe(i)) out.push_back(i);
-    return out;
-}
 ```
-**Key insight:** The three-color DFS — gray means "currently on the recursion stack," so encountering gray is a back edge and therefore a cycle.
+   ⭐⭐ THE POST-ORDER INSIGHT
 
----
+   A node is appended only when it has NO unused outgoing
+   tickets — that is, when it's a dead end.
 
-### 48. Reconstruct Itinerary (Hierholzer / Eulerian path) 🔴
+   The FIRST dead end you hit must be the FINAL destination,
+   because there's no way to leave it.
+
+   ⭐ Appending dead ends first and reversing puts them in
+     the correct order automatically — no backtracking, no
+     lookahead needed. ∎
+```
+
 ```cpp
 vector<string> findItinerary(vector<vector<string>>& tickets) {
-    unordered_map<string, multiset<string>> adj;   // multiset = lexical order
+    // ⭐ multiset → automatically sorted, and erase removes ONE copy
+    unordered_map<string, multiset<string>> adj;
     for (auto& t : tickets) adj[t[0]].insert(t[1]);
 
     vector<string> route;
-    function<void(const string&)> dfs = [&](const string& u) {
-        auto& dests = adj[u];
-        while (!dests.empty()) {
-            string v = *dests.begin();
-            dests.erase(dests.begin());            // ⭐ consume the edge
-            dfs(v);
+    stack<string> st;
+    st.push("JFK");
+
+    while (!st.empty()) {
+        string u = st.top();
+
+        if (adj[u].empty()) {                   // ⭐ dead end → finalize it
+            route.push_back(u);
+            st.pop();
+        } else {
+            string v = *adj[u].begin();         // ⭐ lexicographically smallest
+            adj[u].erase(adj[u].begin());       // ⚠️ erase ONE copy
+            st.push(v);
         }
-        route.push_back(u);                        // ⭐ POST-order
-    };
-    dfs("JFK");
-    reverse(route.begin(), route.end());
+    }
+
+    reverse(route.begin(), route.end());        // ⭐⭐ post-order reversed
     return route;
 }
 ```
-**Key insight:** Hierholzer's algorithm. Adding to the route *after* exhausting a node's edges, then reversing, correctly handles dead ends — a greedy forward walk would get stuck.
+
+⭐ **An Eulerian path exists** iff at most one node has `out − in == 1` (the start), at most one has `in − out == 1` (the end), and everything else is balanced. Worth stating even though the problem guarantees validity.
 
 ---
 
-### 49. Minimum Number of Vertices to Reach All Nodes 🟡
-```cpp
-vector<int> findSmallestSetOfVertices(int n, vector<vector<int>>& edges) {
-    vector<bool> hasIncoming(n, false);
-    for (auto& e : edges) hasIncoming[e[1]] = true;
-    vector<int> out;
-    for (int i = 0; i < n; ++i) if (!hasIncoming[i]) out.push_back(i);
-    return out;
-}
+## 📋 Graphs Recall
+
+```mermaid
+mindmap
+  root(("Graphs"))
+    Choosing the Algorithm
+      unweighted shortest → ⭐ BFS, never DFS
+      positive weights → Dijkstra
+      negative weights → Bellman-Ford
+      hop-limited → ⭐ Bellman-Ford k+1 rounds
+      all pairs → Floyd-Warshall
+    Grids as Graphs
+      flood fill for regions
+      ⭐ mark on ENTRY / ENQUEUE
+      ⭐ multi-source BFS for spread
+      ⭐ start from the BORDER
+      ⭐ REVERSE the flow direction
+    Topological Sort
+      Kahn: in-degree 0 queue
+      ⭐ processed &lt; n ⟹ cycle
+      DFS: ⭐ GRAY = back edge
+      ⭐ reversed post-order
+    Union-Find
+      ⭐ path compression + rank
+      ⭐ unite() false = cycle
+      map strings to integer ids
+      ⚠️ no edge deletion
+    Dijkstra Details
+      min-heap of {dist, node}
+      ⭐ skip stale pops
+      combine op can be max, not just sum
+    Advanced
+      ⭐ Tarjan low-link for bridges
+      MST: Kruskal sparse, Prim dense
+      ⭐ Hierholzer for Eulerian paths
+      2-colouring ⟺ no odd cycle
+      ⭐ bidirectional BFS
 ```
-**Key insight:** A node with no incoming edge can only be reached by starting there. Nodes with incoming edges are reachable from those. So the answer is exactly the zero-in-degree set — no traversal needed.
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                      GRAPHS — PATTERN RECALL                         ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ "connected regions in a grid"  → flood fill, mark on entry           ║
+║ "shortest path, unweighted"    → ⭐ BFS (DFS is WRONG)                ║
+║ "spread from many sources"     → ⭐ multi-source BFS, all in at once  ║
+║ "regions NOT touching an edge" → ⭐ invert: start from the border     ║
+║ "can water reach both oceans"  → ⭐ reverse the flow, intersect       ║
+║ "prerequisites / ordering"     → topological sort                    ║
+║ "does a cycle exist (directed)"→ ⭐ Kahn: processed<n, or GRAY in DFS ║
+║ "are these connected, growing" → ⭐ UNION-FIND                        ║
+║ "shortest path, weighted"      → Dijkstra, skip stale pops           ║
+║ "at most k stops"              → ⭐ Bellman-Ford with a snapshot copy ║
+║ "minimize the MAX edge"        → Dijkstra with max instead of sum    ║
+║ "cheapest connecting edges"    → MST: Kruskal or Prim                ║
+║ "edges whose removal splits"   → ⭐ Tarjan: low[v] > disc[u]          ║
+║ "use every edge exactly once"  → ⭐ Hierholzer, post-order reversed   ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ ⚠️ TRAPS                                                              ║
+║   flood fill: marking AFTER recursing → infinite recursion           ║
+║   BFS: marking on dequeue → the queue explodes                       ║
+║   grid DFS: recursion depth O(RC) can overflow the stack             ║
+║   Dijkstra: negative weights silently give WRONG answers             ║
+║   Bellman-Ford k stops: without the snapshot, paths chain in a round ║
+║   Tarjan: back edges use disc[v], NOT low[v]                         ║
+║   bipartite: you must loop over every component                      ║
+║   alien dictionary: duplicate edges inflate in-degree → phantom cycle║
+╚══════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
-### 50. Snakes and Ladders 🟡
-```cpp
-int snakesAndLadders(vector<vector<int>>& board) {
-    int n = board.size();
-    auto pos = [&](int s) {                        // ⭐ boustrophedon indexing
-        int r = (s - 1) / n, c = (s - 1) % n;
-        if (r % 2) c = n - 1 - c;                  // odd rows go right-to-left
-        return pair<int,int>{n - 1 - r, c};
-    };
-
-    vector<bool> seen(n * n + 1, false);
-    queue<int> q{{1}};
-    seen[1] = true;
-    int moves = 0;
-    while (!q.empty()) {
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            int s = q.front(); q.pop();
-            if (s == n * n) return moves;
-            for (int d = 1; d <= 6 && s + d <= n * n; ++d) {
-                auto [r, c] = pos(s + d);
-                int nxt = board[r][c] == -1 ? s + d : board[r][c];
-                if (!seen[nxt]) { seen[nxt] = true; q.push(nxt); }
-            }
-        }
-        ++moves;
-    }
-    return -1;
-}
-```
-
----
-
-## 📋 Section Summary
-
-```
-╔═══════════════════════════════════════════════════════════════════╗
-║                     GRAPHS — PATTERN RECALL                       ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ RECOGNIZE THE GRAPH: grids · dependencies · word transforms ·     ║
-║   state machines · equations · "can X reach Y"                    ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ SHORTEST PATH                                                     ║
-║   unweighted        → BFS (mark seen when ENQUEUEING)             ║
-║   many sources      → MULTI-SOURCE BFS (seed the queue with all)  ║
-║   weights ≥ 0       → Dijkstra (heap + `if d > dist[u] continue`) ║
-║   negative weights  → Bellman-Ford (V-1 rounds, +1 detects cycle) ║
-║   ≤ k edges         → Bellman-Ford with a COPY of dist per round  ║
-║   all pairs, V≤500  → Floyd-Warshall (k MUST be the outer loop)   ║
-║   minimize the MAX  → Dijkstra with max() instead of +            ║
-║   state has resource→ include it in the visited key: (pos, k)     ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ CONNECTIVITY                                                      ║
-║   static     → DFS/BFS flood fill                                 ║
-║   DYNAMIC    → Union-Find (this is what DSU is FOR)               ║
-║   MST        → Kruskal (sort + DSU) or Prim (heap)                ║
-║   bridges    → Tarjan low-link                                    ║
-║   bipartite  → 2-color BFS; conflict = odd cycle                  ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ ORDERING                                                          ║
-║   topological → Kahn's (in-degree + queue); output size < n = CYCLE║
-║   unique order → exactly one zero-in-degree node at each step     ║
-║   levels/rounds → process a whole queue level per round           ║
-║   cycle in DIRECTED → 3-color DFS (gray = on the current path)    ║
-║   Eulerian path → Hierholzer, POST-order append then reverse      ║
-╠═══════════════════════════════════════════════════════════════════╣
-║ GOTCHAS                                                           ║
-║   ⚠️ mark visited when ENQUEUEING, not dequeueing                  ║
-║   ⚠️ grid DFS recursion can overflow at 10⁶ cells → use BFS        ║
-║   ⚠️ backtracking (word search) must UNMARK; flood fill must not   ║
-║   ⚠️ clone graph: register the copy BEFORE recursing               ║
-║   ⚠️ disconnected graphs need an outer loop over all nodes         ║
-╚═══════════════════════════════════════════════════════════════════╝
-```
-
-**Next:** [Dynamic Programming →](09-dynamic-programming.md)
+**Next:** [Dynamic Programming →](09-dynamic-programming.md) · **Back:** [Heaps & Intervals](07-heaps-intervals.md)

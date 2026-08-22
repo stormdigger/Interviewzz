@@ -64,6 +64,21 @@ Two people edit the same sentence at the same moment. Both apply their change lo
 
 Two families of solutions exist.
 
+```mermaid
+sequenceDiagram
+    participant A as Client A
+    participant B as Client B
+    Note over A,B: Document = "HELLO"
+    A->>A: insert "X" at 1 → "HXELLO"
+    B->>B: insert "Y" at 3 → "HELYLO"
+    A->>B: send op(insert Y@3)
+    B->>A: send op(insert X@1)
+    Note over A,B: ❌ Naive exchange applies ops<br/>against stale positions
+    A->>A: apply op(insert Y@3) to "HXELLO" → "HXEYLLO"
+    B->>B: apply op(insert X@1) to "HELYLO" → "HXELYLO"
+    Note over A,B: DIVERGED — the two documents differ
+```
+
 ## 3. Solution A — Operational Transformation (OT)
 
 #### 💬 The idea
@@ -86,6 +101,23 @@ Before applying a remote operation, **transform** it against every concurrent op
    B applies:  "HELYLO" + insert X at 1  →  "HXELYLO"
 
                         ✅ CONVERGED
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Client A
+    participant S as Server (global order)
+    participant B as Client B
+    A->>A: insert X@1 → "HXELLO"
+    B->>B: insert Y@3 → "HELYLO"
+    A->>S: op(insert X@1)
+    B->>S: op(insert Y@3)
+    S->>S: T(insY@3, insX@1) = insY@4<br/>(A arrived first → shift B's position)
+    S->>A: broadcast insY@4
+    S->>B: broadcast insX@1 (unchanged, applied first)
+    A->>A: apply insY@4 → "HXELYLO"
+    B->>B: apply insX@1 → "HXELYLO"
+    Note over A,B: ✅ CONVERGED — same result
 ```
 
 ```
@@ -197,7 +229,51 @@ Design the data structure so that **concurrent operations commute** — applying
     choose a CRDT — the correctness guarantee is worth the bytes."
 ```
 
+```mermaid
+flowchart TD
+    Q{"Building a new<br/>collaborative editor?"}
+    Q -->|"Central server<br/>already the model"| OT["⚙️ OPERATIONAL TRANSFORMATION<br/><b>Compact ops</b>, no metadata bloat<br/>❌ transform functions notoriously<br/>hard to get right<br/>❌ requires a central server<br/>(Google Docs — legacy, predates CRDTs)"]
+    Q -->|"Offline-first /<br/>peer-to-peer needed"| CRDT["🧬 CRDT<br/><b>Ops commute by construction</b><br/>convergence guaranteed structurally<br/>works offline & P2P naturally<br/>❌ per-character metadata + tombstones<br/>(Figma, Linear, Notion, Yjs/Automerge)"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style OT fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style CRDT fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 5. Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client["💻 Client Layer"]
+        CA["Client A<br/><b>local doc</b><br/>edits apply instantly"]
+        CB["Client B<br/><b>local doc</b><br/>edits apply instantly"]
+    end
+
+    subgraph Service["⚙️ Collaboration Service"]
+        CS["Session per document<br/>(sticky routing)<br/>assigns canonical order<br/>transforms / merges ops<br/>broadcasts + tracks presence"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        LOG["Operation Log<br/><b>append-only</b><br/>source of truth"]
+        PRES["Presence (Redis)<br/>ephemeral, TTL'd"]
+        SNAP["Snapshots<br/>(materialized doc state)"]
+    end
+
+    CA -->|"WebSocket (ops)"| CS
+    CS -->|"broadcast"| CB
+    CB -->|"WebSocket (ops)"| CS
+    CS -->|"broadcast"| CA
+    CS --> LOG
+    CS --> PRES
+    LOG -->|"periodic replay"| SNAP
+
+    style CA fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CS fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style LOG fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style PRES fill:#ffe0b2,stroke:#ef6c00,color:#000
+    style SNAP fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
 
 ```
    ┌──────────┐                                   ┌──────────┐
@@ -270,6 +346,20 @@ Design the data structure so that **concurrent operations commute** — applying
 ```
 
 ## 7. Deep Dive — Offline
+
+```mermaid
+stateDiagram-v2
+    [*] --> Online
+    Online --> Offline: connection lost
+    Offline --> Offline: local edits queue,<br/>applied immediately
+    Offline --> Reconciling: reconnect
+    Reconciling --> Transform: OT — transform queued ops<br/>against everything missed
+    Reconciling --> Merge: CRDT — merge local +<br/>remote state (trivial)
+    Transform --> Online: apply resolved ops
+    Merge --> Online: converged
+    Reconciling --> CopyFallback: ⚠️ offline too long,<br/>merge would be nonsense
+    CopyFallback --> [*]: save as separate copy
+```
 
 ```
    OFFLINE EDITING FLOW
@@ -387,6 +477,45 @@ For a document with heavy history I'd also compact the log — old operations be
 
 ## 3. The Upload & Transcode Pipeline
 
+```mermaid
+flowchart TD
+    subgraph Client["🎥 Creator"]
+        C["Creator uploads<br/>resumable, chunked, byte-range"]
+    end
+
+    subgraph Ingest["📥 Ingest"]
+        US["Upload Service<br/>session ID · tracks received chunks<br/>resumable on drop"]
+        RAW["Raw Storage (durable, cheap)<br/><b>persisted BEFORE processing</b>"]
+    end
+
+    subgraph Pipeline["⚙️ Transcoding Pipeline (parallel)"]
+        SPLIT["① Split into GOP-aligned chunks<br/>(~5-10s, independently decodable)"]
+        FANOUT["② Fan out — chunk × variant<br/>= independent worker job"]
+        MERGE["③ Merge chunks → per-variant files"]
+        PKG["④ Package into DASH/HLS"]
+        VALID["⑤ Validate — quality, A/V sync"]
+        ML["⑥ ML passes — Content ID,<br/>thumbnails, captions, moderation"]
+    end
+
+    subgraph Delivery["🌍 Delivery"]
+        CDN["Edge / CDN<br/>tiered: low-res first,<br/>watchable within minutes"]
+    end
+
+    C --> US --> RAW -->|"emits event"| SPLIT
+    SPLIT --> FANOUT --> MERGE --> PKG --> VALID --> ML --> CDN
+
+    style C fill:#e1f5fe,stroke:#0277bd,color:#000
+    style US fill:#e1f5fe,stroke:#0277bd,color:#000
+    style RAW fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style SPLIT fill:#fff9c4,stroke:#f9a825,color:#000
+    style FANOUT fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style MERGE fill:#fff9c4,stroke:#f9a825,color:#000
+    style PKG fill:#fff9c4,stroke:#f9a825,color:#000
+    style VALID fill:#fff9c4,stroke:#f9a825,color:#000
+    style ML fill:#fff9c4,stroke:#f9a825,color:#000
+    style CDN fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
 ```
    ┌──────────┐
    │ Creator  │
@@ -446,6 +575,14 @@ For a document with heavy history I'd also compact the log — old operations be
    can be decoded independently without needing the previous one.
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 SERIAL TRANSCODE<br/>Whole 2-hour video, one worker<br/><b>~4 hours wall clock</b>"] -->|"What is it<br/>redoing serially?"| B["🚀 CHUNK-PARALLEL<br/>1,440 GOP-aligned chunks<br/>× N variants, on a worker fleet<br/><b>~minutes wall clock</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 4. Deep Dive — Storage Tiering by Popularity
 
 ```
@@ -477,6 +614,20 @@ For a document with heavy history I'd also compact the log — old operations be
      dimension is POPULARITY rather than AGE — and the savings
      are even larger because encoded variants are expensive
      to both store and produce.
+```
+
+```mermaid
+flowchart TD
+    V["Video uploaded"] --> D{"View velocity /<br/>popularity"}
+    D -->|"~1% of videos<br/>~80% of views"| VIRAL["🔥 VIRAL / POPULAR<br/>all resolutions pre-encoded<br/>pushed to global edge caches<br/>heavily replicated"]
+    D -->|"moderate traffic"| MOD["📺 MODERATE<br/>common resolutions kept<br/>regional edge caching only"]
+    D -->|"~50% of videos<br/>rarely watched after wk 1"| TAIL["🧊 LONG TAIL<br/>ONE master stored<br/>transcode ON DEMAND<br/>cold storage"]
+
+    style V fill:#e3f2fd,stroke:#1565c0,color:#000
+    style D fill:#e3f2fd,stroke:#1565c0,color:#000
+    style VIRAL fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style MOD fill:#fff9c4,stroke:#f9a825,color:#000
+    style TAIL fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ## 5. Deep Dive — Recommendations
@@ -511,6 +662,34 @@ For a document with heavy history I'd also compact the log — old operations be
    │ STAGE 3: RE-RANKING                                          │
    │   diversity · freshness · integrity filters · policy         │
    └──────────────────────────────────────────────────────────────┘
+```
+
+```mermaid
+flowchart LR
+    subgraph S1["Stage 1: Candidate Generation"]
+        direction TB
+        CF["Collaborative filtering"]
+        EMB["Embedding similarity (ANN)"]
+        SUB["Subscriptions / creator's videos"]
+        TREND["Regional/language trending"]
+    end
+    subgraph S2["Stage 2: Ranking"]
+        RANK["Predict WATCH TIME<br/>(not click-through)<br/>history · video age · channel affinity ·<br/>negative feedback"]
+    end
+    subgraph S3["Stage 3: Re-ranking"]
+        RR["Diversity · freshness ·<br/>integrity filters · policy"]
+    end
+
+    Billions(["Billions of videos"]) --> S1
+    CF & EMB & SUB & TREND --> Hundreds(["Few hundred candidates"])
+    Hundreds --> S2 --> Twenty(["~20 ranked"])
+    Twenty --> S3 --> Final(["Final feed"])
+
+    style Billions fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Hundreds fill:#fff9c4,stroke:#f9a825,color:#000
+    style RANK fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Twenty fill:#fff9c4,stroke:#f9a825,color:#000
+    style Final fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```
@@ -554,7 +733,24 @@ For a document with heavy history I'd also compact the log — old operations be
                                           │
                                           ▼
                                     CDN ──▶ Viewers
+```
 
+```mermaid
+flowchart LR
+    ENC["📡 Encoder (creator)"] -->|"RTMP/SRT"| ING["Ingest"]
+    ING --> RT["Real-time transcode<br/>⭐ no second chances"]
+    RT --> SEG["Segment + package<br/>(HLS/DASH, 2-6s)"]
+    RT --> REC["Recording<br/>(becomes VOD)"]
+    SEG --> CDN["CDN"] --> V["Viewers"]
+
+    style ENC fill:#e1f5fe,stroke:#0277bd,color:#000
+    style RT fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style SEG fill:#fff9c4,stroke:#f9a825,color:#000
+    style REC fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style CDN fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+```
    ⭐ THE LATENCY / RELIABILITY TRADEOFF
      Shorter segments = lower latency but more requests and
      less buffer resilience. Low-latency HLS uses partial
@@ -647,6 +843,16 @@ The most important mechanism is deliberate exploration: showing new content to a
                  → upload ONLY block2
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 WHOLE-FILE SYNC<br/>1-byte change<br/><b>upload 100 MB</b>"] -->|"What is it<br/>redoing?"| B["⚡ FIXED CHUNKING<br/>1-byte change → 1 block<br/><b>upload ~4 MB</b><br/>❌ breaks on insertion"]
+    B -->|"What if bytes<br/>get inserted?"| C["🚀 CONTENT-DEFINED CHUNKING<br/>rolling hash boundaries<br/><b>upload only the affected block(s)</b><br/>✅ realigns after insertion"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ### ⭐ Content-addressed storage + deduplication
 
 ```
@@ -674,6 +880,22 @@ The most important mechanism is deliberate exploration: showing new content to a
 
    → Uploading a file that already exists somewhere in the
      system takes seconds regardless of size.
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant M as Metadata Service
+    participant B as Block Storage
+    C->>C: chunk file → hashes [a3f2, 7b21, c914]
+    C->>M: "I have blocks a3f2, 7b21, c914"
+    M->>B: check existence of each hash
+    B-->>M: a3f2 ✅ exists, 7b21 ✅ exists, c914 ❌ missing
+    M-->>C: "Send only c914"
+    C->>B: upload block c914 (proof-of-possession)
+    B-->>C: stored
+    C->>M: commit metadata [a3f2, 7b21, c914]
+    Note over C,M: Upload "completes" in seconds<br/>regardless of file size
 ```
 
 ```
@@ -721,6 +943,34 @@ The most important mechanism is deliberate exploration: showing new content to a
 ```
 
 ## 3. Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client["💻 Client Layer"]
+        CA["Client A<br/>Watcher · Indexer · Chunker"]
+        CB["Client B<br/>Watcher · Indexer · Chunker"]
+    end
+
+    subgraph Service["⚙️ Service Layer"]
+        META["Metadata Service<br/><b>source of truth for structure</b><br/>file tree, versions, permissions<br/>sharded by user/namespace<br/>strongly consistent"]
+        NOTIFY["Notification Service<br/>(long-poll / WebSocket)<br/>'your namespace changed'"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        BLOCK["Block Storage<br/>content-addressed, hash → bytes<br/><b>immutable</b> → cacheable, replicable<br/>eventually consistent"]
+    end
+
+    CA -->|"① metadata sync<br/>(small, frequent)"| META
+    META --> NOTIFY -->|"notify"| CB
+    CA -->|"② block transfer<br/>(only what's missing)"| BLOCK
+    CB -->|"② block transfer"| BLOCK
+
+    style CA fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style META fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style NOTIFY fill:#fff9c4,stroke:#f9a825,color:#000
+    style BLOCK fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
 
 ```
    ┌──────────────┐                          ┌──────────────┐
@@ -771,6 +1021,24 @@ The most important mechanism is deliberate exploration: showing new content to a
 ```
 
 ## 4. Deep Dive — Sync Protocol
+
+```mermaid
+flowchart TD
+    A["① DETECT CHANGE<br/>filesystem watcher +<br/>periodic full scan (safety net)"] --> B["② HASH<br/>chunk file, compute block hashes<br/>skip if unchanged vs local index"]
+    B --> C["③ COMMIT METADATA<br/>optimistic concurrency:<br/>'updating v7 → v8'"]
+    C -->|"server at v7"| D["④ UPLOAD MISSING BLOCKS<br/>only hashes server lacks"]
+    C -->|"server NOT at v7"| CONFLICT["⚠️ CONFLICT<br/>create conflicted copy"]
+    D --> E["⑤ NOTIFY OTHER DEVICES<br/>long-poll/WebSocket"]
+    E --> F["⑥ OTHER DEVICES PULL<br/>diff metadata, download<br/>only missing blocks, reassemble"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,color:#000
+    style B fill:#e1f5fe,stroke:#0277bd,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style CONFLICT fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+```
 
 ```
    ① DETECT CHANGE
@@ -830,6 +1098,17 @@ The most important mechanism is deliberate exploration: showing new content to a
      reason the two systems make opposite choices.
 ```
 
+```mermaid
+flowchart TD
+    Q{"Does the system<br/>understand the file's<br/>internal structure?"}
+    Q -->|"Yes — owns the format<br/>(Google Docs)"| MERGE["✅ MERGE AUTOMATICALLY<br/>OT/CRDT transform ops<br/>at the character level"]
+    Q -->|"No — arbitrary opaque bytes<br/>(.docx, .psd, .zip)<br/>(Dropbox)"| COPY["⚠️ KEEP BOTH COPIES<br/>'file (conflicted copy).ext'<br/>user decides — no data lost"]
+
+    style Q fill:#e3f2fd,stroke:#1565c0,color:#000
+    style MERGE fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style COPY fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+```
+
 ```
    THE CONFLICT DETECTION MECHANISM
 
@@ -846,6 +1125,24 @@ The most important mechanism is deliberate exploration: showing new content to a
    ⭐ This is optimistic concurrency control — exactly the same
      mechanism as an ETag/If-Match check in HTTP, or a version
      column in a database.
+```
+
+```mermaid
+sequenceDiagram
+    participant Al as Alice (offline)
+    participant S as Server (report.pdf)
+    participant Bo as Bob (offline)
+    Note over S: version = 7
+    Al->>Al: edit locally from v7
+    Bo->>Bo: edit locally from v7
+    Al->>S: commit "update v7 → v8"
+    S->>S: current version IS 7 ✅
+    S-->>Al: accepted, now v8
+    Bo->>S: commit "update v7 → v8"
+    S->>S: current version is 8, NOT 7 ❌
+    S-->>Bo: ⚠️ CONFLICT
+    S->>S: create "report (Bob's conflicted copy).pdf"
+    Note over Al,Bo: No data lost — user decides which to keep
 ```
 
 ## 6. Deep Dive — Bandwidth Optimization
@@ -950,6 +1247,20 @@ Detection itself is straightforward optimistic concurrency: each update declares
 
 ## 3. Deep Dive — Search
 
+```mermaid
+flowchart LR
+    A["① GEO FILTER<br/>viewport → bounding box /<br/>geohash prefixes<br/>millions → thousands"] --> B["② AVAILABILITY FILTER<br/>⭐ range query over calendar<br/>the expensive one"]
+    B --> C["③ ATTRIBUTE FILTERS<br/>guests · price · amenities ·<br/>instant book"]
+    C --> D["④ RANK<br/>quality · price · booking<br/>likelihood · personalization"]
+    D --> E["⑤ PAGINATE + return"]
+
+    style A fill:#e1f5fe,stroke:#0277bd,color:#000
+    style B fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C fill:#e1f5fe,stroke:#0277bd,color:#000
+    style D fill:#fff9c4,stroke:#f9a825,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
 ```
    ┌─────────────────────────────────────────────────────────────┐
    │  THE PIPELINE                                               │
@@ -1003,6 +1314,14 @@ Detection itself is straightforward optimistic concurrency: each update declares
      in milliseconds.
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 ROW-PER-DATE<br/>2.5B rows (7M × 365)<br/>range query = 7 consecutive<br/>row checks per listing<br/><b>too slow</b>"] -->|"What is it<br/>redoing per query?"| B["🚀 BITMAP PER LISTING<br/>730 bits ≈ 92 bytes/listing<br/>~650 MB total, fits in memory<br/><b>bitwise AND vs date mask</b>"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```
    ARCHITECTURE
 
@@ -1029,6 +1348,35 @@ Detection itself is straightforward optimistic concurrency: each update declares
      different systems.
 ```
 
+```mermaid
+flowchart TD
+    subgraph Service["⚙️ Service Layer"]
+        SEARCH["Search Service"]
+    end
+
+    subgraph Derived["🔎 Derived Indexes (eventually consistent)"]
+        ES["Elasticsearch<br/>attributes, geo, text"]
+        BM["Availability Bitmap<br/>(in-memory)"]
+        PRICE["Pricing Service<br/>(dynamic rates)"]
+    end
+
+    subgraph Source["🗄️ Source of Truth (strongly consistent)"]
+        PG["Postgres<br/>listings + bookings"]
+    end
+
+    SEARCH --> ES
+    SEARCH --> BM
+    SEARCH --> PRICE
+    PG -->|"CDC"| ES
+    PG -->|"CDC"| BM
+
+    style SEARCH fill:#e1f5fe,stroke:#0277bd,color:#000
+    style ES fill:#fff9c4,stroke:#f9a825,color:#000
+    style BM fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style PRICE fill:#fff9c4,stroke:#f9a825,color:#000
+    style PG fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ## 4. Deep Dive — Preventing Double-Booking
 
 #### 💬 The core correctness requirement
@@ -1042,6 +1390,21 @@ Detection itself is straightforward optimistic concurrency: each update declares
    Without protection, both bookings succeed. One guest arrives
    to find someone else in the property. This is a catastrophic
    product failure.
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Guest A
+    participant DB as Database
+    participant B as Guest B
+    A->>DB: search Aug 10-15 → available
+    B->>DB: search Aug 10-15 → available
+    A->>DB: INSERT booking (Aug 10-15)
+    B->>DB: INSERT booking (Aug 10-15)
+    Note over DB: ⭐ EXCLUSION CONSTRAINT<br/>(listing_id =, stay &&)
+    DB-->>A: ✅ inserted
+    DB-->>B: ❌ constraint violation<br/>"no longer available"
+    Note over A,B: Database — not app logic —<br/>guarantees no overlap
 ```
 
 ```
@@ -1096,6 +1459,27 @@ Detection itself is straightforward optimistic concurrency: each update declares
 ```
 
 ### The booking state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> INITIATED: guest submits
+    INITIATED --> PENDING: dates HELD during this window
+    PENDING --> DECLINED: host declines / timeout expires
+    PENDING --> CONFIRMED: host accepts / instant book
+    PENDING --> FAILED: payment fails
+    CONFIRMED --> CANCELLED: cancelled
+    CONFIRMED --> COMPLETED: checked in
+    DECLINED --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
+    COMPLETED --> [*]
+
+    note right of PENDING
+        ⭐ hold MUST expire —
+        background job releases
+        stale holds
+    end note
+```
 
 ```
    ┌──────────┐  guest submits   ┌──────────┐
@@ -1252,6 +1636,23 @@ That's the same multi-armed bandit tradeoff as YouTube's cold start, and it's a 
      keys exist, and why every serious payment API has them.
 ```
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as Network
+    participant St as Stripe
+    C->>St: POST /charges
+    St->>St: ✅ card charged
+    St--xC: response lost (timeout)
+    Note over C: Did it work?<br/>THE CLIENT CANNOT KNOW
+    alt Client retries
+        C->>St: POST /charges (retry)
+        Note over St: ❌ without idempotency:<br/>DOUBLE CHARGE
+    else Client gives up
+        Note over C: ❌ order may be lost<br/>even though card WAS charged
+    end
+```
+
 ## 3. Deep Dive — Idempotency
 
 ```
@@ -1263,6 +1664,29 @@ That's the same multi-armed bandit tradeoff as YouTube's cold start, and it's a 
 
    ⭐ The key is CLIENT-GENERATED. Only the client knows that
      two requests represent the same intent.
+```
+
+```mermaid
+flowchart TD
+    Start(["POST /charges<br/>Idempotency-Key: 550e..."]) --> Claim["① ATOMIC CLAIM<br/>INSERT key + fingerprint<br/>status='in_progress'<br/>(unique index = the lock)"]
+    Claim -->|"insert succeeds<br/>(first time)"| Process["⑤ Do real work<br/>process_payment()"]
+    Claim -->|"UniqueViolation<br/>(key already exists)"| Check{"② fingerprint<br/>matches?"}
+    Check -->|"No"| Conflict["❌ 409 Conflict<br/>same key, different payload<br/>— client bug"]
+    Check -->|"Yes"| Status{"③ status?"}
+    Status -->|"in_progress"| Wait["❌ 409 Conflict<br/>retry shortly —<br/>don't run concurrently"]
+    Status -->|"completed"| Replay["④ REPLAY stored response<br/>(exact body + status code)"]
+    Process --> Store["store response,<br/>status='completed'"]
+    Store --> Return(["return charge"])
+    Replay --> Return
+
+    style Start fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Claim fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Process fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Conflict fill:#ffcdd2,stroke:#c62828,color:#000
+    style Wait fill:#ffcdd2,stroke:#c62828,color:#000
+    style Replay fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Store fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Return fill:#e3f2fd,stroke:#1565c0,color:#000
 ```
 
 ```python
@@ -1358,6 +1782,14 @@ async def create_charge(body: ChargeIn, idempotency_key: str):
    from the entries. The cache can be wrong; the log cannot.
 ```
 
+```mermaid
+flowchart LR
+    A["🐌 BALANCE COLUMN<br/>UPDATE balance = balance ± amt<br/>❌ no record of WHY<br/>❌ partial failure loses/creates money<br/>❌ can't answer 'balance last Tuesday'"] -->|"What is it<br/>failing to capture?"| B["🚀 DOUBLE-ENTRY LEDGER<br/>append-only, immutable entries<br/>debit + credit per transaction<br/>✅ SUM(debits) == SUM(credits)<br/>✅ balance is DERIVED, reconstructible"]
+
+    style A fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
 ```
    ⭐ WHY APPEND-ONLY IS NON-NEGOTIABLE
 
@@ -1371,6 +1803,25 @@ async def create_charge(body: ChargeIn, idempotency_key: str):
 ```
 
 ## 5. Deep Dive — The Payment Flow
+
+```mermaid
+stateDiagram-v2
+    [*] --> Authorized: ① Authorization<br/>funds HELD (~7 days valid)
+    Authorized --> Captured: ② Capture<br/>(often immediate)
+    Captured --> Settled: ③ Settlement<br/>(batch, T+1/T+2)
+    Settled --> PaidOut: ④ Payout to merchant<br/>(minus fees/reserves)
+    Settled --> Disputed: ⑤ Dispute/chargeback<br/>⭐ up to 120 days later!
+    PaidOut --> Disputed: dispute after payout
+    Disputed --> Reversed: chargeback upheld<br/>(reversing entries)
+    Disputed --> Settled: dispute won, funds retained
+    Reversed --> [*]
+    PaidOut --> [*]
+
+    note right of Disputed
+        ⭐ a transaction is not
+        truly final for MONTHS
+    end note
+```
 
 ```
    ① AUTHORIZATION (hold funds, don't move them)
@@ -1406,6 +1857,32 @@ async def create_charge(body: ChargeIn, idempotency_key: str):
 ```
 
 ## 6. Deep Dive — Webhooks
+
+```mermaid
+flowchart LR
+    subgraph Stripe["⚙️ Stripe"]
+        EVT["Event occurs<br/>(charge.succeeded, etc.)"]
+        Q["Queue<br/>⭐ never inline with<br/>the triggering request"]
+        SENDER["Webhook Sender<br/>(queue consumer)<br/>HMAC-signs raw body"]
+        DASH["Dashboard<br/>failed deliveries + reasons<br/>manual replay"]
+    end
+
+    subgraph Merchant["🏪 Merchant Server"]
+        EP["Customer Endpoint<br/>verifies signature,<br/>dedupes on event_id"]
+    end
+
+    EVT --> Q --> SENDER
+    SENDER -->|"at-least-once<br/>backoff: 1m,5m,30m,2h,12h"| EP
+    EP -.->|"failure"| DASH
+    SENDER -->|"continuous failure"| AUTO["Auto-disable endpoint"]
+
+    style EVT fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Q fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style SENDER fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style EP fill:#e1f5fe,stroke:#0277bd,color:#000
+    style DASH fill:#fff9c4,stroke:#f9a825,color:#000
+    style AUTO fill:#ffcdd2,stroke:#c62828,color:#000
+```
 
 ```
    ⭐ WEBHOOKS ARE AN API YOU PROVIDE TO SOMEONE ELSE'S SERVER
@@ -1453,6 +1930,38 @@ def verify_signature(raw_body: bytes, header: str, secret: str) -> bool:
 ```
 
 ## 7. Deep Dive — Availability at Five Nines
+
+```mermaid
+flowchart TD
+    subgraph API["🌍 API Layer"]
+        MR["Multi-region active-active"]
+    end
+
+    subgraph Ledger["🗄️ Ledger (hard part)"]
+        SW["Single writer region<br/>per account/shard"]
+        SR["Synchronous replication<br/>within region"]
+        FO["Orchestrated regional failover"]
+    end
+
+    subgraph Resilience["🛡️ Graceful Degradation"]
+        FRAUD["Fraud scoring unavailable<br/>→ fall back to conservative rules"]
+        CB["Circuit breakers +<br/>fallback routing between acquirers"]
+        CANARY["Canary + progressive rollout"]
+    end
+
+    MR --> SW --> SR --> FO
+    MR --> FRAUD
+    MR --> CB
+    MR --> CANARY
+
+    style MR fill:#e1f5fe,stroke:#0277bd,color:#000
+    style SW fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style SR fill:#fff9c4,stroke:#f9a825,color:#000
+    style FO fill:#fff9c4,stroke:#f9a825,color:#000
+    style FRAUD fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style CB fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style CANARY fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
 
 ```
    ⭐ EVERY MINUTE OF DOWNTIME IS LOST REVENUE FOR EVERY MERCHANT
