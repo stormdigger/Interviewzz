@@ -34,28 +34,25 @@ Most candidates think they're being asked *"do you know how to build Twitter?"* 
 
 What's actually being scored:
 
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ 1. DO YOU ASK BEFORE YOU BUILD?                              │
-   │    Given a vague prompt, do you scope it — or start          │
-   │    drawing boxes for a problem nobody asked you to solve?    │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 2. CAN YOU REASON ABOUT MAGNITUDE?                           │
-   │    Does your design match the scale? A design for 1,000      │
-   │    users and one for 100M users should look different.       │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 3. DO YOU MAKE TRADEOFFS EXPLICIT?                           │
-   │    "I'll use X" is a junior answer.                          │
-   │    "I'll use X because Y, accepting cost Z" is senior.       │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 4. DO YOU KNOW WHERE IT BREAKS?                              │
-   │    Every design has a bottleneck. Naming yours before the    │
-   │    interviewer does is the strongest signal available.       │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 5. CAN I WORK WITH YOU?                                      │
-   │    Do you listen to hints? Handle disagreement well?         │
-   │    Communicate while thinking rather than going silent?      │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+mindmap
+  root(("What is<br/>actually<br/>being scored?"))
+    ("1. ASK before you build")
+      ("Scope a vague prompt")
+      ("Don't draw boxes for a<br/>problem nobody asked for")
+    ("2. Reason about MAGNITUDE")
+      ("1,000 users ≠ 100M users")
+      ("Design should match scale")
+    ("3. Make TRADEOFFS explicit")
+      ("'I'll use X' = junior")
+      ("'X because Y, cost Z' = senior")
+    ("4. Know WHERE it breaks")
+      ("Every design has a bottleneck")
+      ("Name yours first")
+    ("5. Can I WORK WITH YOU?")
+      ("Listen to hints")
+      ("Handle disagreement")
+      ("Communicate while thinking")
 ```
 
 ⭐ **The single highest-leverage behaviour:** narrate your reasoning continuously. An interviewer cannot give credit for thoughts they can't hear, and cannot redirect you if they don't know where you're going.
@@ -89,18 +86,22 @@ flowchart TD
 
 ## 2. The 7-Step Framework
 
+```mermaid
+flowchart TD
+    subgraph Timeline["~45-60 minute interview budget"]
+        direction LR
+        T1["1. Requirements<br/>5-8 min"] --> T2["2. Estimation<br/>3-5 min"] --> T3["3. API Design<br/>3-5 min"] --> T4["4. Data Model<br/>5 min"] --> T5["5. High-Level Design<br/>10 min"] --> T6["⭐ 6. Deep Dives<br/>15-20 min"] --> T7["7. Wrap Up<br/>3-5 min"]
+    end
+
+    style T1 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style T2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style T3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style T4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style T5 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style T6 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style T7 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
 ```
-   ┌─────────────────────────────────────────────────────────────┐
-   │  1. REQUIREMENTS        5-8 min   scope it, write it down   │
-   │  2. ESTIMATION          3-5 min   QPS, storage, the RATIO   │
-   │  3. API DESIGN          3-5 min   the contract              │
-   │  4. DATA MODEL          5 min     entities + access patterns│
-   │  5. HIGH-LEVEL DESIGN   10 min    boxes and arrows          │
-   │  6. DEEP DIVES          15-20 min ⭐ where you're evaluated  │
-   │  7. WRAP UP             3-5 min   bottlenecks, next steps   │
-   └─────────────────────────────────────────────────────────────┘
-                        ~45-60 minutes total
-```
+*Roughly 20 minutes of setup (requirements through high-level design) buys you 15-20 minutes of deep dives — where level is actually determined. Spend more than 20 minutes on setup and you're behind.*
 
 ⚠️ **The most common time-management failure** is spending 25 minutes on requirements and estimation, then rushing the deep dives. The deep dives are where senior signal lives. Budget accordingly — if you're 20 minutes in and haven't drawn a box, you're behind.
 
@@ -177,40 +178,43 @@ flowchart TD
 
 This is where most candidates are weak, and where the design is actually determined.
 
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ SCALE       How many users? DAU vs total? Growth rate?       │
-   │             ⭐ Read:write ratio — this drives everything      │
-   ├──────────────────────────────────────────────────────────────┤
-   │ LATENCY     What's acceptable? p50 vs p99?                   │
-   │             "Timeline loads in under 200ms at p99"           │
-   ├──────────────────────────────────────────────────────────────┤
-   │ AVAILABILITY What's the SLO? 99.9% = 8.7 hrs/year down       │
-   │             Is downtime or wrong data worse?                 │
-   ├──────────────────────────────────────────────────────────────┤
-   │ CONSISTENCY Which operations need strong consistency?        │
-   │             ⭐ Name the USER-VISIBLE consequence               │
-   ├──────────────────────────────────────────────────────────────┤
-   │ DURABILITY  Can we ever lose data? How much? (RPO)           │
-   ├──────────────────────────────────────────────────────────────┤
-   │ GEOGRAPHY   Single region or global? Data residency rules?   │
-   ├──────────────────────────────────────────────────────────────┤
-   │ SECURITY    Auth model? PII? Compliance (GDPR/HIPAA/PCI)?    │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    NFR["Non-functional requirements<br/><i>this is where the design is actually determined</i>"]
+    NFR --> Scale["<b>SCALE</b><br/>How many users? DAU vs total?<br/>⭐ Read:write ratio drives everything"]
+    NFR --> Latency["<b>LATENCY</b><br/>p50 vs p99?<br/>e.g. 'timeline loads &lt;200ms at p99'"]
+    NFR --> Avail["<b>AVAILABILITY</b><br/>What's the SLO?<br/>Is downtime or wrong data worse?"]
+    NFR --> Consistency["<b>CONSISTENCY</b><br/>Which ops need strong consistency?<br/>⭐ Name the user-visible consequence"]
+    NFR --> Durability["<b>DURABILITY</b><br/>Can we ever lose data?<br/>How much? (RPO)"]
+    NFR --> Geo["<b>GEOGRAPHY</b><br/>Single region or global?<br/>Data residency rules?"]
+    NFR --> Security["<b>SECURITY</b><br/>Auth model? PII?<br/>Compliance (GDPR/HIPAA/PCI)?"]
+
+    style NFR fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style Scale fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Latency fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Avail fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Consistency fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Durability fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Geo fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Security fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 ### The availability table — know these
 
-```
-   99%       "two nines"     3.65 days/year down    ← not acceptable
-   99.9%     "three nines"   8.77 hours/year        ← typical SaaS
-   99.95%                    4.38 hours/year
-   99.99%    "four nines"    52.6 minutes/year      ← serious product
-   99.999%   "five nines"    5.26 minutes/year      ← telco/payments
+```mermaid
+flowchart LR
+    N2["99%<br/>'two nines'<br/>3.65 days/yr down<br/>❌ not acceptable"] -->|"⭐ ~10× cost<br/>and complexity"| N3["99.9%<br/>'three nines'<br/>8.77 hrs/yr<br/>typical SaaS"]
+    N3 -->|"⭐ ~10× cost<br/>and complexity"| N395["99.95%<br/>4.38 hrs/yr"]
+    N395 -->|"⭐ ~10× cost<br/>and complexity"| N4["99.99%<br/>'four nines'<br/>52.6 min/yr<br/>serious product"]
+    N4 -->|"⭐ ~10× cost<br/>and complexity"| N5["99.999%<br/>'five nines'<br/>5.26 min/yr<br/>telco/payments"]
 
-   ⭐ Each additional nine roughly 10× the cost and complexity.
-     Ask what the business actually needs.
+    style N2 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style N3 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style N395 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style N4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style N5 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
+*Ask what the business actually needs — five nines for an internal admin tool is wasted engineering effort.*
 
 ```mermaid
 flowchart TD
@@ -423,24 +427,24 @@ flowchart TD
 #### 💬 Draw the happy path first
 Get one complete request flowing end to end before you add anything clever. Then evolve it under pressure.
 
+```mermaid
+flowchart LR
+    Client(["Client"]) -->|"HTTP"| LB["Load Balancer"]
+    LB --> App["App Servers"]
+    App --> DB[("Database")]
+    App -.-> Cache[("Cache")]
+
+    style Client fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style LB fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style App fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style DB fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Cache fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
-   START SIMPLE — this is fine as a first diagram
+*START SIMPLE — this is fine as a first diagram. Then narrate the evolution:*
 
-   Client ──▶ LB ──▶ App Servers ──▶ Database
-                          │
-                          └──▶ Cache
-
-   Then narrate the evolution:
-
-   "Now let's trace a write. A user posts a tweet — it hits the
-    app server, we validate, write to the tweets table, and
-    return. That's straightforward.
-
-    Now a read. The home timeline needs tweets from everyone this
-    user follows, merged and sorted. With 500 followees that's
-    a 500-way merge on every timeline load, at 350K QPS.
-    That's the bottleneck, so let me focus there."
-```
+> "Now let's trace a write. A user posts a tweet — it hits the app server, we validate, write to the tweets table, and return. That's straightforward.
+>
+> Now a read. The home timeline needs tweets from everyone this user follows, merged and sorted. With 500 followees that's a 500-way merge on every timeline load, at 350K QPS. That's the bottleneck, so let me focus there."
 
 ```
    ⭐ RULES FOR THE DIAGRAM
@@ -479,28 +483,25 @@ Everything before this was setup. Deep dives are where level is determined. The 
 
 ### The deep dives that come up constantly
 
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ 1. THE BOTTLENECK YOU IDENTIFIED                             │
-   │    Timeline fan-out, geospatial matching, concurrent edits   │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 2. SCALING THE DATA LAYER                                    │
-   │    Shard key choice · what breaks · hot partitions           │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 3. CACHING STRATEGY                                          │
-   │    What, where, TTL, invalidation, stampede protection       │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 4. CONSISTENCY                                               │
-   │    Which operations need strong? What does the user see?     │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 5. FAILURE HANDLING                                          │
-   │    "What if the cache dies?" "What if a region goes down?"   │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 6. THE HOT KEY / CELEBRITY PROBLEM                           │
-   │    ⭐ Comes up in nearly every social/marketplace design      │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 7. HANDLING A 10× TRAFFIC SPIKE                              │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Root["Deep dives that<br/>come up constantly"]
+    Root --> D1["1. THE BOTTLENECK<br/>YOU IDENTIFIED<br/><i>timeline fan-out, geospatial<br/>matching, concurrent edits</i>"]
+    Root --> D2["2. SCALING THE<br/>DATA LAYER<br/><i>shard key choice, what breaks,<br/>hot partitions</i>"]
+    Root --> D3["3. CACHING<br/>STRATEGY<br/><i>what, where, TTL, invalidation,<br/>stampede protection</i>"]
+    Root --> D4["4. CONSISTENCY<br/><i>which ops need strong?<br/>what does the user see?</i>"]
+    Root --> D5["5. FAILURE<br/>HANDLING<br/><i>'what if the cache dies?'<br/>'what if a region goes down?'</i>"]
+    Root --> D6["⭐ 6. THE HOT KEY /<br/>CELEBRITY PROBLEM<br/><i>nearly every social/<br/>marketplace design</i>"]
+    Root --> D7["7. HANDLING A<br/>10× TRAFFIC SPIKE"]
+
+    style Root fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000
+    style D1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D3 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D4 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D5 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style D6 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D7 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 ### 📊 A worked deep dive — timeline fan-out
@@ -570,21 +571,32 @@ flowchart TD
    ❌ Wasted work for inactive followers
 
    ─── ⭐ OPTION C: HYBRID (what Twitter actually does) ─────
+```
 
-   ┌────────────────────────────────────────────────────────┐
-   │ NORMAL USERS (< ~10K followers)                        │
-   │   → fan-out on WRITE, push into follower timelines     │
-   │                                                        │
-   │ CELEBRITIES (> ~10K followers)                         │
-   │   → do NOT fan out. Store once.                        │
-   │                                                        │
-   │ ON TIMELINE READ:                                      │
-   │   1. Fetch the precomputed timeline (fast, cached)     │
-   │   2. Fetch recent tweets from the few celebrities       │
-   │      this user follows (small N, cached separately)     │
-   │   3. Merge the two, sort, return                       │
-   └────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Post["User posts a tweet"] --> Check{"Follower count?"}
+    Check -->|"< ~10K, NORMAL USER"| Push["Fan-out on WRITE<br/>push tweet ID into every<br/>follower's precomputed timeline"]
+    Check -->|"> ~10K, CELEBRITY"| Store["Do NOT fan out<br/>store the tweet once"]
 
+    Push --> Read["Timeline read request"]
+    Store --> Read
+
+    Read --> Step1["1. Fetch the precomputed<br/>timeline (fast, cached)"]
+    Step1 --> Step2["2. Fetch recent tweets from the<br/>few celebrities this user follows<br/>(small N, cached separately)"]
+    Step2 --> Step3["3. Merge the two, sort, return"]
+
+    style Post fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Check fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Push fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Store fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Read fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Step1 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Step2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Step3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+```
+
+```
    ✅ Bounded write amplification (celebrities excluded)
    ✅ Read is still fast (one list + a small merge)
    ✅ Handles the actual distribution of follower counts
@@ -697,21 +709,15 @@ flowchart LR
 
 ### The tradeoff table you should be able to produce for anything
 
-```
-   ┌──────────────────┬─────────────────────┬─────────────────────┐
-   │ Dimension        │ Option A            │ Option B            │
-   ├──────────────────┼─────────────────────┼─────────────────────┤
-   │ Latency          │                     │                     │
-   │ Throughput       │                     │                     │
-   │ Consistency      │                     │                     │
-   │ Cost             │                     │                     │
-   │ Complexity       │                     │                     │
-   │ Failure blast    │                     │                     │
-   │   radius         │                     │                     │
-   │ Operational      │                     │                     │
-   │   burden         │                     │                     │
-   └──────────────────┴─────────────────────┴─────────────────────┘
-```
+| Dimension | Option A | Option B |
+|---|---|---|
+| Latency | | |
+| Throughput | | |
+| Consistency | | |
+| Cost | | |
+| Complexity | | |
+| Failure blast radius | | |
+| Operational burden | | |
 
 ⭐ **Complexity and operational burden are real costs** and most candidates ignore them. Saying *"this is technically better but adds a system the on-call team has to understand at 3am, so I'd only do it if we measure that we need it"* is a strong senior signal.
 
@@ -719,46 +725,66 @@ flowchart LR
 
 ## 4. Level Expectations
 
-```
-   ┌────────────┬──────────────────────────────────────────────────┐
-   │ JUNIOR     │ • Knows the components exist                     │
-   │ (L3/E3)    │ • Can draw a basic 3-tier architecture           │
-   │            │ • Needs prompting for scale considerations       │
-   ├────────────┼──────────────────────────────────────────────────┤
-   │ MID        │ • Drives the structure without prompting         │
-   │ (L4/E4)    │ • Correct estimation, sensible component choices │
-   │            │ • Identifies obvious bottlenecks                 │
-   │            │ • Handles one deep dive competently              │
-   ├────────────┼──────────────────────────────────────────────────┤
-   │ SENIOR ⭐   │ • Scopes ambiguity into a buildable problem      │
-   │ (L5/E5)    │ • Every choice justified with an explicit cost   │
-   │            │ • Names failure modes unprompted                 │
-   │            │ • Multiple deep dives with real depth            │
-   │            │ • Discusses operational reality: monitoring,     │
-   │            │   deploys, on-call, migration path               │
-   ├────────────┼──────────────────────────────────────────────────┤
-   │ STAFF+     │ • Questions the requirements themselves          │
-   │ (L6+/E6+)  │ • Considers organizational fit (Conway's law)    │
-   │            │ • Discusses build-vs-buy and cost seriously      │
-   │            │ • Proposes a phased delivery, not a big bang     │
-   │            │ • Reasons about the 3-year evolution            │
-   └────────────┴──────────────────────────────────────────────────┘
-```
-
 #### 💬 The senior/staff differentiator
 
 Junior and mid answers describe **a system**. Senior and staff answers describe **a system, why it's shaped that way, what it costs, how it fails, how you'd know, and how you'd get there from where the company is today.**
 
 ```mermaid
 flowchart TD
-    L1["JUNIOR<br/>knows components exist,<br/>needs prompting"] --> L2["MID<br/>drives structure,<br/>correct estimation"]
-    L2 --> L3["⭐ SENIOR<br/>every choice justified,<br/>names failure modes unprompted"]
-    L3 --> L4["STAFF+<br/>questions requirements,<br/>phased delivery, 3-yr evolution"]
+    subgraph Junior["JUNIOR (L3/E3)"]
+        J1["Knows the components exist"]
+        J2["Can draw a basic 3-tier architecture"]
+        J3["Needs prompting for scale considerations"]
+    end
 
-    style L1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
-    style L2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
-    style L3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
-    style L4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    subgraph Mid["MID (L4/E4)"]
+        M1["Drives the structure without prompting"]
+        M2["Correct estimation, sensible component choices"]
+        M3["Identifies obvious bottlenecks"]
+        M4["Handles one deep dive competently"]
+    end
+
+    subgraph Senior["⭐ SENIOR (L5/E5)"]
+        S1["Scopes ambiguity into a buildable problem"]
+        S2["Every choice justified with an explicit cost"]
+        S3["Names failure modes unprompted"]
+        S4["Multiple deep dives with real depth"]
+        S5["Discusses operational reality: monitoring,<br/>deploys, on-call, migration path"]
+    end
+
+    subgraph Staff["STAFF+ (L6+/E6+)"]
+        F1["Questions the requirements themselves"]
+        F2["Considers organizational fit (Conway's law)"]
+        F3["Discusses build-vs-buy and cost seriously"]
+        F4["Proposes a phased delivery, not a big bang"]
+        F5["Reasons about the 3-year evolution"]
+    end
+
+    Junior -->|"drives without<br/>being asked"| Mid
+    Mid -->|"justifies every<br/>choice with a cost"| Senior
+    Senior -->|"questions the<br/>problem itself"| Staff
+
+    style Junior fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Mid fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Senior fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Staff fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style J1 fill:#ffcdd2,stroke:#c62828,color:#000
+    style J2 fill:#ffcdd2,stroke:#c62828,color:#000
+    style J3 fill:#ffcdd2,stroke:#c62828,color:#000
+    style M1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style M2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style M3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style M4 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S4 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S5 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style F1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style F2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style F3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style F4 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style F5 fill:#e1f5fe,stroke:#0277bd,color:#000
 ```
 
 ---
@@ -929,32 +955,58 @@ flowchart TD
 
 ### 📊 Example: design a real-time collaborative editor (frontend)
 
+```mermaid
+flowchart TB
+    subgraph LocalState["LOCAL STATE"]
+        LS1["CRDT document (Yjs)<br/>converges without a server"]
+        LS2["Optimistic local application<br/>zero-latency typing"]
+    end
+
+    subgraph Transport["TRANSPORT"]
+        T1["WebSocket for<br/>bidirectional deltas"]
+        T2["Fall back to SSE + POST<br/>if WebSocket is blocked"]
+        T3["Reconnect with exponential<br/>backoff + resync"]
+    end
+
+    subgraph Presence["PRESENCE"]
+        P1["Separate ephemeral channel<br/>(cursors, selections)"]
+        P2["Throttled to ~20/sec<br/>never persisted"]
+    end
+
+    subgraph Offline["OFFLINE"]
+        O1["IndexedDB persistence<br/>of the CRDT"]
+        O2["Edits queue locally, merge on<br/>reconnect — CRDTs make this<br/>automatic, the whole reason<br/>to use them"]
+    end
+
+    subgraph Performance["PERFORMANCE"]
+        PF1["Virtualize long documents"]
+        PF2["Debounce persistence,<br/>not rendering"]
+        PF3["Web Worker for CRDT<br/>merge on large documents"]
+    end
+
+    LocalState --> Transport --> Presence
+    Transport --> Offline
+    LocalState --> Performance
+
+    style LocalState fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Transport fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Presence fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
+    style Offline fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Performance fill:#b2dfdb,stroke:#00695c,stroke-width:2px,color:#000
+    style LS1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style LS2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style T1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style T2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style T3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style P1 fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style P2 fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style O1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style O2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style PF1 fill:#b2dfdb,stroke:#00695c,color:#000
+    style PF2 fill:#b2dfdb,stroke:#00695c,color:#000
+    style PF3 fill:#b2dfdb,stroke:#00695c,color:#000
 ```
-   ┌─────────────────────────────────────────────────────────────┐
-   │ LOCAL STATE                                                 │
-   │   CRDT document (Yjs) — converges without a server          │
-   │   Optimistic local application: zero-latency typing         │
-   ├─────────────────────────────────────────────────────────────┤
-   │ TRANSPORT                                                   │
-   │   WebSocket for bidirectional deltas                        │
-   │   Fall back to SSE + POST if WebSocket is blocked           │
-   │   Reconnect with exponential backoff + resync               │
-   ├─────────────────────────────────────────────────────────────┤
-   │ PRESENCE                                                    │
-   │   Separate ephemeral channel (cursors, selections)          │
-   │   Throttled to ~20/sec — never persisted                    │
-   ├─────────────────────────────────────────────────────────────┤
-   │ OFFLINE                                                     │
-   │   IndexedDB persistence of the CRDT                         │
-   │   Edits queue locally, merge on reconnect (CRDTs make this  │
-   │   automatic — that's the whole reason to use them)          │
-   ├─────────────────────────────────────────────────────────────┤
-   │ PERFORMANCE                                                 │
-   │   Virtualize long documents                                 │
-   │   Debounce persistence, not rendering                       │
-   │   Web Worker for CRDT merge on large documents              │
-   └─────────────────────────────────────────────────────────────┘
-```
+*The CRDT choice in LOCAL STATE is what makes OFFLINE merging automatic — that dependency is why the two subgraphs are connected above.*
 
 ---
 

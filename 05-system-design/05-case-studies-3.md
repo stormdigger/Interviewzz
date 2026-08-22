@@ -43,29 +43,43 @@
 
 ## 2. Slack vs WhatsApp — why the architectures diverge
 
-```
-   ┌────────────────────┬──────────────────────────────────────┐
-   │ WHATSAPP           │ SLACK                                │
-   ├────────────────────┼──────────────────────────────────────┤
-   │ Delivered =        │ ⭐ Stored FOREVER, searchable         │
-   │   DELETED          │   → storage is a first-class problem  │
-   ├────────────────────┼──────────────────────────────────────┤
-   │ E2E encrypted      │ Server-readable (search, compliance,  │
-   │                    │   eDiscovery, DLP require it)         │
-   ├────────────────────┼──────────────────────────────────────┤
-   │ 1:1 and small      │ ⭐ Channels with 100K+ members         │
-   │   groups           │   → fan-out is a real problem again   │
-   ├────────────────────┼──────────────────────────────────────┤
-   │ Mobile-first,      │ ⭐ Multi-device simultaneously —       │
-   │   one active device│   desktop + mobile + web, all live    │
-   ├────────────────────┼──────────────────────────────────────┤
-   │ Ordering per       │ Ordering per channel + threads        │
-   │   conversation     │   (a partial order, not a total one)  │
-   └────────────────────┴──────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph WA["📱 WhatsApp"]
+        WA1["Delivered = DELETED<br/>storage problem largely vanishes"]
+        WA2["End-to-end encrypted"]
+        WA3["1:1 and small groups"]
+        WA4["Mobile-first,<br/>one active device"]
+        WA5["Ordering per conversation"]
+    end
 
-   ⭐ The permanent-history requirement is what changes everything.
-     WhatsApp's storage problem largely vanishes because delivered
-     messages are deleted. Slack's storage problem is the product.
+    subgraph SL["💼 Slack"]
+        SL1["⭐ Stored FOREVER, searchable<br/><b>storage is a first-class problem</b>"]
+        SL2["Server-readable<br/>(search, compliance,<br/>eDiscovery, DLP require it)"]
+        SL3["⭐ Channels with 100K+ members<br/><b>fan-out is a real problem again</b>"]
+        SL4["⭐ Multi-device simultaneously —<br/>desktop + mobile + web, all live"]
+        SL5["Ordering per channel + threads<br/>(a partial order, not total)"]
+    end
+
+    WA1 -.->|"drives"| SL1
+    WA2 -.->|"drives"| SL2
+    WA3 -.->|"drives"| SL3
+    WA4 -.->|"drives"| SL4
+    WA5 -.->|"drives"| SL5
+
+    SL1 --> Root["⭐ THE ROOT CAUSE<br/><b>permanent-history requirement</b><br/>changes everything downstream —<br/>Slack's storage problem IS the product"]
+
+    style WA1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style WA2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style WA3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style WA4 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style WA5 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style SL1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style SL2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style SL3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style SL4 fill:#fff9c4,stroke:#f9a825,color:#000
+    style SL5 fill:#fff9c4,stroke:#f9a825,color:#000
+    style Root fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 3. Estimation
@@ -91,42 +105,6 @@
 ```
 
 ## 4. Architecture
-
-```
-   ┌──────────┐  ┌──────────┐  ┌──────────┐
-   │ Desktop  │  │  Mobile  │  │   Web    │   ⭐ all simultaneously
-   └────┬─────┘  └────┬─────┘  └────┬─────┘      connected
-        └─────────────┼─────────────┘
-                      │ WebSocket (persistent)
-                      ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │  GATEWAY / CONNECTION TIER                                  │
-   │  • holds WebSockets, maps user+device → connection          │
-   │  • ⭐ routes by WORKSPACE (sticky) so a workspace's traffic   │
-   │    stays local                                              │
-   └───────────────────────────┬─────────────────────────────────┘
-                               ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │  MESSAGE SERVICE                                            │
-   │  • persist → assign sequence → fan out                      │
-   └───┬─────────────────────┬───────────────────┬───────────────┘
-       ▼                     ▼                   ▼
-   ┌────────────┐   ┌─────────────────┐   ┌──────────────────┐
-   │  MESSAGE   │   │  CHANNEL        │   │  PUB/SUB         │
-   │  STORE     │   │  MEMBERSHIP     │   │  (delivery to    │
-   │  (sharded  │   │  (who's in what)│   │   connected      │
-   │  by channel│   └─────────────────┘   │   devices)       │
-   │  + time)   │                         └──────────────────┘
-   └─────┬──────┘
-         │ CDC
-         ▼
-   ┌────────────────┐      ┌──────────────────────────────────┐
-   │  SEARCH INDEX  │      │  NOTIFICATION SERVICE            │
-   │  (Elasticsearch│      │  push · email digest · mentions  │
-   │   per workspace│      └──────────────────────────────────┘
-   │   isolated ⭐) │
-   └────────────────┘
-```
 
 ```mermaid
 flowchart TD
@@ -239,32 +217,7 @@ flowchart LR
 ```
 
 ```
-   THE HYBRID APPROACH
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ① PERSIST FIRST                                              │
-   │    Write the message to the channel's message store with a   │
-   │    monotonic sequence number. ⭐ This is the source of truth  │
-   │    and it establishes ORDER.                                 │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ② PUSH TO CONNECTED MEMBERS ONLY                             │
-   │    Look up which channel members currently have a live       │
-   │    connection (typically a small fraction of members).       │
-   │    Push to those connections via pub/sub.                    │
-   │    ⭐ A 100K-member channel might have 3K people actually     │
-   │      online — that's the number that matters, not 100K.      │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ③ OFFLINE MEMBERS PULL ON RECONNECT                          │
-   │    Client reconnects with "my last seen sequence for this    │
-   │    channel is N" → server sends everything after N.          │
-   │    ⭐ No per-user inbox needed. The channel log IS the        │
-   │      shared state; each client tracks its own cursor.        │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ④ NOTIFICATIONS ARE A SEPARATE, FILTERED PATH                │
-   │    Push notifications go only to people who should be        │
-   │    interrupted: @mentions, DMs, keyword matches — not        │
-   │    every message in every channel.                           │
-   └──────────────────────────────────────────────────────────────┘
+   THE HYBRID APPROACH — four steps, detailed below the diagram
 ```
 
 ```mermaid
@@ -294,11 +247,6 @@ sequenceDiagram
    (Twitter's fan-out-on-write), Slack keeps ONE channel log
    and each user tracks a POSITION in it.
 
-   channel #general:  [msg 1][msg 2][msg 3][msg 4][msg 5]
-                                      ▲            ▲
-                                   alice        bob
-                                  (2 unread)   (0 unread)
-
    ✅ One copy of each message, regardless of channel size
    ✅ Unread counts are a subtraction, not a stored counter
    ✅ "Mark all as read" is one cursor update
@@ -308,6 +256,22 @@ sequenceDiagram
    This works BECAUSE channels are a shared, ordered stream.
    Twitter timelines are per-user merges of many streams, which
    is why they need materialization.
+```
+
+```mermaid
+flowchart LR
+    Log["channel #general log<br/>[msg1][msg2][msg3][msg4][msg5]"]
+    Log --> AlicePos["Alice's cursor → after msg3<br/>2 unread (msg4, msg5)"]
+    Log --> BobPos["Bob's cursor → after msg5<br/>0 unread"]
+
+    AlicePos --> AliceCalc["unread = latest_seq(5) −<br/>last_read_seq(3) = 2"]
+    BobPos --> BobCalc["unread = latest_seq(5) −<br/>last_read_seq(5) = 0"]
+
+    style Log fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style AlicePos fill:#fff9c4,stroke:#f9a825,color:#000
+    style BobPos fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style AliceCalc fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style BobCalc fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ## 6. Deep Dive — Multi-Device Consistency
@@ -320,16 +284,31 @@ sequenceDiagram
 
    ⭐ SOLUTION: read state is SERVER-SIDE, not per-device.
 
-   ┌────────────────────────────────────────────────────────────┐
-   │  user_channel_state                                        │
-   │    user_id · channel_id · last_read_seq · last_seen_at     │
-   └────────────────────────────────────────────────────────────┘
+   Table: user_channel_state
+     user_id · channel_id · last_read_seq · last_seen_at
 
    • Any device updating the cursor broadcasts to that user's
      OTHER devices over their WebSockets
    • Unread count = (channel latest_seq) − (user last_read_seq)
    • Notification suppression: if the user was active on ANY
      device within the last N seconds, suppress push
+```
+
+```mermaid
+sequenceDiagram
+    participant Phone
+    participant Server as Server<br/>(user_channel_state)
+    participant Desktop
+
+    Note over Phone,Desktop: Alice reads message on phone
+    Phone->>Server: update last_read_seq = N
+    Note over Server: read state is SERVER-side,<br/>not per-device
+    Server-->>Desktop: broadcast cursor update<br/>over WebSocket
+    Note over Desktop: unread badge clears<br/>immediately, no re-read needed
+
+    Note over Phone,Desktop: Alice types on desktop
+    Desktop->>Server: activity heartbeat (focus + input)
+    Server-->>Phone: suppress push notification<br/>(active on another device)
 ```
 
 ```
@@ -542,30 +521,22 @@ flowchart TD
 
    ⭐ THE TECHNIQUES, in order of impact
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ 1. PREFETCH THE NEXT TRACK                                   │
-   │    While the current track plays, download the beginning of  │
-   │    the next one. Queue order is known, so this is essentially │
-   │    free prediction.                                          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 2. CACHE AGGRESSIVELY ON DEVICE                              │
-   │    ⭐ People replay the same music constantly. Local cache    │
-   │    hit rates are very high — often 50%+ of plays never       │
-   │    touch the network at all.                                 │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 3. START PLAYING BEFORE FULLY DOWNLOADED                     │
-   │    Buffer a few seconds, start audio, continue fetching.     │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 4. CDN EDGE PROXIMITY                                        │
-   │    Popular tracks sit at the edge. The long tail is fetched  │
-   │    from origin — acceptable because it's rare.               │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 5. ⭐ P2P (historically)                                      │
-   │    Early Spotify used peer-to-peer distribution among        │
-   │    desktop clients to cut CDN costs dramatically. Retired    │
-   │    once CDN economics improved and mobile dominated —        │
-   │    but it's a great example of exploiting the medium.        │
-   └──────────────────────────────────────────────────────────────┘
+   1. PREFETCH THE NEXT TRACK — while the current track plays,
+      download the beginning of the next one. Queue order is
+      known, so this is essentially free prediction.
+   2. CACHE AGGRESSIVELY ON DEVICE — ⭐ people replay the same
+      music constantly. Local cache hit rates are very high —
+      often 50%+ of plays never touch the network at all.
+   3. START PLAYING BEFORE FULLY DOWNLOADED — buffer a few
+      seconds, start audio, continue fetching.
+   4. CDN EDGE PROXIMITY — popular tracks sit at the edge. The
+      long tail is fetched from origin — acceptable because
+      it's rare.
+   5. ⭐ P2P (historically) — early Spotify used peer-to-peer
+      distribution among desktop clients to cut CDN costs
+      dramatically. Retired once CDN economics improved and
+      mobile dominated — but a great example of exploiting
+      the medium.
 ```
 
 ```mermaid
@@ -654,27 +625,17 @@ flowchart LR
    extraordinarily rich training signal that Spotify has and
    most competitors don't.
 
-   THREE SIGNAL SOURCES, COMBINED:
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ① COLLABORATIVE FILTERING                                    │
-   │    "People with similar taste to you also listen to X"       │
-   │    Built from listening history + playlist co-occurrence.    │
-   │    ✅ Captures taste patterns humans can't articulate         │
-   │    ❌ ⭐ COLD START: a brand-new track has no co-occurrence    │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ② NLP ON TEXT ABOUT MUSIC                                    │
-   │    Blogs, reviews, articles, playlist titles and             │
-   │    descriptions → "what words do people use about this?"     │
-   │    ✅ Captures genre, mood, cultural context                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ③ RAW AUDIO ANALYSIS                                         │
-   │    CNN over spectrograms → tempo, key, energy,               │
-   │    danceability, acousticness, timbre                        │
-   │    ⭐ SOLVES COLD START: a track with zero listens can        │
-   │      still be characterized and recommended, because the     │
-   │      audio itself is the feature.                            │
-   └──────────────────────────────────────────────────────────────┘
+   THREE SIGNAL SOURCES, COMBINED — ① collaborative filtering
+   ("people with similar taste to you also listen to X", built
+   from listening history + playlist co-occurrence — captures
+   taste patterns humans can't articulate, but ⭐ cold start: a
+   brand-new track has no co-occurrence); ② NLP on text about
+   music (blogs, reviews, playlist titles → "what words do
+   people use about this?" — captures genre, mood, cultural
+   context); ③ raw audio analysis (CNN over spectrograms →
+   tempo, key, energy, danceability, timbre — ⭐ solves cold
+   start: a track with zero listens can still be characterized
+   and recommended, because the audio itself is the feature).
 
    ⭐ THE COMBINATION IS THE POINT. Collaborative filtering is
      most accurate but can't handle new content. Audio analysis
@@ -816,23 +777,20 @@ The generation pipeline then filters by territory licensing and already-heard tr
 ## 2. Why three-sided is harder than two-sided
 
 ```
-   ┌──────────────────────────────────────────────────────────────┐
-   │            THE OPTIMIZATION IS SIMULTANEOUS                  │
-   │                                                              │
-   │   CONSUMER wants:  fast delivery, hot food, low fees         │
-   │   MERCHANT wants:  orders timed to their kitchen capacity,   │
-   │                    not 20 at once                            │
-   │   DASHER wants:    high earnings per hour, minimal idle time,│
-   │                    short unpaid waiting at restaurants       │
-   │                                                              │
-   │   ⚠️ These CONFLICT. Batching two orders to one dasher       │
-   │     improves dasher earnings and platform efficiency but     │
-   │     delays one consumer's food.                              │
-   │                                                              │
-   │   ⭐ There is no single objective to optimize. The system     │
-   │     optimizes a WEIGHTED BLEND, and the weights are a        │
-   │     business decision, not a technical one.                  │
-   └──────────────────────────────────────────────────────────────┘
+   ⭐ THE OPTIMIZATION IS SIMULTANEOUS
+
+   Consumer wants fast delivery, hot food, low fees. Merchant
+   wants orders timed to kitchen capacity, not 20 at once.
+   Dasher wants high earnings per hour, minimal idle time, short
+   unpaid waiting at restaurants.
+
+   ⚠️ These CONFLICT. Batching two orders to one dasher improves
+     dasher earnings and platform efficiency but delays one
+     consumer's food.
+
+   ⭐ There is no single objective to optimize. The system
+     optimizes a WEIGHTED BLEND, and the weights are a business
+     decision, not a technical one.
 
    COMPARE WITH UBER: two-sided, and the ride starts when the
    driver arrives. Here the FOOD starts cooking on a separate
@@ -866,13 +824,10 @@ flowchart TD
 ```
    ⚠️ THE TIMING PROBLEM
 
-   Order placed ──▶ Restaurant starts cooking (15 min)
-                                    │
-                    Dasher should ARRIVE around here ─┘
-                    ↑                                  ↑
-              too early:                          too late:
-              dasher waits unpaid,                food sits and
-              wasted capacity                     gets cold
+   Order placed, restaurant starts cooking (~15 min). The dasher
+   should arrive right around when the food becomes ready —
+   arriving too early means unpaid waiting and wasted capacity;
+   arriving too late means the food sits and gets cold.
 
    ⭐ So assignment isn't "find the closest dasher NOW" — it's
      "find the dasher who will BE AVAILABLE at approximately
@@ -908,49 +863,57 @@ flowchart LR
 ```
    BATCHING — the efficiency lever
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ If two orders are from nearby restaurants going to nearby    │
-   │ destinations at similar times, one dasher can carry both.    │
-   │                                                              │
-   │   ✅ Dasher earns more per hour                               │
-   │   ✅ Platform delivers more with the same supply              │
-   │   ❌ ⚠️ One consumer waits longer                             │
-   │                                                              │
-   │ ⭐ The decision is a constrained optimization:                │
-   │   batch only when the added delay to the second order        │
-   │   stays under a threshold, and never batch orders where      │
-   │   food quality is highly time-sensitive.                     │
-   └──────────────────────────────────────────────────────────────┘
-```
-
-```
-   THE ALGORITHM SHAPE
-
-   ① Collect a small BATCH WINDOW of pending orders (~seconds)
-      ⭐ Assigning each order greedily on arrival is worse than
-        waiting briefly and optimizing across several at once.
-
-   ② Build a cost matrix: (dasher × order) → cost
-      Cost blends: travel time, predicted wait at restaurant,
-      dasher's current load, fairness/earnings balance,
-      predicted consumer delay
-
-   ③ Solve the assignment
-      Hungarian algorithm for optimal, or a greedy/heuristic
-      approach at scale where optimal is too slow
-
-   ④ Offer to the selected dashers; on decline, re-solve
+   If two orders are from nearby restaurants going to nearby
+   destinations at similar times, one dasher can carry both.
+   ⭐ The decision is a constrained optimization: batch only when
+   the added delay to the second order stays under a threshold,
+   and never batch orders where food quality is highly
+   time-sensitive.
 ```
 
 ```mermaid
 flowchart LR
-    Q{"How to assign<br/>dashers to orders?"}
-    Q --> GREEDY["🐌 Greedy: assign each order<br/>to nearest dasher on arrival<br/><b>misses batching opportunities</b>"]
-    Q --> BATCH["✅ Collect batch window (~sec)<br/>→ build cost matrix<br/>(dasher × order)<br/>→ solve assignment<br/><b>Hungarian algorithm / heuristic</b>"]
+    Batch["📦📦 Two nearby orders,<br/>similar pickup/dropoff time"] --> Decide{"Added delay to<br/>2nd order under<br/>threshold?"}
+    Decide -->|"✅ yes"| DoBatch["Batch onto one dasher"]
+    Decide -->|"❌ no, or food<br/>highly time-sensitive"| Separate["Assign separately"]
 
+    DoBatch --> Gain1["✅ Dasher earns more/hour"]
+    DoBatch --> Gain2["✅ Platform delivers more<br/>with same supply"]
+    DoBatch --> Cost1["⚠️ One consumer waits longer"]
+
+    style Batch fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Decide fill:#e3f2fd,stroke:#1565c0,color:#000
+    style DoBatch fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Separate fill:#fff9c4,stroke:#f9a825,color:#000
+    style Gain1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Gain2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Cost1 fill:#ffcdd2,stroke:#c62828,color:#000
+```
+
+```
+   THE ALGORITHM SHAPE
+   ⭐ Assigning each order greedily on arrival is worse than
+   waiting briefly and optimizing across several at once.
+```
+
+```mermaid
+flowchart LR
+    W["① Collect BATCH WINDOW<br/>of pending orders (~seconds)"] --> M["② Build cost matrix<br/>(dasher × order) → cost<br/><i>travel time, predicted wait,<br/>dasher load, fairness,<br/>predicted consumer delay</i>"]
+    M --> S["③ Solve the assignment<br/>Hungarian algorithm (optimal)<br/>or greedy/heuristic at scale"]
+    S --> O["④ Offer to selected dashers"]
+    O -->|"decline"| S
+    O -->|"accept"| Done(["Assignment locked in"])
+
+    Q{"vs. naive greedy?"} -.-> W
+    Q -.->|"🐌 assign nearest dasher<br/>on arrival — misses<br/>batching opportunities"| Naive["Worse outcome"]
+
+    style W fill:#e1f5fe,stroke:#0277bd,color:#000
+    style M fill:#fff9c4,stroke:#f9a825,color:#000
+    style S fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style O fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Done fill:#c8e6c9,stroke:#2e7d32,color:#000
     style Q fill:#e3f2fd,stroke:#1565c0,color:#000
-    style GREEDY fill:#ffcdd2,stroke:#c62828,color:#000
-    style BATCH fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Naive fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ## 4. Deep Dive — ETA Prediction
@@ -964,27 +927,27 @@ flowchart LR
    25-minute ETA that becomes 45. Predictability matters more
    than speed.
 
-   THE ETA IS A SUM OF UNCERTAIN COMPONENTS:
+   THE ETA IS A SUM OF UNCERTAIN COMPONENTS — detailed below.
+```
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ① ORDER → ASSIGNMENT      how long to find a dasher          │
-   │      depends on local supply/demand right now                │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ② FOOD PREPARATION   ⭐ the highest-variance component        │
-   │      per-restaurant historical distributions, current        │
-   │      kitchen load, item complexity, time of day              │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ③ DASHER → RESTAURANT     road network routing               │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ④ PICKUP TIME             parking + walking in + waiting     │
-   │      ⚠️ highly location-specific: a mall food court is very   │
-   │        different from a street-front restaurant              │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ⑤ RESTAURANT → CUSTOMER   routing + traffic                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ⑥ DROP-OFF                parking, apartment buildings,      │
-   │      gated communities, elevator time                        │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    C1["① Order → Assignment<br/>how long to find a dasher<br/><i>depends on local<br/>supply/demand now</i>"]
+    C2["② Food Preparation<br/>⭐ highest-variance component<br/><i>per-restaurant history,<br/>kitchen load, item<br/>complexity, time of day</i>"]
+    C3["③ Dasher → Restaurant<br/>road network routing"]
+    C4["④ Pickup Time<br/>parking + walk-in + wait<br/>⚠️ highly location-specific"]
+    C5["⑤ Restaurant → Customer<br/>routing + traffic"]
+    C6["⑥ Drop-off<br/>parking, apartment buildings,<br/>gated communities,<br/>elevator time"]
+
+    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> Sum["Σ = predicted<br/>arrival time<br/>DISTRIBUTION"]
+
+    style C1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style C2 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style C4 fill:#fff9c4,stroke:#f9a825,color:#000
+    style C5 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style C6 fill:#fff9c4,stroke:#f9a825,color:#000
+    style Sum fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```
@@ -1020,36 +983,6 @@ flowchart LR
 ## 5. Architecture
 
 ```
-   ┌──────────┐   ┌──────────┐   ┌──────────┐
-   │ Consumer │   │ Merchant │   │  Dasher  │
-   │   app    │   │  tablet  │   │   app    │
-   └────┬─────┘   └────┬─────┘   └────┬─────┘
-        │              │              │
-        └──────────────┼──────────────┘
-                       ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │                     API GATEWAY                             │
-   └───┬──────────┬──────────┬──────────┬──────────┬─────────────┘
-       ▼          ▼          ▼          ▼          ▼
-   ┌────────┐┌────────┐┌──────────┐┌────────┐┌──────────────┐
-   │ ORDER  ││MERCHANT││ASSIGNMENT││  ETA   ││   LOCATION   │
-   │service ││ catalog││ (matching││ service││   tracking   │
-   │        ││ + menu ││  engine) ││  (ML)  ││              │
-   └───┬────┘└────────┘└────┬─────┘└────────┘└──────┬───────┘
-       │                    │                       │
-       ▼                    ▼                       ▼
-   ┌────────────┐   ┌──────────────┐      ┌──────────────────┐
-   │ Orders DB  │   │ Dasher supply│      │ Redis geo index  │
-   │ (Postgres, │   │ state (Redis)│      │ + in-memory      │
-   │  sharded   │   └──────────────┘      └──────────────────┘
-   │  by region)│
-   └─────┬──────┘
-         │ Kafka
-         ▼
-   ┌──────────────────────────────────────────────────────────┐
-   │ PAYMENTS · NOTIFICATIONS · ANALYTICS · FRAUD · SUPPORT   │
-   └──────────────────────────────────────────────────────────┘
-
    ⭐ Sharded by REGION — same insight as Uber. A delivery in
      Chicago never involves data from Miami.
 ```
@@ -1112,34 +1045,24 @@ flowchart TD
 ```
    ⚠️ THE UNGLAMOROUS PROBLEM THAT DOMINATES REAL WORK
 
-   A million merchants, with wildly varying technical capability:
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ TABLET (most common)   DoorDash-provided device; orders      │
-   │                        appear, merchant taps accept          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ POS INTEGRATION        direct API into Toast/Square/etc.     │
-   │                        ⭐ best experience, but dozens of      │
-   │                        different POS systems to support      │
-   ├──────────────────────────────────────────────────────────────┤
-   │ PRINTER / FAX / PHONE  ⚠️ yes, really. Some merchants get    │
-   │                        orders via an auto-dialed phone call. │
-   └──────────────────────────────────────────────────────────────┘
+   A million merchants, with wildly varying technical capability.
 ```
 
 ```mermaid
 flowchart LR
     Order["Order confirmed"] --> Route{"Merchant<br/>integration type?"}
-    Route -->|"most common"| Tablet["✅ Tablet<br/>DoorDash-provided device<br/>merchant taps accept"]
-    Route -->|"best experience"| POS["✅ POS Integration<br/>direct API (Toast/Square/etc.)<br/><b>dozens of systems to support</b>"]
-    Route -->|"⚠️ still exists"| Fax["⚠️ Printer / Fax / Phone<br/>auto-dialed call to<br/>restaurants without computers"]
+    Route -->|"most common"| Tablet["✅ Tablet<br/>DoorDash-provided device<br/>orders appear, merchant<br/>taps accept"]
+    Route -->|"best experience"| POS["✅ POS Integration<br/>direct API (Toast/Square/etc.)<br/><b>dozens of different POS<br/>systems to support</b>"]
+    Route -->|"⚠️ still exists"| Fax["⚠️ Printer / Fax / Phone<br/>yes, really — some merchants<br/>get orders via an<br/>auto-dialed phone call"]
 
     style Order fill:#e1f5fe,stroke:#0277bd,color:#000
     style Route fill:#e3f2fd,stroke:#1565c0,color:#000
     style Tablet fill:#c8e6c9,stroke:#2e7d32,color:#000
     style POS fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
     style Fax fill:#ffcdd2,stroke:#c62828,color:#000
+```
 
+```
    ⭐ MENU ACCURACY IS A CONSTANT BATTLE
      Prices change, items go out of stock, hours vary.
      A stale menu causes cancelled orders — the worst outcome
@@ -1305,20 +1228,34 @@ flowchart TD
    Each replica tracks a version vector so the system can tell
    whether two versions are causally related or genuinely
    concurrent.
+```
 
-   Cart v[A:2, B:1]  and  Cart v[A:1, B:3]
-        ▲                       ▲
-        └─ neither dominates ───┘  → CONCURRENT
-                                   → cannot auto-order them
-                                   → apply the merge rule (union)
+```mermaid
+flowchart TD
+    subgraph Case1["Case: v[A:2,B:1] vs v[A:1,B:3]"]
+        V1a["v[A:2, B:1]"]
+        V1b["v[A:1, B:3]"]
+        V1a -.->|"neither dominates<br/>(A higher in one,<br/>B higher in other)"| Conc["⚠️ CONCURRENT<br/>cannot auto-order<br/><b>→ apply merge rule (union)</b>"]
+        V1b -.-> Conc
+    end
 
-   Cart v[A:2, B:1]  and  Cart v[A:3, B:1]
-                                   → the second DOMINATES
-                                   → simply take the newer one
+    subgraph Case2["Case: v[A:2,B:1] vs v[A:3,B:1]"]
+        V2a["v[A:2, B:1]"]
+        V2b["v[A:3, B:1]"]
+        V2a -.->|"second DOMINATES<br/>(A and B both ≥)"| Dom["✅ CAUSAL ORDER<br/><b>simply take the newer one</b>"]
+        V2b -.-> Dom
+    end
 
-   ⭐ Vector clocks detect concurrency. They don't resolve it —
-     resolution is an application-level policy decision, and for
-     carts that policy is "union, add wins."
+    Conc --> Note["⭐ Vector clocks DETECT concurrency.<br/>They don't RESOLVE it —<br/>resolution is an app-level policy.<br/>For carts: 'union, add wins'"]
+    Dom --> Note
+
+    style V1a fill:#e1f5fe,stroke:#0277bd,color:#000
+    style V1b fill:#e1f5fe,stroke:#0277bd,color:#000
+    style V2a fill:#e1f5fe,stroke:#0277bd,color:#000
+    style V2b fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Conc fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Dom fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Note fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ## 4. Deep Dive — Inventory
@@ -1336,20 +1273,8 @@ flowchart TD
      damage, miscounts, items misplaced on shelves
 
    ⭐ THE KEY REALIZATION: inventory is NOT a simple counter.
-     It has states.
-```
-
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │  INVENTORY STATES                                            │
-   │                                                              │
-   │   ON HAND        physically present in a fulfillment center  │
-   │   RESERVED       allocated to a pending order (not yet       │
-   │                  shipped) ⭐ this is the critical one         │
-   │   AVAILABLE      = ON HAND − RESERVED                        │
-   │   IN TRANSIT     inbound from a supplier                     │
-   │   DAMAGED/HELD   present but not sellable                    │
-   └──────────────────────────────────────────────────────────────┘
+     It has states — ON HAND, RESERVED, AVAILABLE (= ON HAND
+     − RESERVED), IN TRANSIT, DAMAGED/HELD.
 ```
 
 ```mermaid
@@ -1440,30 +1365,6 @@ flowchart LR
    ⭐ AN ORDER IS A LONG-RUNNING DISTRIBUTED WORKFLOW,
      not a single transaction. It spans minutes to weeks and
      touches a dozen services.
-
-   ┌───────────┐
-   │  PLACED   │
-   └─────┬─────┘
-         ▼
-   ┌───────────┐  payment authorized, inventory reserved
-   │ CONFIRMED │
-   └─────┬─────┘
-         ▼
-   ┌───────────┐  fulfillment center picks and packs
-   │ PROCESSING│
-   └─────┬─────┘
-         ▼
-   ┌───────────┐  handed to carrier, payment CAPTURED
-   │  SHIPPED  │  ⭐ capture happens at ship, not at order
-   └─────┬─────┘
-         ▼
-   ┌───────────┐
-   │ DELIVERED │
-   └─────┬─────┘
-         ▼
-   ┌───────────┐  up to 30+ days later
-   │ RETURNED  │
-   └───────────┘
 
    AT EVERY STEP: cancellation, partial fulfillment, split
    shipment from multiple FCs, address change, payment failure.
@@ -1650,24 +1551,6 @@ State must be persisted at every transition with the reason, so a crash resumes 
 ## 2. The Defining Architectural Difference
 
 ```
-   ┌────────────────────────┬─────────────────────────────────────┐
-   │ INSTAGRAM / TWITTER    │ TIKTOK                              │
-   ├────────────────────────┼─────────────────────────────────────┤
-   │ Feed is built from     │ ⭐ Feed is built from                │
-   │ WHO YOU FOLLOW         │   CONTENT SIMILARITY + PREDICTED    │
-   │                        │   ENGAGEMENT — the social graph is  │
-   │                        │   an input, not the foundation      │
-   ├────────────────────────┼─────────────────────────────────────┤
-   │ Cold start = "follow   │ ⭐ Cold start = "watch 10 videos and │
-   │ some people first"     │   we already know you"              │
-   ├────────────────────────┼─────────────────────────────────────┤
-   │ A new creator needs    │ ⭐ A new creator with zero followers │
-   │ followers to get reach │   can reach millions immediately    │
-   ├────────────────────────┼─────────────────────────────────────┤
-   │ Fan-out is the         │ ⭐ RANKING is the hard problem.      │
-   │ hard problem           │   There is no fan-out.              │
-   └────────────────────────┴─────────────────────────────────────┘
-
    ⭐ THIS ELIMINATES THE ENTIRE FAN-OUT PROBLEM.
      No per-user timelines to materialize. No celebrity write
      amplification. Instead, ALL the difficulty moves into
@@ -1675,58 +1558,54 @@ State must be persisted at every transition with the reason, so a crash resumes 
 ```
 
 ```mermaid
-flowchart LR
+flowchart TD
     Q{"What builds<br/>the feed?"}
-    Q -->|"Instagram/Twitter"| Graph["⚠️ Social graph<br/><b>fan-out is the hard problem</b><br/>materialize per-user timelines,<br/>celebrity write amplification"]
-    Q -->|"TikTok"| Rank["✅ Content similarity +<br/>predicted engagement<br/><b>ranking is the hard problem</b><br/>NO fan-out at all"]
 
-    Graph -.->|"cold start"| G2["follow people first"]
-    Rank -.->|"cold start"| R2["watch 10 videos,<br/>we already know you"]
+    subgraph IG["📸 Instagram / Twitter"]
+        Graph["Feed built from<br/><b>WHO YOU FOLLOW</b><br/>social graph is the foundation"]
+        G2["Cold start:<br/>'follow some people first'"]
+        G3["A new creator needs<br/>followers to get reach"]
+        G4["⚠️ FAN-OUT is the<br/>hard problem —<br/>materialize per-user timelines,<br/>celebrity write amplification"]
+    end
+
+    subgraph TT["🎬 TikTok"]
+        Rank["Feed built from<br/><b>CONTENT SIMILARITY +<br/>PREDICTED ENGAGEMENT</b><br/>social graph is an input, not<br/>the foundation"]
+        R2["Cold start:<br/>'watch 10 videos and<br/>we already know you'"]
+        R3["✅ A new creator with<br/>zero followers can reach<br/>millions immediately"]
+        R4["✅ RANKING is the<br/>hard problem —<br/>there is NO fan-out at all"]
+    end
+
+    Q -->|"who you follow"| Graph
+    Q -->|"what you'd engage with"| Rank
+    Graph --> G2 --> G3 --> G4
+    Rank --> R2 --> R3 --> R4
 
     style Q fill:#e3f2fd,stroke:#1565c0,color:#000
     style Graph fill:#ffcdd2,stroke:#c62828,color:#000
-    style Rank fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
     style G2 fill:#fff9c4,stroke:#f9a825,color:#000
+    style G3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style G4 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Rank fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
     style R2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
 ## 3. Deep Dive — The Recommendation Pipeline
 
 ```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ① CANDIDATE GENERATION   (billions → ~thousands)             │
-   │                                                              │
-   │   Multiple retrieval sources in parallel:                    │
-   │     • ⭐ EMBEDDING SIMILARITY — approximate nearest neighbour │
-   │       search over video embeddings vs the user's interest    │
-   │       vector. This is the primary source.                    │
-   │     • trending/viral content in the user's region+language   │
-   │     • content from followed creators                         │
-   │     • content similar to what the user recently engaged with │
-   │     • ⭐ EXPLORATION BUCKET — deliberately unfamiliar content │
-   │                                                              │
-   │   Must complete in ~10ms. Uses precomputed embeddings and    │
-   │   ANN indexes (HNSW/IVF), never a model forward pass.        │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ② RANKING                (thousands → ~hundreds)             │
-   │                                                              │
-   │   A deep model predicting MULTIPLE objectives:               │
-   │     P(watch to completion)  ⭐ the strongest signal           │
-   │     P(rewatch / loop)       ⭐ extremely strong               │
-   │     P(like) · P(comment) · P(share) ⭐ share = strongest      │
-   │       positive signal, it implies real value                 │
-   │     P(follow creator)                                        │
-   │     P(skip immediately)     ⭐ heavily weighted NEGATIVE      │
-   │                                                              │
-   │   Combined into a single score with tuned weights.           │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ③ RE-RANKING / POLICY     (hundreds → the next ~10)          │
-   │     • diversity — don't show 5 near-identical videos         │
-   │     • creator diversity — spread across creators             │
-   │     • ⭐ freshness injection — guarantee some new content     │
-   │     • integrity filters and policy enforcement               │
-   │     • ad slots at defined intervals                          │
-   └──────────────────────────────────────────────────────────────┘
+   ① CANDIDATE GENERATION (billions → ~thousands) — multiple
+     retrieval sources in parallel, must complete in ~10ms using
+     precomputed embeddings and ANN indexes (HNSW/IVF), never a
+     model forward pass.
+   ② RANKING (thousands → ~hundreds) — a deep model predicting
+     multiple objectives, combined into a single score with
+     tuned weights (detailed further below).
+   ③ RE-RANKING / POLICY (hundreds → next ~10) — diversity
+     (don't show 5 near-identical videos), creator diversity,
+     ⭐ freshness injection (guarantee some new content),
+     integrity filters and policy enforcement, ad slots at
+     defined intervals.
 ```
 
 ```mermaid
@@ -1803,47 +1682,25 @@ flowchart LR
 ## 4. Deep Dive — Cold Start
 
 ```
-   TWO COLD START PROBLEMS, BOTH SOLVED WELL
+   TWO COLD START PROBLEMS, BOTH SOLVED WELL — the NEW VIDEO
+   case is diagrammed below; the NEW USER case follows it.
+```
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ NEW USER — no history at all                                 │
-   │                                                              │
-   │   ① Start with broadly popular content in their region       │
-   │      and language                                            │
-   │   ② ⭐ Every interaction updates the interest model IN NEAR   │
-   │      REAL TIME — not in a nightly batch                      │
-   │   ③ After ~10-20 videos, the model has strong signal:        │
-   │      what they watched fully, what they skipped in 1 second, │
-   │      what they rewatched                                     │
-   │                                                              │
-   │   ⭐ Fast skips are as informative as full watches. Negative  │
-   │     signal arrives just as quickly and is weighted heavily.  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ NEW VIDEO — no engagement data                               │
-   │                                                              │
-   │   ① CONTENT UNDERSTANDING FIRST                              │
-   │      Visual embeddings, audio/music identification, text     │
-   │      (captions, OCR of on-screen text), hashtags, the        │
-   │      creator's historical performance                        │
-   │      → place it in embedding space WITHOUT any views         │
-   │                                                              │
-   │   ② ⭐ STAGED TRAFFIC EXPOSURE — the key mechanism            │
-   │                                                              │
-   │      show to ~200 users  ─── strong engagement? ──┐          │
-   │              │ weak                               ▼          │
-   │              ▼                          show to ~2,000       │
-   │        stop promoting                        │               │
-   │                                    strong?   ▼               │
-   │                                        show to ~20,000       │
-   │                                              │               │
-   │                                              ▼               │
-   │                                         ...viral             │
-   │                                                              │
-   │   ⭐ Each stage is a statistical test. Videos are promoted    │
-   │     based on engagement RATE within their exposure cohort,   │
-   │     not absolute counts — so a new creator competes fairly   │
-   │     with an established one.                                 │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    NewUser(["New user<br/>no history at all"]) --> Popular["① Start with broadly<br/>popular content in their<br/>region and language"]
+    Popular --> Watch["User watches / skips videos"]
+    Watch --> RealTime["② ⭐ Every interaction updates<br/>the interest model IN NEAR<br/>REAL TIME — not a nightly batch"]
+    RealTime --> Strong["③ After ~10-20 videos,<br/>model has strong signal:<br/>full watches, 1-second skips,<br/>rewatches"]
+    Watch -.->|"fast skip"| Neg["⭐ Negative signal arrives<br/>JUST AS FAST as positive —<br/>weighted heavily,<br/>as informative as a full watch"]
+    Neg --> RealTime
+
+    style NewUser fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Popular fill:#fff9c4,stroke:#f9a825,color:#000
+    style Watch fill:#e3f2fd,stroke:#1565c0,color:#000
+    style RealTime fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style Strong fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Neg fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ```mermaid

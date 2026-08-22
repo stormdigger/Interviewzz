@@ -27,42 +27,40 @@
 
 #### 💬 Everything reduces to these
 
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ FACT 1: THE NETWORK IS UNRELIABLE                            │
-   │                                                              │
-   │   Messages can be:  lost · delayed arbitrarily · duplicated  │
-   │                     · reordered · delivered after you gave up│
-   │                                                              │
-   │   ⭐ CRITICAL COROLLARY: you cannot distinguish               │
-   │      "the node is dead" from "the node is slow."             │
-   │      A timeout is a GUESS, never a fact.                     │
-   ├──────────────────────────────────────────────────────────────┤
-   │ FACT 2: NODES FAIL INDEPENDENTLY                             │
-   │                                                              │
-   │   Half your system can be up while the other half is down,   │
-   │   and the two halves can DISAGREE about what happened.       │
-   │   This is "partial failure" and it has no analogue in        │
-   │   single-machine programming.                                │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    F1["<b>FACT 1: THE NETWORK<br/>IS UNRELIABLE</b><br/>Messages can be lost, delayed<br/>arbitrarily, duplicated, reordered,<br/>or delivered after you gave up"]
+    F2["<b>FACT 2: NODES FAIL<br/>INDEPENDENTLY</b><br/>Half your system up, half down,<br/>and the two halves can DISAGREE<br/>about what happened"]
+
+    F1 --> C1["⭐ CRITICAL COROLLARY<br/>You cannot distinguish<br/>'the node is dead' from<br/>'the node is slow.'<br/>A timeout is a GUESS, never a fact."]
+    F2 --> C2["'Partial failure' — has no<br/>analogue in single-machine<br/>programming"]
+
+    style F1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style F2 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style C1 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style C2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 ### The Two Generals Problem
 
+Two armies must attack simultaneously to win. They communicate only by messengers crossing enemy territory.
+
+```mermaid
+sequenceDiagram
+    participant A as General A
+    participant B as General B
+
+    A->>B: "Attack at dawn"
+    Note over A: Does B know?<br/>A can't be sure without an ack.
+    B-->>A: "Ack"
+    Note over B: Does A know I acked?<br/>B can't be sure without an ack of the ack.
+    A-->>B: "Ack of the ack"
+    Note over A,B: ...and so on forever.<br/>Every ack needs its own ack.
+
+    Note over A,B: ⭐ PROVEN IMPOSSIBLE — no finite number<br/>of messages guarantees both generals<br/>know they agree.
 ```
-   Two armies must attack simultaneously to win.
-   They communicate only by messengers crossing enemy territory.
 
-   General A ──"attack at dawn"──▶ General B
-             ◀──────"ack"────────
-
-   But A doesn't know the ack arrived...
-   so B sends an ack of the ack...
-   but B doesn't know THAT arrived...
-
-   ⭐ PROVEN IMPOSSIBLE: no finite number of messages can
-     guarantee both generals know they agree.
-
+```
    PRACTICAL CONSEQUENCE:
    You can never achieve exactly-once delivery across a network.
    → at-least-once delivery + IDEMPOTENT processing
@@ -102,33 +100,14 @@ flowchart TD
 
 ## 2. Failure Models
 
-```
-   Ordered from easiest to hardest to tolerate:
+Ordered from easiest to hardest to tolerate:
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ CRASH-STOP        A node fails and never returns.            │
-   │                   Easiest. Detect and replace.               │
-   ├──────────────────────────────────────────────────────────────┤
-   │ CRASH-RECOVERY    A node fails and later comes back, possibly│
-   │                   with stale state. ⭐ This is the realistic  │
-   │                   model for most systems — and it's why      │
-   │                   write-ahead logs and fencing tokens exist. │
-   ├──────────────────────────────────────────────────────────────┤
-   │ OMISSION          A node drops some messages but not others. │
-   │                   Partial connectivity — nastier than it     │
-   │                   sounds, because health checks may pass     │
-   │                   while real traffic fails.                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ⚠️ BYZANTINE       A node behaves ARBITRARILY: lies, sends    │
-   │                   contradictory messages to different peers, │
-   │                   corrupts data.                             │
-   │                   Requires 3f+1 nodes to tolerate f failures │
-   │                   (vs 2f+1 for crash faults).                │
-   │                   ⭐ Assume crash faults inside your own      │
-   │                     datacenter. Byzantine tolerance is for   │
-   │                     blockchains and adversarial environments.│
-   └──────────────────────────────────────────────────────────────┘
-```
+| Model | What happens | Notes |
+|---|---|---|
+| CRASH-STOP | A node fails and never returns | Easiest. Detect and replace. |
+| CRASH-RECOVERY | A node fails and later comes back, possibly with stale state | ⭐ The realistic model for most systems — why write-ahead logs and fencing tokens exist |
+| OMISSION | A node drops some messages but not others | Partial connectivity — nastier than it sounds, because health checks may pass while real traffic fails |
+| ⚠️ BYZANTINE | A node behaves ARBITRARILY: lies, sends contradictory messages to different peers, corrupts data | Requires 3f+1 nodes to tolerate f failures (vs 2f+1 for crash faults). ⭐ Assume crash faults inside your own datacenter — Byzantine tolerance is for blockchains and adversarial environments |
 
 ```
    ⚠️ THE GRAY FAILURE — the one that causes real outages
@@ -191,24 +170,22 @@ flowchart LR
    always-live in a fully asynchronous model. Real systems
    escape by weakening one assumption:
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ① PARTIAL SYNCHRONY  ⭐ what Raft and Paxos actually assume   │
-   │    "The network is eventually well-behaved for long enough." │
-   │    → use TIMEOUTS as failure detectors.                      │
-   │    → SAFETY is always preserved; LIVENESS is only            │
-   │      guaranteed during periods of synchrony.                 │
-   │    ⭐ This is the crucial framing: a Raft cluster under       │
-   │      constant partition never makes progress — but it        │
-   │      never becomes INCORRECT either.                         │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ② RANDOMIZATION                                              │
-   │    Terminate with probability 1 rather than certainty.       │
-   │    (Ben-Or's algorithm; used in some BFT protocols.)         │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ③ FAILURE DETECTORS                                          │
-   │    Assume an oracle that eventually identifies crashed       │
-   │    nodes. Formally this is what timeouts approximate.        │
-   └──────────────────────────────────────────────────────────────┘
+   ① PARTIAL SYNCHRONY  ⭐ what Raft and Paxos actually assume
+      "The network is eventually well-behaved for long enough."
+      → use TIMEOUTS as failure detectors.
+      → SAFETY is always preserved; LIVENESS is only
+        guaranteed during periods of synchrony.
+      ⭐ This is the crucial framing: a Raft cluster under
+        constant partition never makes progress — but it
+        never becomes INCORRECT either.
+
+   ② RANDOMIZATION
+      Terminate with probability 1 rather than certainty.
+      (Ben-Or's algorithm; used in some BFT protocols.)
+
+   ③ FAILURE DETECTORS
+      Assume an oracle that eventually identifies crashed
+      nodes. Formally this is what timeouts approximate.
 
    ⭐ THE TAKEAWAY FOR PRACTICE:
      Never design a system that must reach consensus to serve
@@ -265,16 +242,23 @@ flowchart TD
    2. Send your counter with every message
    3. On receive:  counter = max(local, received) + 1
 
-   ┌─────────────────────────────────────────────────────────────┐
-   │  Node A   1 ──── 2 ────────────▶ 3                          │
-   │                  │                                          │
-   │                  │ msg(2)                                   │
-   │                  ▼                                          │
-   │  Node B   1 ──── 3 ──── 4                                   │
-   │                  ▲                                          │
-   │                  └─ max(1, 2) + 1 = 3                       │
-   └─────────────────────────────────────────────────────────────┘
+```
 
+```mermaid
+sequenceDiagram
+    participant A as Node A
+    participant B as Node B
+
+    Note over A: counter = 1
+    A->>A: local event<br/>counter = 2
+    A->>B: msg(counter=2)
+    Note over B: counter = 1
+    Note over B: on receive:<br/>counter = max(1, 2) + 1 = 3
+    B->>B: local event<br/>counter = 4
+    Note over A: local event<br/>counter = 3
+```
+
+```
    ⭐ GUARANTEE:  a → b  implies  L(a) < L(b)
    ⚠️ THE CONVERSE IS FALSE: L(a) < L(b) does NOT imply
      a happened before b. They may be concurrent.
@@ -289,17 +273,23 @@ flowchart TD
 ```
    Each node keeps a VECTOR of counters, one per node.
 
-   ┌─────────────────────────────────────────────────────────────┐
-   │  Node A  [1,0,0] ── [2,0,0] ──────────▶ [3,0,0]             │
-   │                        │                                    │
-   │                        │ msg([2,0,0])                       │
-   │                        ▼                                    │
-   │  Node B  [0,1,0] ── [2,2,0] ── [2,3,0]                      │
-   │                        ▲                                    │
-   │                        └─ element-wise max, then increment  │
-   │                           own position                      │
-   └─────────────────────────────────────────────────────────────┘
+```
 
+```mermaid
+sequenceDiagram
+    participant A as Node A
+    participant B as Node B
+
+    Note over A: [1,0,0]
+    A->>A: local event → [2,0,0]
+    A->>B: msg([2,0,0])
+    Note over B: [0,1,0]
+    Note over B: element-wise max([0,1,0],[2,0,0])<br/>then increment own position<br/>→ [2,2,0]
+    B->>B: local event → [2,3,0]
+    Note over A: local event → [3,0,0]
+```
+
+```
    COMPARING TWO VECTORS:
      V1 < V2   (V1 happened before V2)   if every element of V1
                                           is ≤ V2's AND at least

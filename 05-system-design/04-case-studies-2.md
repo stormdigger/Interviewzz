@@ -45,23 +45,6 @@
 
 Two people edit the same sentence at the same moment. Both apply their change locally (because waiting for the server would make typing feel awful). Now the two copies differ. When the edits are exchanged, they must converge to the *same* result — and that result must be sensible.
 
-```
-   Document: "HELLO"
-
-   User A at position 1 inserts "X"    →  "HXELLO"
-   User B at position 3 inserts "Y"    →  "HELYLO"
-
-   Naive exchange:
-     A applies B's op (insert Y at 3) to "HXELLO"  →  "HXEYLLO"
-     B applies A's op (insert X at 1) to "HELYLO"  →  "HXELYLO"
-
-                        ❌ DIVERGED
-
-   ⭐ THE PROBLEM: B's operation was computed against the ORIGINAL
-     document. After A's insert, position 3 no longer means what
-     B meant. Positions shift.
-```
-
 Two families of solutions exist.
 
 ```mermaid
@@ -83,25 +66,6 @@ sequenceDiagram
 
 #### 💬 The idea
 Before applying a remote operation, **transform** it against every concurrent operation you've already applied, so its intent is preserved in the new context.
-
-```
-   TRANSFORM FUNCTION
-
-   T(opB, opA) → opB'
-
-   "Given that opA was applied first, what is the correct
-    version of opB to apply now?"
-
-   In our example:
-     A inserted at position 1 (before B's position 3)
-     → B's position must shift right by 1
-     → T(insert Y at 3, insert X at 1) = insert Y at 4
-
-   A applies:  "HXELLO" + insert Y at 4  →  "HXELYLO"
-   B applies:  "HELYLO" + insert X at 1  →  "HXELYLO"
-
-                        ✅ CONVERGED
-```
 
 ```mermaid
 sequenceDiagram
@@ -136,31 +100,48 @@ sequenceDiagram
                         else: del@i
 ```
 
-```
-   ARCHITECTURE — OT REQUIRES A CENTRAL SERVER
+```mermaid
+flowchart TD
+    CA["Client A"] -->|"send local op"| SERVER
+    CB["Client B"] -->|"send local op"| SERVER
 
-   ┌────────┐          ┌──────────────────┐          ┌────────┐
-   │ Client │─────────▶│  SERVER          │◀─────────│ Client │
-   │   A    │          │  • assigns a     │          │   B    │
-   │        │◀─────────│    GLOBAL ORDER  │─────────▶│        │
-   └────────┘          │  • transforms    │          └────────┘
-                       │    against       │
-                       │    pending ops   │
-                       │  • broadcasts    │
-                       └──────────────────┘
+    subgraph SERVER["⚙️ SERVER — single source of truth for ORDER"]
+        direction TB
+        S1["Assigns a GLOBAL ORDER<br/>to incoming ops"]
+        S2["Transforms each op against<br/>every pending op ahead of it"]
+        S3["Broadcasts the transformed op<br/>to all other clients"]
+        S1 --> S2 --> S3
+    end
 
-   ⭐ The server is the single source of truth for ORDER.
-     Every client's op is transformed against ops the server
-     has already accepted, then broadcast.
+    SERVER -->|"broadcast transformed op"| CA
+    SERVER -->|"broadcast transformed op"| CB
 
-   ✅ Compact operations (just position + content)
-   ✅ Preserves user intent well for text
-   ✅ Efficient — no metadata bloat
-   ❌ ⭐ Transformation functions are notoriously hard to get right.
-      Google's implementation took years to stabilize; several
-      published OT algorithms were later shown to be incorrect.
-   ❌ Requires a central server — no true peer-to-peer
-   ❌ Complexity grows badly with richer data types
+    subgraph Strengths["✅ Strengths"]
+        P1["Compact operations<br/>(just position + content)"]
+        P2["Preserves user intent<br/>well for text"]
+        P3["Efficient — no metadata bloat"]
+    end
+
+    subgraph Weaknesses["❌ Weaknesses"]
+        N1["Transform functions notoriously<br/>hard to get right — several published<br/>OT algorithms proved incorrect"]
+        N2["Requires a central server —<br/>no true peer-to-peer"]
+        N3["Complexity grows badly<br/>with richer data types"]
+    end
+
+    SERVER -.-> Strengths
+    SERVER -.-> Weaknesses
+
+    style CA fill:#e1f5fe,stroke:#0277bd,color:#000
+    style CB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style S1 fill:#fff9c4,stroke:#f9a825,color:#000
+    style S2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style S3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style P1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style P2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style P3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style N1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style N2 fill:#ffcdd2,stroke:#c62828,color:#000
+    style N3 fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ## 4. Solution B — CRDTs
@@ -187,21 +168,28 @@ Design the data structure so that **concurrent operations commute** — applying
      by the structure itself, not by a protocol.
 ```
 
+```mermaid
+flowchart TD
+    ROOT["🧬 CRDT Families"]
+    ROOT --> GC["G-Counter<br/>grow-only counter<br/>merge = max per replica"]
+    ROOT --> PN["PN-Counter<br/>increment/decrement<br/>(two G-Counters)"]
+    ROOT --> GS["G-Set<br/>grow-only set<br/>merge = union"]
+    ROOT --> TP["2P-Set<br/>add + remove once<br/>(can't re-add)"]
+    ROOT --> LWW["LWW-Register<br/>last-write-wins<br/>by timestamp"]
+    ROOT --> OR["OR-Set<br/><b>the practical choice</b><br/>observed-remove — add wins<br/>over concurrent remove"]
+    ROOT --> SEQ["RGA / LSEQ / Logoot / YATA<br/>sequence CRDTs for text<br/>(Yjs uses YATA)"]
+
+    style ROOT fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style GC fill:#b2dfdb,stroke:#00695c,color:#000
+    style PN fill:#b2dfdb,stroke:#00695c,color:#000
+    style GS fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style TP fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style LWW fill:#fff9c4,stroke:#f9a825,color:#000
+    style OR fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style SEQ fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000
 ```
-   THE CRDT FAMILIES
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ G-Counter     grow-only counter (merge = max per replica)    │
-   │ PN-Counter    increment/decrement (two G-Counters)           │
-   │ G-Set         grow-only set (merge = union)                  │
-   │ 2P-Set        add + remove once (can't re-add)               │
-   │ LWW-Register  last-write-wins by timestamp                   │
-   │ OR-Set        observed-remove set (add wins over concurrent  │
-   │               remove — the practical choice)                 │
-   │ RGA / LSEQ /  sequence CRDTs for text                        │
-   │   Logoot / YATA (Yjs uses YATA)                              │
-   └──────────────────────────────────────────────────────────────┘
-
+```
    ✅ ⭐ NO CENTRAL SERVER NEEDED — true peer-to-peer possible
    ✅ Offline-first works naturally
    ✅ Convergence is mathematically guaranteed, not protocol-dependent
@@ -210,23 +198,6 @@ Design the data structure so that **concurrent operations commute** — applying
    ❌ Tombstones: deleted characters must be retained (garbage
       collection is the hard part)
    ❌ Intent preservation can be subtly worse than OT in edge cases
-```
-
-```
-   ⭐ WHICH ONE?
-
-   Google Docs uses OT (built before CRDTs matured, and the
-   central-server model fits their architecture).
-
-   Figma, Linear, Notion, and most NEW collaborative products
-   use CRDTs — Yjs and Automerge made them practical.
-
-   THE INTERVIEW ANSWER: know both, and state the tradeoff.
-   "OT is more compact but requires a central server and the
-    transformation logic is famously error-prone. CRDTs carry
-    metadata overhead but guarantee convergence structurally
-    and work offline and peer-to-peer. For a new system I'd
-    choose a CRDT — the correctness guarantee is worth the bytes."
 ```
 
 ```mermaid
@@ -276,38 +247,6 @@ flowchart TD
 ```
 
 ```
-   ┌──────────┐                                   ┌──────────┐
-   │ Client A │                                   │ Client B │
-   │ ┌──────┐ │                                   │ ┌──────┐ │
-   │ │local │ │  ⭐ edits apply LOCALLY FIRST      │ │local │ │
-   │ │ doc  │ │     → typing feels instant        │ │ doc  │ │
-   │ └──────┘ │                                   │ └──────┘ │
-   └────┬─────┘                                   └────▲─────┘
-        │ WebSocket (ops)                              │
-        ▼                                              │
-   ┌────────────────────────────────────────────────────────────┐
-   │              COLLABORATION SERVICE                         │
-   │  • one session per document (sticky routing)               │
-   │  • assigns the canonical operation order                   │
-   │  • transforms (OT) or merges (CRDT)                        │
-   │  • broadcasts to all connected clients                     │
-   │  • tracks presence (cursors, selections)                   │
-   └───┬───────────────────────────────────┬────────────────────┘
-       ▼                                   ▼
-   ┌─────────────────┐            ┌──────────────────────┐
-   │  OPERATION LOG  │            │  PRESENCE (Redis)    │
-   │  append-only    │            │  ephemeral, TTL'd    │
-   │  = full history │            │  never persisted     │
-   └────────┬────────┘            └──────────────────────┘
-            │ periodic
-            ▼
-   ┌─────────────────┐
-   │  SNAPSHOTS      │  ⭐ so loading a doc doesn't require
-   │  (materialized) │     replaying 500,000 operations
-   └─────────────────┘
-```
-
-```
    ⭐ THE OPERATION LOG IS THE SOURCE OF TRUTH
 
    The document is a DERIVED value — a fold over the op log.
@@ -324,25 +263,39 @@ flowchart TD
 
 ## 6. Deep Dive — Presence
 
-```
-   ⚠️ PRESENCE IS A DIFFERENT PROBLEM FROM DOCUMENT STATE
+```mermaid
+flowchart LR
+    subgraph DOC["📄 Document Ops — strong guarantees"]
+        D1["Must never be lost"]
+        D2["Must be ordered"]
+        D3["Persisted forever"]
+        D4["Every op matters"]
+    end
 
-   ┌────────────────────┬────────────────────────────────────┐
-   │ DOCUMENT OPS       │ PRESENCE (cursors, selections)     │
-   ├────────────────────┼────────────────────────────────────┤
-   │ Must never be lost │ ⭐ Loss is FINE — it refreshes      │
-   │ Must be ordered    │ Order doesn't matter               │
-   │ Persisted forever  │ Ephemeral, TTL'd, never persisted  │
-   │ Every op matters   │ Throttle to ~10-20/sec             │
-   └────────────────────┴────────────────────────────────────┘
+    subgraph PRES3["👆 Presence — weak guarantees<br/>(cursors, selections)"]
+        R1["⭐ Loss is FINE — it refreshes"]
+        R2["Order doesn't matter"]
+        R3["Ephemeral, TTL'd,<br/>never persisted"]
+        R4["Throttle to ~10-20/sec"]
+    end
 
-   → Send presence over a SEPARATE channel with different
-     guarantees. Mixing them means either over-engineering
-     presence or under-engineering document ops.
+    D1 -.->|"different channel,<br/>different guarantees"| R1
 
-   ⭐ Cursor positions must be transformed too! If someone
-     inserts text above my cursor, my displayed cursor position
-     must shift — otherwise remote cursors drift visibly.
+    NOTE["⚠️ Mixing the two channels means either<br/>over-engineering presence or<br/>under-engineering document ops"]
+    NOTE2["⭐ Cursor positions must be transformed too —<br/>if someone inserts text above my cursor,<br/>my displayed position must shift or<br/>remote cursors visibly drift"]
+
+    PRES3 --> NOTE2
+
+    style D1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style D2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style D3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style D4 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style R1 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style R2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R4 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style NOTE fill:#fff9c4,stroke:#f9a825,color:#000
+    style NOTE2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 ## 7. Deep Dive — Offline
@@ -359,28 +312,6 @@ stateDiagram-v2
     Merge --> Online: converged
     Reconciling --> CopyFallback: ⚠️ offline too long,<br/>merge would be nonsense
     CopyFallback --> [*]: save as separate copy
-```
-
-```
-   OFFLINE EDITING FLOW
-
-   1. Local edits queue up, applied immediately to the local doc
-   2. Reconnect
-   3. Send the queued ops with the last-known server version
-   4. Server transforms them against everything that happened
-      while offline
-   5. Server sends back the ops the client missed
-   6. Client applies them, transformed against its local queue
-
-   ⭐ WITH CRDTs THIS IS ALMOST TRIVIAL: just merge the two
-     states. Convergence is structural. This is the single
-     strongest argument for CRDTs in an offline-first product.
-
-   ⚠️ EDGE CASE: offline for a month, meanwhile the document
-     was heavily edited. Transformation cost grows with the
-     number of concurrent ops. At some point you fall back to
-     "your version is saved as a copy" rather than attempting
-     a merge that would produce nonsense.
 ```
 
 ## 🎤 Interview Follow-Ups
@@ -517,53 +448,6 @@ flowchart TD
 ```
 
 ```
-   ┌──────────┐
-   │ Creator  │
-   └────┬─────┘
-        │ ⭐ RESUMABLE upload (chunked, byte-range)
-        │    a 4-hour 4K upload MUST survive a dropped connection
-        ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │  UPLOAD SERVICE                                             │
-   │  • issues an upload session ID                              │
-   │  • accepts chunks, tracks which are received                │
-   │  • client can query "which chunks do you have?" and resume  │
-   └────────────────────────┬────────────────────────────────────┘
-                            ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │  RAW STORAGE (durable, cheap)                               │
-   │  ⭐ Persisted BEFORE any processing — durability first       │
-   └────────────────────────┬────────────────────────────────────┘
-                            │ emits an event
-                            ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │  TRANSCODING PIPELINE (massively parallel)                  │
-   │                                                             │
-   │  ① SPLIT the video into chunks (~5-10 sec, at GOP           │
-   │     boundaries so each chunk is independently decodable)    │
-   │                                                             │
-   │  ② FAN OUT — each chunk × each target variant is an         │
-   │     independent job on a worker fleet                       │
-   │     ⭐ THIS is what makes it tractable: a 2-hour video       │
-   │       becomes ~1,440 chunks, transcoded in PARALLEL.        │
-   │       Wall-clock time is bounded by ONE chunk, not the      │
-   │       whole video.                                          │
-   │                                                             │
-   │  ③ MERGE chunks back into per-variant files                 │
-   │  ④ PACKAGE into DASH/HLS with manifests                     │
-   │  ⑤ VALIDATE — quality checks, A/V sync                      │
-   │  ⑥ ML PASSES — Content ID matching, thumbnails,             │
-   │     auto-captions, moderation classifiers                   │
-   └────────────────────────┬────────────────────────────────────┘
-                            ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │  DISTRIBUTE TO EDGE / CDN                                   │
-   │  ⭐ TIERED: low resolutions first, so the video is           │
-   │     watchable within minutes while 4K is still encoding     │
-   └─────────────────────────────────────────────────────────────┘
-```
-
-```
    ⭐ THE CHUNK-PARALLEL INSIGHT
 
    Transcoding a 2-hour video serially might take 4 hours.
@@ -593,23 +477,6 @@ flowchart LR
 
    → Store them completely differently.
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ VIRAL / POPULAR                                              │
-   │   • all resolutions pre-encoded and kept hot                 │
-   │   • pushed to edge caches globally                           │
-   │   • replicated heavily                                       │
-   ├──────────────────────────────────────────────────────────────┤
-   │ MODERATE                                                     │
-   │   • common resolutions kept, exotic ones dropped             │
-   │   • regional edge caching only                               │
-   ├──────────────────────────────────────────────────────────────┤
-   │ LONG TAIL                                                    │
-   │   • ⭐ store ONE master; transcode ON DEMAND if requested     │
-   │   • cold storage                                             │
-   │   • a slower first play for a video nobody watches is        │
-   │     an excellent trade                                       │
-   └──────────────────────────────────────────────────────────────┘
-
    ⭐ This is the same insight as Instagram's tiering, but the
      dimension is POPULARITY rather than AGE — and the savings
      are even larger because encoded variants are expensive
@@ -631,38 +498,6 @@ flowchart TD
 ```
 
 ## 5. Deep Dive — Recommendations
-
-```
-   THE SAME TWO-STAGE FUNNEL AS INSTAGRAM, at larger scale
-
-   ┌──────────────────────────────────────────────────────────────┐
-   │ STAGE 1: CANDIDATE GENERATION                                │
-   │   Billions of videos → a few hundred candidates              │
-   │                                                              │
-   │   Multiple parallel sources:                                 │
-   │     • collaborative filtering (people like you watched...)   │
-   │     • content similarity via embeddings (ANN search)         │
-   │     • the creator's other videos / your subscriptions        │
-   │     • trending in your region and language                   │
-   │     • ⭐ each source has its own recall characteristics —     │
-   │       diversity of SOURCES creates diversity of RESULTS      │
-   ├──────────────────────────────────────────────────────────────┤
-   │ STAGE 2: RANKING                                             │
-   │   Hundreds → ~20, ordered                                    │
-   │                                                              │
-   │   ⭐ Optimizes for WATCH TIME, not click-through.             │
-   │     This was a deliberate, consequential change — CTR         │
-   │     optimization rewards clickbait; watch time rewards       │
-   │     content people actually stay for.                        │
-   │                                                              │
-   │   Signals: predicted watch time · your history · video age · │
-   │            channel affinity · session context ·              │
-   │            negative feedback (weighted heavily)              │
-   ├──────────────────────────────────────────────────────────────┤
-   │ STAGE 3: RE-RANKING                                          │
-   │   diversity · freshness · integrity filters · policy         │
-   └──────────────────────────────────────────────────────────────┘
-```
 
 ```mermaid
 flowchart LR
@@ -710,29 +545,32 @@ flowchart LR
 
 ## 6. Deep Dive — Live Streaming
 
-```
-   ⚠️ LIVE IS A COMPLETELY DIFFERENT SYSTEM FROM VOD
+```mermaid
+flowchart LR
+    subgraph VOD2["📼 VOD"]
+        direction TB
+        V1["Transcode offline,<br/>any time you like"]
+        V2["Full CDN pre-warm"]
+        V3["Seek anywhere"]
+        V4["Perfect quality"]
+    end
 
-   ┌────────────────────┬──────────────────────────────────────┐
-   │ VOD                │ LIVE                                 │
-   ├────────────────────┼──────────────────────────────────────┤
-   │ Transcode offline, │ ⭐ Transcode in REAL TIME — no second │
-   │ any time you like  │    chances, no re-runs               │
-   │ Full CDN pre-warm  │ Content doesn't exist until it does  │
-   │ Seek anywhere      │ Latency budget: 2-30 seconds         │
-   │ Perfect quality    │ Must degrade gracefully under load   │
-   └────────────────────┴──────────────────────────────────────┘
+    subgraph LIVE2["🔴 LIVE — a completely different system"]
+        direction TB
+        L1["⭐ Transcode in REAL TIME<br/>— no second chances, no re-runs"]
+        L2["Content doesn't exist<br/>until it does"]
+        L3["Latency budget: 2-30 seconds"]
+        L4["Must degrade gracefully<br/>under load"]
+    end
 
-   PIPELINE
-   Encoder (creator) ──RTMP/SRT──▶ Ingest ──▶ Real-time transcode
-                                                     │
-                                          ┌──────────┴──────────┐
-                                          ▼                     ▼
-                                   Segment + package      Recording
-                                   (HLS/DASH, 2-6s)       (becomes VOD)
-                                          │
-                                          ▼
-                                    CDN ──▶ Viewers
+    style V1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style V2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style V3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style V4 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style L1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style L2 fill:#ffcdd2,stroke:#c62828,color:#000
+    style L3 fill:#ffcdd2,stroke:#c62828,color:#000
+    style L4 fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ```mermaid
@@ -825,22 +663,21 @@ The most important mechanism is deliberate exploration: showing new content to a
 
 #### 💬 Why you never sync whole files
 
-```
-   ⚠️ NAIVE: a 100 MB file changes by one byte → upload 100 MB
+```mermaid
+flowchart TD
+    F["📄 File 'report.pdf' (10 MB)"] --> B1["block1<br/>hash: a3f..."]
+    F --> B2["block2<br/>hash: 7b2..."]
+    F --> B3["block3<br/>hash: c91..."]
 
-   ⭐ CHUNKED: split every file into blocks (Dropbox uses 4 MB).
-     A one-byte change affects ONE block → upload 4 MB.
-     With variable-size chunking, often far less.
+    EDIT["✏️ user edits page 5"] -.->|"only affects<br/>bytes inside block2"| B2
+    B2 -->|"hash changes"| UP["⭐ upload ONLY block2<br/>block1 & block3 untouched"]
 
-   File "report.pdf" (10 MB)
-   ┌────────┬────────┬────────┐
-   │ block1 │ block2 │ block3 │
-   │ hash:  │ hash:  │ hash:  │
-   │ a3f... │ 7b2... │ c91... │
-   └────────┴────────┴────────┘
-              ▲
-              └─ user edits page 5 → only block2's hash changes
-                 → upload ONLY block2
+    style F fill:#e3f2fd,stroke:#1565c0,color:#000
+    style B1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style B2 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style B3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style EDIT fill:#e1f5fe,stroke:#0277bd,color:#000
+    style UP fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```mermaid
@@ -855,31 +692,31 @@ flowchart LR
 
 ### ⭐ Content-addressed storage + deduplication
 
-```
-   Blocks are stored and referenced BY THEIR HASH, not by name.
+```mermaid
+flowchart TD
+    subgraph META["📇 METADATA — file → ordered list of block hashes"]
+        M1["alice/report.pdf<br/>→ [a3f2, 7b21, c914]"]
+        M2["bob/report_copy.pdf<br/>→ [a3f2, 7b21, c914]<br/>⭐ SAME BLOCKS"]
+    end
 
-   ┌─────────────────────────────────────────────────────────────┐
-   │  BLOCK STORE:   hash → bytes                                │
-   │                                                             │
-   │  a3f2... → [4 MB of data]                                   │
-   │  7b21... → [4 MB of data]                                   │
-   │  c914... → [4 MB of data]                                   │
-   ├─────────────────────────────────────────────────────────────┤
-   │  METADATA:  file → ordered list of block hashes             │
-   │                                                             │
-   │  alice/report.pdf  → [a3f2, 7b21, c914]                     │
-   │  bob/report_copy.pdf → [a3f2, 7b21, c914]  ⭐ SAME BLOCKS    │
-   └─────────────────────────────────────────────────────────────┘
+    subgraph STORE["🗄️ BLOCK STORE — hash → bytes (stored ONCE globally)"]
+        S1["a3f2... → [4 MB data]"]
+        S2["7b21... → [4 MB data]"]
+        S3["c914... → [4 MB data]"]
+    end
 
-   ⭐ GLOBAL DEDUPLICATION
-   If a million users have the same PDF, it's stored ONCE.
-   The upload protocol exploits this:
+    M1 --> S1
+    M1 --> S2
+    M1 --> S3
+    M2 -.->|"points at the<br/>SAME blocks —<br/>no re-upload"| S1
+    M2 -.-> S2
+    M2 -.-> S3
 
-   Client: "I have blocks a3f2, 7b21, c914"
-   Server: "I already have a3f2 and 7b21. Send only c914."
-
-   → Uploading a file that already exists somewhere in the
-     system takes seconds regardless of size.
+    style M1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style M2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style S1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S3 fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```mermaid
@@ -922,15 +759,32 @@ sequenceDiagram
    Insert one byte at the START of a file, and EVERY subsequent
    block boundary shifts. Every hash changes. You re-upload
    the entire file.
+```
 
-   ┌────────┬────────┬────────┐
-   │ block1 │ block2 │ block3 │   original
-   └────────┴────────┴────────┘
-    ↓ insert 1 byte at position 0
-   ┌────────┬────────┬────────┬─┐
-   │ block1'│ block2'│ block3'│…│  ⭐ EVERY block changed
-   └────────┴────────┴────────┴─┘
+```mermaid
+flowchart TD
+    subgraph FIXED["🐌 FIXED-SIZE CHUNKING"]
+        direction LR
+        O1["block1"] --- O2["block2"] --- O3["block3"]
+    end
+    INS["✏️ insert 1 byte<br/>at position 0"] --> FIXED
+    FIXED -->|"every boundary<br/>shifts right"| SHIFTED
 
+    subgraph SHIFTED["⚠️ resulting blocks — ⭐ EVERY block changed"]
+        direction LR
+        N1["block1'"] --- N2["block2'"] --- N3["block3'"] --- N4["…"]
+    end
+
+    style O1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style O2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style O3 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style N1 fill:#ffcdd2,stroke:#c62828,color:#000
+    style N2 fill:#ffcdd2,stroke:#c62828,color:#000
+    style N3 fill:#ffcdd2,stroke:#c62828,color:#000
+    style N4 fill:#ffcdd2,stroke:#c62828,color:#000
+```
+
+```
    ✅ CONTENT-DEFINED CHUNKING (Rabin fingerprinting)
 
    Boundaries are chosen based on the CONTENT, not on offset:
@@ -972,52 +826,36 @@ flowchart TD
     style BLOCK fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
 ```
 
-```
-   ┌──────────────┐                          ┌──────────────┐
-   │  Client A    │                          │  Client B    │
-   │  ┌────────┐  │                          │  ┌────────┐  │
-   │  │ Watcher│  │ filesystem events        │  │ Watcher│  │
-   │  │ Indexer│  │                          │  │ Indexer│  │
-   │  │ Chunker│  │                          │  │ Chunker│  │
-   │  └────────┘  │                          │  └────────┘  │
-   └──────┬───────┘                          └──────▲───────┘
-          │                                         │
-          │ ① metadata sync (small, frequent)       │ notify
-          ▼                                         │
-   ┌─────────────────────────────────────────────────────────┐
-   │  METADATA SERVICE                                       │
-   │  • file tree, versions, permissions, block lists         │
-   │  • ⭐ this is the SOURCE OF TRUTH for structure           │
-   │  • sharded by user/namespace                             │
-   │  • must be strongly consistent                           │
-   └───────────────────────┬─────────────────────────────────┘
-                           │
-   ┌───────────────────────┴─────────────────────────────────┐
-   │  NOTIFICATION SERVICE (long-poll / WebSocket)           │
-   │  "your namespace changed, come sync"                     │
-   └─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph METAG["📇 Metadata"]
+        direction TB
+        MA["small, frequent"]
+        MB["needs strong consistency"]
+        MC["needs transactions"]
+        MD["→ relational database"]
+    end
 
-          │ ② block transfer (large, only what's missing)
-          ▼
-   ┌─────────────────────────────────────────────────────────┐
-   │  BLOCK STORAGE  (content-addressed, hash → bytes)       │
-   │  • immutable — a block never changes                    │
-   │  • therefore trivially cacheable and replicable         │
-   └─────────────────────────────────────────────────────────┘
-```
+    subgraph BLOCKG["🗄️ Blocks"]
+        direction TB
+        BA["large, immutable"]
+        BB["content-addressed"]
+        BC["trivially replicated"]
+        BD["→ object storage"]
+    end
 
-```
-   ⭐ THE METADATA / BLOCK SPLIT IS THE KEY ARCHITECTURAL DECISION
+    METAG --> WHY["✅ ⭐ Separating them lets each be<br/>optimized independently —<br/>metadata stays strongly consistent<br/>while blocks are eventually consistent"]
+    BLOCKG --> WHY
 
-   METADATA          small, frequent, needs strong consistency,
-                     needs transactions → relational database
-   BLOCKS            large, immutable, content-addressed →
-                     object storage, trivially replicated
-
-   These have completely different requirements. Separating
-   them lets each be optimized independently — and it's why
-   the metadata service can be strongly consistent while
-   block storage is eventually consistent.
+    style MA fill:#e1f5fe,stroke:#0277bd,color:#000
+    style MB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style MC fill:#e1f5fe,stroke:#0277bd,color:#000
+    style MD fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style BA fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style BB fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style BC fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style BD fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style WHY fill:#fff9c4,stroke:#f9a825,stroke-width:3px,color:#000
 ```
 
 ## 4. Deep Dive — Sync Protocol
@@ -1038,38 +876,6 @@ flowchart TD
     style CONFLICT fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
     style E fill:#c8e6c9,stroke:#2e7d32,color:#000
     style F fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
-```
-
-```
-   ① DETECT CHANGE
-      Filesystem watcher (inotify/FSEvents/ReadDirectoryChangesW)
-      ⚠️ Watchers are unreliable at scale — they miss events and
-        have per-directory limits. So ALSO run a periodic full
-        scan as a safety net.
-
-   ② HASH
-      Chunk the file, compute block hashes
-      ⭐ Compare against the local index first — if hashes are
-        unchanged, do nothing. Most "changes" are touch events
-        with identical content.
-
-   ③ COMMIT METADATA
-      Send the new block list + parent version to the server.
-      ⭐ This is an OPTIMISTIC CONCURRENCY check:
-        "I'm updating from version 7 to 8"
-        → server accepts only if the current version is 7
-        → otherwise: CONFLICT
-
-   ④ UPLOAD MISSING BLOCKS
-      Server responds with which hashes it doesn't have.
-      Client uploads only those.
-
-   ⑤ NOTIFY OTHER DEVICES
-      Long-poll/WebSocket notification: "namespace changed"
-
-   ⑥ OTHER DEVICES PULL
-      Fetch new metadata, diff against local, download only
-      the blocks they're missing, reassemble.
 ```
 
 ## 5. Deep Dive — Conflict Resolution
@@ -1109,24 +915,6 @@ flowchart TD
     style COPY fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
-```
-   THE CONFLICT DETECTION MECHANISM
-
-   Server holds:  report.pdf @ version 7
-
-   Alice (offline) edits from v7 → submits v8
-   Bob (offline)   edits from v7 → submits v8
-
-   Alice commits first:  server is now at v8  ✅
-   Bob commits:          "update from v7" but the server is at v8
-                         → ⚠️ CONFLICT DETECTED
-                         → create a conflicted copy for Bob
-
-   ⭐ This is optimistic concurrency control — exactly the same
-     mechanism as an ETag/If-Match check in HTTP, or a version
-     column in a database.
-```
-
 ```mermaid
 sequenceDiagram
     participant Al as Alice (offline)
@@ -1147,27 +935,23 @@ sequenceDiagram
 
 ## 6. Deep Dive — Bandwidth Optimization
 
-```
-   THE STACK OF OPTIMIZATIONS, in order of impact
+```mermaid
+flowchart TD
+    T["📶 Bandwidth Optimization Stack<br/>(applied in order of impact)"]
+    T --> O1["1. DEDUPLICATION<br/>don't send blocks that already exist<br/>⭐ biggest win by far"]
+    O1 --> O2["2. DELTA SYNC<br/>send only changed blocks"]
+    O2 --> O3["3. COMPRESSION<br/>compress blocks before transfer<br/>(skip already-compressed formats)"]
+    O3 --> O4["4. LAN SYNC<br/>⭐ if another device on the same LAN<br/>has the block, get it locally<br/>— never touches the internet"]
+    O4 --> O5["5. BATCHING<br/>many small file changes<br/>→ one request"]
+    O5 --> O6["6. THROTTLING<br/>respect the user's bandwidth;<br/>back off on a metered link"]
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ 1. DEDUPLICATION       don't send blocks that already exist  │
-   │                        ⭐ biggest win by far                  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 2. DELTA SYNC          send only changed blocks              │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 3. COMPRESSION         compress blocks before transfer       │
-   │                        (skip already-compressed formats)     │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 4. LAN SYNC            ⭐ if another device on the same LAN   │
-   │                        has the block, get it locally         │
-   │                        — never touches the internet          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 5. BATCHING            many small file changes → one request │
-   ├──────────────────────────────────────────────────────────────┤
-   │ 6. THROTTLING          respect the user's bandwidth; back    │
-   │                        off when they're on a metered link    │
-   └──────────────────────────────────────────────────────────────┘
+    style T fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style O1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style O2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style O3 fill:#fff9c4,stroke:#f9a825,color:#000
+    style O4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style O5 fill:#fff9c4,stroke:#f9a825,color:#000
+    style O6 fill:#e1f5fe,stroke:#0277bd,color:#000
 ```
 
 ## 🎤 Interview Follow-Ups
@@ -1261,28 +1045,6 @@ flowchart LR
     style E fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
-```
-   ┌─────────────────────────────────────────────────────────────┐
-   │  THE PIPELINE                                               │
-   │                                                             │
-   │  ① GEO FILTER                                               │
-   │     Map viewport / city → bounding box or geohash prefixes  │
-   │     → narrows millions of listings to thousands             │
-   │                                                             │
-   │  ② AVAILABILITY FILTER  ⭐ the expensive one                 │
-   │     "available for ALL nights in [check-in, check-out)"     │
-   │                                                             │
-   │  ③ ATTRIBUTE FILTERS                                        │
-   │     guests ≥ N · price range · amenities · instant book     │
-   │                                                             │
-   │  ④ RANK                                                     │
-   │     quality · price competitiveness · booking likelihood ·  │
-   │     personalization · host responsiveness                   │
-   │                                                             │
-   │  ⑤ PAGINATE + return                                        │
-   └─────────────────────────────────────────────────────────────┘
-```
-
 ### ⭐ The availability data structure
 
 ```
@@ -1302,16 +1064,26 @@ flowchart LR
      7M listings × 92 bytes ≈ 650 MB total  ⭐ fits in memory
 
    Availability check for a date range becomes a BITWISE AND
-   against a mask for those dates:
-
-     listing bitmap  1 1 1 0 0 1 1 1 1 1 1 0 ...
-     query mask      0 0 0 0 0 1 1 1 0 0 0 0    (Aug 10-12)
-     AND             0 0 0 0 0 1 1 1 0 0 0 0
-                     └─ equals the mask → AVAILABLE ✅
+   against a mask for those dates.
 
    ⭐ This is a handful of CPU instructions per listing instead
      of a database query. Millions of listings can be filtered
      in milliseconds.
+```
+
+```mermaid
+flowchart TD
+    LB["Listing bitmap<br/><code>1 1 1 0 0 1 1 1 1 1 1 0 ...</code>"]
+    QM["Query mask (Aug 10-12)<br/><code>0 0 0 0 0 1 1 1 0 0 0 0</code>"]
+    LB -->|"bitwise AND"| AND
+    QM -->|"bitwise AND"| AND
+    AND["Result<br/><code>0 0 0 0 0 1 1 1 0 0 0 0</code>"]
+    AND -->|"result == query mask"| OK["✅ AVAILABLE<br/>every requested night is free"]
+
+    style LB fill:#e1f5fe,stroke:#0277bd,color:#000
+    style QM fill:#e1f5fe,stroke:#0277bd,color:#000
+    style AND fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style OK fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
 ```
 
 ```mermaid
@@ -1323,25 +1095,6 @@ flowchart LR
 ```
 
 ```
-   ARCHITECTURE
-
-   ┌──────────────┐
-   │   SEARCH     │
-   │   SERVICE    │
-   └──────┬───────┘
-          ├──────────────────┬─────────────────────┐
-          ▼                  ▼                     ▼
-   ┌─────────────┐    ┌─────────────┐    ┌──────────────────┐
-   │ Elasticsearch│    │ Availability│    │  Pricing Service │
-   │ (attributes, │    │ bitmap index│    │  (dynamic rates) │
-   │  geo, text)  │    │ (in-memory) │    └──────────────────┘
-   └─────────────┘    └─────────────┘
-          ▲                  ▲
-          │ CDC              │ CDC
-   ┌──────┴──────────────────┴───────────────────────────────┐
-   │  SOURCE OF TRUTH: listings + bookings (Postgres)        │
-   └─────────────────────────────────────────────────────────┘
-
    ⭐ Search indexes are DERIVED and eventually consistent.
      A listing appearing in search 30 seconds late is fine.
      A double-booking is not. Different guarantees for
@@ -1482,25 +1235,6 @@ stateDiagram-v2
 ```
 
 ```
-   ┌──────────┐  guest submits   ┌──────────┐
-   │ INITIATED│─────────────────▶│ PENDING  │  ⭐ dates are HELD
-   └──────────┘                  └────┬─────┘     during this window
-                                      │
-              ┌───────────────────────┼──────────────────┐
-        host declines /         host accepts /        payment
-        timeout expires         instant book          fails
-              ▼                       ▼                  ▼
-        ┌──────────┐            ┌──────────┐      ┌──────────┐
-        │ DECLINED │            │CONFIRMED │      │  FAILED  │
-        └──────────┘            └────┬─────┘      └──────────┘
-                                     │
-                          ┌──────────┼──────────┐
-                     cancelled    checked in
-                          ▼          ▼
-                   ┌──────────┐ ┌──────────┐
-                   │CANCELLED │ │ COMPLETED│
-                   └──────────┘ └──────────┘
-
    ⭐ THE PENDING HOLD IS ESSENTIAL
      While a request awaits host approval or payment
      authorization, the dates must be blocked — otherwise
@@ -1616,25 +1350,6 @@ That's the same multi-armed bandit tradeoff as YouTube's cold start, and it's a 
 ## 2. The Core Problem — Exactly-Once in an Unreliable World
 
 #### 💬 The fundamental issue
-
-```
-   ⚠️ THE NETWORK CANNOT TELL YOU WHAT HAPPENED
-
-   Client                 Network              Stripe
-     │  POST /charges ──────────────────────────▶│
-     │                                           │  ✅ card charged
-     │              ✗ response lost               │
-     │  (timeout)                                │
-     │                                           │
-     │  Did it work? THE CLIENT CANNOT KNOW.     │
-
-   If the client retries: double charge.  ❌
-   If the client doesn't retry: possibly no charge, and
-     the customer's order is lost.  ❌
-
-   ⭐ NEITHER OPTION IS ACCEPTABLE. This is why idempotency
-     keys exist, and why every serious payment API has them.
-```
 
 ```mermaid
 sequenceDiagram
@@ -1762,24 +1477,25 @@ async def create_charge(body: ChargeIn, idempotency_key: str):
 
    ✅ DOUBLE-ENTRY LEDGER — append-only, immutable
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ ledger_entries (append-only, NEVER updated or deleted)       │
-   │                                                              │
-   │  id │ txn_id │ account       │ direction │ amount │ currency │
-   │ ────┼────────┼───────────────┼───────────┼────────┼───────── │
-   │  1  │ txn_A  │ customer_card │  DEBIT    │  5000  │  usd     │
-   │  2  │ txn_A  │ merchant_bal  │  CREDIT   │  4855  │  usd     │
-   │  3  │ txn_A  │ stripe_fees   │  CREDIT   │   145  │  usd     │
-   │                                                              │
-   │  ⭐ INVARIANT: for every txn_id,                              │
-   │       SUM(debits) == SUM(credits)                            │
-   │     Enforced by a constraint or a checked transaction.       │
-   │     Money is CONSERVED. It cannot be created or destroyed.   │
-   └──────────────────────────────────────────────────────────────┘
-
    BALANCE = SUM of entries for that account.
    Cached/materialized for speed, but always RECONSTRUCTIBLE
    from the entries. The cache can be wrong; the log cannot.
+```
+
+```mermaid
+flowchart TD
+    TXN["💳 txn_A — customer pays $50.00"]
+    TXN --> E1["Entry 1<br/>account: customer_card<br/>direction: DEBIT<br/>amount: 5000 usd"]
+    TXN --> E2["Entry 2<br/>account: merchant_bal<br/>direction: CREDIT<br/>amount: 4855 usd"]
+    TXN --> E3["Entry 3<br/>account: stripe_fees<br/>direction: CREDIT<br/>amount: 145 usd"]
+
+    E1 & E2 & E3 --> INV["⭐ INVARIANT for every txn_id:<br/><b>SUM(debits) == SUM(credits)</b><br/>5000 == 4855 + 145<br/>enforced by constraint or checked transaction<br/>money is CONSERVED — never created or destroyed"]
+
+    style TXN fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style E1 fill:#ffcdd2,stroke:#c62828,color:#000
+    style E2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style E3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style INV fill:#fff9c4,stroke:#f9a825,stroke-width:3px,color:#000
 ```
 
 ```mermaid
@@ -1889,32 +1605,25 @@ flowchart LR
 
    That inverts every assumption: you don't control their
    availability, their latency, or their correctness.
+```
 
-   ┌──────────────────────────────────────────────────────────────┐
-   │ DELIVERY: at-least-once, with exponential backoff            │
-   │   retries over hours to days (e.g. 1m, 5m, 30m, 2h, 12h)     │
-   │   ⭐ consumers MUST dedupe on event_id                        │
-   ├──────────────────────────────────────────────────────────────┤
-   │ SECURITY: HMAC-SHA256 over timestamp + RAW body              │
-   │   Stripe-Signature: t=1723640400,v1=5257a8...                │
-   │   ⭐ Sign the RAW BYTES before parsing — re-serializing JSON  │
-   │     changes whitespace and key order and breaks the signature│
-   │   ⭐ Timestamp inside the signed payload (±5 min) prevents    │
-   │     replay attacks                                           │
-   ├──────────────────────────────────────────────────────────────┤
-   │ ORDERING: ⭐ NOT GUARANTEED                                   │
-   │   Events can arrive out of order. Each carries the full      │
-   │   object state, so consumers apply the latest version        │
-   │   rather than reconstructing from a sequence of deltas.      │
-   ├──────────────────────────────────────────────────────────────┤
-   │ OPERATIONS                                                   │
-   │   • dashboard showing failed deliveries + the reason         │
-   │   • manual replay                                            │
-   │   • auto-disable endpoints failing continuously              │
-   │   • the sender is a QUEUE CONSUMER, never inline with the    │
-   │     triggering request — a slow customer endpoint must not   │
-   │     slow down Stripe's own API                               │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    ROOT["🪝 Webhook Contract"]
+
+    ROOT --> DEL["📬 DELIVERY<br/>at-least-once, exponential backoff<br/>retries over hours to days<br/>(1m, 5m, 30m, 2h, 12h)<br/>⭐ consumers MUST dedupe on event_id"]
+
+    ROOT --> SEC["🔒 SECURITY<br/>HMAC-SHA256 over timestamp + RAW body<br/>Stripe-Signature: t=..., v1=...<br/>⭐ sign RAW BYTES before parsing —<br/>re-serializing JSON changes whitespace/<br/>key order and breaks the signature<br/>⭐ timestamp in signed payload (±5 min)<br/>prevents replay attacks"]
+
+    ROOT --> ORD["🔀 ORDERING<br/>⭐ NOT GUARANTEED<br/>events can arrive out of order —<br/>each carries FULL object state so<br/>consumers apply the latest version<br/>rather than replaying deltas"]
+
+    ROOT --> OPS["⚙️ OPERATIONS<br/>dashboard of failed deliveries + reason<br/>manual replay<br/>auto-disable endpoints failing continuously<br/>⭐ sender is a QUEUE CONSUMER, never inline —<br/>a slow customer endpoint must not<br/>slow down Stripe's own API"]
+
+    style ROOT fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    style DEL fill:#fff9c4,stroke:#f9a825,color:#000
+    style SEC fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style ORD fill:#e1bee7,stroke:#6a1b9a,color:#000
+    style OPS fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```python

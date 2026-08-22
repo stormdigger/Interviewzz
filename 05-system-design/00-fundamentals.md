@@ -32,30 +32,38 @@ Everything difficult about system design traces back to one physical fact: **inf
 
 If you could have one infinitely fast, infinitely large, never-failing computer, system design would not exist. You'd just write a program. Every technique in this book is a workaround for the fact that you can't.
 
-```
-   ONE MACHINE                        MANY MACHINES
-   ───────────                        ─────────────
-   ✅ One source of truth              ❌ Which copy is correct?
-   ✅ Instant "reads see writes"       ❌ Replicas lag behind
-   ✅ Real transactions                ❌ Cross-machine transactions are
-   ✅ It's up, or it's down                painful and slow
-                                       ❌ Partial failure: half the system
-   ❌ Limited by one box's capacity        is up, half is down, and they
-   ❌ One failure = total outage           disagree about what happened
-```
-
 The moment you add a second machine, you inherit an entire category of problems. **So the first rule of system design is: don't distribute until you must.** A single well-tuned PostgreSQL instance handles tens of thousands of transactions per second and terabytes of data. That covers the vast majority of real products.
 
 ```mermaid
 flowchart TD
     Root["🌐 Two physical facts<br/>1) light has a speed limit<br/>2) machines fail independently"] --> Q{"Do you actually<br/>need a second machine?"}
-    Q -->|"No — one box handles it"| One["✅ ONE MACHINE<br/>Single source of truth<br/>Instant read-your-writes<br/>Real transactions<br/><b>No distributed-systems problems</b>"]
-    Q -->|"Yes — load or durability<br/>demands it"| Many["⚠️ MANY MACHINES<br/>Which copy is correct?<br/>Replicas lag<br/>Cross-machine transactions are slow<br/><b>Partial failure becomes normal</b>"]
+    Q -->|"No — one box handles it"| One["✅ ONE MACHINE<br/><b>No distributed-systems problems</b>"]
+    Q -->|"Yes — load or durability<br/>demands it"| Many["⚠️ MANY MACHINES<br/><b>Partial failure becomes normal</b>"]
+
+    One --> O1["One source of truth"]
+    One --> O2["Instant 'reads see writes'"]
+    One --> O3["Real transactions"]
+    One --> O4["It's up, or it's down —<br/>no ambiguous middle state"]
+    One --> O5["🔴 Limited by one box's capacity<br/>🔴 One failure = total outage"]
+
+    Many --> M1["❌ Which copy is correct?"]
+    Many --> M2["❌ Replicas lag behind"]
+    Many --> M3["❌ Cross-machine transactions<br/>are painful and slow"]
+    Many --> M4["❌ Partial failure: half up,<br/>half down, and they disagree<br/>about what happened"]
 
     style Root fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
     style Q fill:#e1f5fe,stroke:#0277bd,color:#000
     style One fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
     style Many fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style O1 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style O2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style O3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style O4 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style O5 fill:#ffcdd2,stroke:#c62828,color:#000
+    style M1 fill:#ffcdd2,stroke:#c62828,color:#000
+    style M2 fill:#ffcdd2,stroke:#c62828,color:#000
+    style M3 fill:#ffcdd2,stroke:#c62828,color:#000
+    style M4 fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 ---
@@ -86,15 +94,6 @@ You cannot design a system without a feel for magnitudes. Memorize the shape of 
 #### 📊 Scaled to human time
 
 This is the version that actually builds intuition. Imagine 1 nanosecond = 1 second:
-
-```
-   L1 cache             0.5 sec       "grab it off your desk"
-   RAM                  ~2 min        "walk to the filing cabinet"
-   SSD read             ~2 days       "order it, arrives in 2 days"
-   Datacenter round-trip ~6 days      "ship it across town"
-   Disk seek            ~4 months     "wait a season"
-   CA → Netherlands     ~5 years      "wait for a college degree"
-```
 
 ```mermaid
 flowchart LR
@@ -161,24 +160,33 @@ flowchart LR
 
 ## 3. Scaling
 
-```
-   VERTICAL (scale up)                HORIZONTAL (scale out)
-   ───────────────────                ──────────────────────
-        ┌──────┐                       ┌───┐ ┌───┐ ┌───┐ ┌───┐
-        │      │                       │   │ │   │ │   │ │   │
-        │ BIG  │                       └───┘ └───┘ └───┘ └───┘
-        │ BOX  │                       many small boxes
-        │      │
-        └──────┘
+```mermaid
+flowchart LR
+    subgraph Vertical["⬆️ VERTICAL — scale up"]
+        direction TB
+        Big["🖥️ ONE big box<br/>more CPU, RAM, disk"]
+        VPro["✅ Simple — no code changes<br/>✅ No distributed-systems problems<br/>✅ Real transactions still work"]
+        VCon["❌ Hard ceiling on machine size<br/>❌ Cost grows super-linearly<br/>❌ Single point of failure<br/>❌ Downtime to upgrade"]
+        Big --- VPro
+        Big --- VCon
+    end
+    subgraph Horizontal["➡️ HORIZONTAL — scale out"]
+        direction TB
+        Many["🖥️🖥️🖥️🖥️ MANY small boxes"]
+        HPro["✅ Nearly unlimited ceiling<br/>✅ Fault tolerant — lose one, survive<br/>✅ Cheaper per unit of capacity<br/>✅ Can scale incrementally"]
+        HCon["❌ Complexity explodes<br/>❌ Consistency becomes hard<br/>❌ Needs statelessness + coordination"]
+        Many --- HPro
+        Many --- HCon
+    end
 
-   ✅ Simple — no code changes         ✅ Nearly unlimited ceiling
-   ✅ No distributed-systems problems  ✅ Fault tolerant (lose one, survive)
-   ✅ Real transactions still work     ✅ Cheaper per unit of capacity
-                                       ✅ Can scale incrementally
-   ❌ Hard ceiling on machine size
-   ❌ Cost grows super-linearly        ❌ Complexity explodes
-   ❌ Single point of failure          ❌ Consistency becomes hard
-   ❌ Downtime to upgrade              ❌ Needs statelessness + coordination
+    style Vertical fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style Horizontal fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style Big fill:#fff,stroke:#f9a825,stroke-width:2px,color:#000
+    style Many fill:#fff,stroke:#2e7d32,stroke-width:2px,color:#000
+    style VPro fill:#fff9c4,stroke:#f9a825,color:#000
+    style VCon fill:#ffcdd2,stroke:#c62828,color:#000
+    style HPro fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style HCon fill:#ffcdd2,stroke:#c62828,color:#000
 ```
 
 🏭 **The practical order:** vertical scaling first (it's cheap and buys years), then read replicas, then caching, then horizontal scaling of stateless services, and only finally sharding the database. People reverse this order and pay dearly.
@@ -204,20 +212,6 @@ flowchart TD
 #### 💬 What it actually does
 A load balancer sits in front of your servers and decides where each request goes. It also does health checking — if a server stops responding, it's removed from rotation automatically.
 
-```
-                        ┌──────────────┐
-   Clients ────────────▶│     LOAD     │
-                        │   BALANCER   │
-                        └──┬────┬───┬──┘
-                     ┌─────┘    │   └─────┐
-                     ▼          ▼         ▼
-                 ┌──────┐  ┌──────┐  ┌──────┐
-                 │ App1 │  │ App2 │  │ App3 │
-                 └──────┘  └──────┘  └──────┘
-                              ✗ health check fails
-                              → removed from the pool
-```
-
 ```mermaid
 flowchart TD
     Client(["Client request"]) --> LB{"⚖️ Load Balancer<br/>health checks all backends"}
@@ -234,28 +228,20 @@ flowchart TD
 
 ### Layer 4 vs Layer 7
 
-```
-   L4 (TRANSPORT)                     L7 (APPLICATION)
-   ──────────────                     ────────────────
-   Routes on IP + port                Routes on URL, headers, cookies
-   Doesn't read the payload           Understands HTTP
-   ⚡ Very fast, low overhead          🐢 Slower (must parse the request)
-   Cannot do path-based routing       ✅ /api → service A, /img → service B
-   TLS passes through                 ✅ TLS termination, compression, WAF
-
-   Examples: AWS NLB, IPVS            Examples: nginx, ALB, Envoy, HAProxy
-```
-
 ```mermaid
 flowchart LR
     Req(["Incoming request"]) --> Choice{"Which layer?"}
-    Choice -->|"Just need speed,<br/>no content awareness"| L4["🟡 L4 — Transport<br/>routes on IP + port<br/><b>very fast, low overhead</b><br/>no path-based routing"]
+    Choice -->|"Just need speed,<br/>no content awareness"| L4["🟡 L4 — Transport<br/>routes on IP + port<br/><b>very fast, low overhead</b><br/>no path-based routing<br/>TLS passes through untouched"]
     Choice -->|"Need to route on<br/>URL / headers / cookies"| L7["🟢 L7 — Application<br/>understands HTTP<br/><b>TLS termination, WAF,<br/>path routing</b><br/>slower — must parse request"]
+    L4 --> L4ex["Examples:<br/>AWS NLB, IPVS"]
+    L7 --> L7ex["Examples:<br/>nginx, ALB, Envoy, HAProxy"]
 
     style Req fill:#e1f5fe,stroke:#0277bd,color:#000
     style Choice fill:#e1f5fe,stroke:#0277bd,color:#000
     style L4 fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
     style L7 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style L4ex fill:#fff,stroke:#f9a825,color:#000
+    style L7ex fill:#fff,stroke:#2e7d32,color:#000
 ```
 
 ### Algorithms
@@ -273,27 +259,7 @@ flowchart LR
 
 Suppose you route cache requests with `hash(key) % N`. Add one server and `N` changes — so **almost every key** now maps somewhere new, and your entire cache misses at once. That's a stampede that can take down your database.
 
-Consistent hashing fixes this by placing servers on a ring:
-
-```
-                     0 / 2³²
-                        │
-              nodeC ────┼──── nodeA
-                   ╱    │    ╲
-                  │     │     │       Each key hashes to a point,
-                  │   RING    │       then walks CLOCKWISE to the
-                  │           │       first node it finds.
-                   ╲         ╱
-                    ──nodeB──
-
-   Add nodeD between A and B:
-   → only the keys between A and D move.
-   → about 1/N of keys are affected, not all of them. ✅
-
-   ⭐ VIRTUAL NODES: each physical server gets ~150 points on the
-     ring instead of 1. This evens out the distribution and spreads
-     a departing node's keys across ALL survivors rather than one.
-```
+Consistent hashing fixes this by placing servers on a ring: each key hashes to a point, then walks **clockwise** to the first node it finds. Adding `nodeD` between `nodeA` and `nodeB` only moves the keys that fall between them — about 1/N of all keys, not all of them.
 
 ```mermaid
 flowchart TD
@@ -315,36 +281,6 @@ flowchart TD
 
 A **stateless** server stores nothing about a client between requests. Any server can handle any request. That one property is what makes horizontal scaling possible.
 
-```
-   ❌ STATEFUL                        ✅ STATELESS
-   User's session lives in            Session lives in Redis / a signed
-   App2's memory                      token the client carries
-
-   ┌────┐ ┌────┐ ┌────┐               ┌────┐ ┌────┐ ┌────┐
-   │App1│ │App2│ │App3│               │App1│ │App2│ │App3│
-   └────┘ └▲───┘ └────┘               └──┬─┘ └──┬─┘ └──┬─┘
-           │ MUST come back here          └──────┼──────┘
-           │ (sticky sessions)                   ▼
-                                            ┌─────────┐
-   Consequences:                            │  Redis  │
-   • App2 dies → users logged out           └─────────┘
-   • Uneven load
-   • Can't deploy without disruption   Consequences:
-   • Autoscaling is unsafe             • Any server, any request
-                                       • Kill any box freely
-                                       • Autoscale without thought
-```
-
-**Where state should actually live:**
-
-```
-   Session data       → Redis, or a signed JWT the client carries
-   User data          → database
-   Uploaded files     → object storage (S3), never local disk
-   Cached computation → Redis / Memcached
-   In-flight work     → a message queue
-```
-
 ```mermaid
 flowchart TD
     subgraph Stateful["🔴 STATEFUL — sticky sessions"]
@@ -352,6 +288,7 @@ flowchart TD
         C1["Client"] -->|"MUST come back<br/>to App2"| S2["App2<br/>(session in memory)"]
         S1b["App1"]
         S3b["App3"]
+        SC1["Consequences:<br/>App2 dies → users logged out<br/>Uneven load<br/>Can't deploy without disruption<br/>Autoscaling is unsafe"]
     end
     subgraph Stateless["🟢 STATELESS — any server, any request"]
         direction LR
@@ -361,6 +298,7 @@ flowchart TD
         S1 --> Redis[("Redis<br/>session store")]
         S2b --> Redis
         S3 --> Redis
+        SC2["Consequences:<br/>Any server, any request<br/>Kill any box freely<br/>Autoscale without thought"]
     end
 
     style Stateful fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
@@ -369,11 +307,35 @@ flowchart TD
     style S2 fill:#fff,stroke:#c62828,color:#000
     style S1b fill:#fff,stroke:#c62828,color:#000
     style S3b fill:#fff,stroke:#c62828,color:#000
+    style SC1 fill:#ffcdd2,stroke:#c62828,color:#000
     style C2 fill:#fff,stroke:#2e7d32,color:#000
     style S1 fill:#fff,stroke:#2e7d32,color:#000
     style S2b fill:#fff,stroke:#2e7d32,color:#000
     style S3 fill:#fff,stroke:#2e7d32,color:#000
+    style SC2 fill:#c8e6c9,stroke:#2e7d32,color:#000
     style Redis fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+```
+
+**Where state should actually live:**
+
+```mermaid
+flowchart LR
+    Session["Session data"] -->|"lives in"| Redis2["Redis, or a signed<br/>JWT the client carries"]
+    UserData["User data"] -->|"lives in"| DB2[("Database")]
+    Files["Uploaded files"] -->|"lives in"| S3["Object storage (S3)<br/><b>never local disk</b>"]
+    Computation["Cached computation"] -->|"lives in"| Redis3["Redis / Memcached"]
+    InFlight["In-flight work"] -->|"lives in"| Queue["Message queue"]
+
+    style Session fill:#e1f5fe,stroke:#0277bd,color:#000
+    style UserData fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Files fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Computation fill:#e1f5fe,stroke:#0277bd,color:#000
+    style InFlight fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Redis2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style DB2 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style S3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Redis3 fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Queue fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ---
@@ -384,26 +346,22 @@ flowchart TD
 1. **Availability** — a copy survives when the primary dies.
 2. **Read scaling** — spread reads across many machines.
 
-```
-   ┌──────────┐   replication stream    ┌──────────┐
-   │ PRIMARY  │────────────────────────▶│ REPLICA  │  reads only
-   │ (writes) │────────────────────────▶│ REPLICA  │
-   └──────────┘                         └──────────┘
+```mermaid
+flowchart LR
+    P[("🔵 PRIMARY<br/>handles all writes")] -->|"replication stream"| R1[("REPLICA<br/>reads only")]
+    P -->|"replication stream"| R2[("REPLICA<br/>reads only")]
+    Clients(["Write traffic"]) --> P
+    Readers(["Read traffic"]) --> R1
+    Readers --> R2
+
+    style P fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style R1 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style R2 fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Clients fill:#fff9c4,stroke:#f9a825,color:#000
+    style Readers fill:#fff9c4,stroke:#f9a825,color:#000
 ```
 
 ### Synchronous vs asynchronous
-
-```
-   ASYNCHRONOUS                        SYNCHRONOUS
-   ────────────                        ───────────
-   1. Write to primary                 1. Write to primary
-   2. Ack the client immediately ⚡     2. Wait for N replicas to confirm
-   3. Ship to replicas later           3. THEN ack the client
-
-   ✅ Fast writes                       ✅ Zero data loss on failover
-   ❌ Replicas lag (ms to minutes)      ❌ Write latency = slowest replica
-   ❌ Data loss window on failover      ❌ A stalled replica blocks all writes
-```
 
 ```mermaid
 flowchart LR
@@ -418,20 +376,11 @@ flowchart LR
 
 #### ⚠️ The replication lag bug you will absolutely hit
 
-```
-   1. User submits a form         → writes to PRIMARY
-   2. Redirect to the detail page → reads from a REPLICA
-   3. Replica is 200 ms behind    → 404 Not Found
-   4. User: "my order disappeared!"
-
-   FIXES:
-   • Read-your-writes: route that user's reads to the primary
-     for N seconds after they write
-   • Track the write position (LSN/GTID) in the session and make
-     the replica wait until it has caught up past it
-   • Just read from the primary in read-after-write flows
-   • Monitor lag; pull replicas out of rotation above a threshold
-```
+**The fixes:**
+- **Read-your-writes** — route that user's reads to the primary for N seconds after they write
+- Track the write position (LSN/GTID) in the session and make the replica wait until it has caught up past it
+- Just read from the primary in read-after-write flows
+- Monitor lag; pull replicas out of rotation above a threshold
 
 ```mermaid
 sequenceDiagram
@@ -443,7 +392,8 @@ sequenceDiagram
     P-->>U: ack
     U->>R: 2. Redirect, read detail page
     R-->>U: 3. 404 Not Found ❌ (hasn't replicated yet)
-    Note over U,R: FIX: route this user's reads to<br/>the PRIMARY for N seconds after a write
+    Note over U,R: 😱 User: "my order disappeared!"
+    Note over U,R: FIX 1: route this user's reads to the PRIMARY for N seconds after a write<br/>FIX 2: track write position (LSN/GTID), make replica wait until caught up<br/>FIX 3: monitor lag, pull replicas out of rotation above a threshold
 ```
 
 ---
@@ -452,14 +402,6 @@ sequenceDiagram
 
 #### 💬 What sharding is
 Replication copies *the same data* to many machines. Sharding splits *different data* across machines. Replication scales reads; **sharding is the only thing that scales writes.**
-
-```
-   REPLICATION                        SHARDING
-   ───────────                        ────────
-   [ALL data]  [ALL data]             [users A-M]  [users N-Z]
-   every node has everything          each node has a slice
-   → scales READS                     → scales WRITES + storage
-```
 
 ```mermaid
 flowchart TD
@@ -472,27 +414,6 @@ flowchart TD
 ```
 
 ### Strategies
-
-```
-   RANGE-BASED       users 1-1M → shard A,  1M-2M → shard B
-   ✅ Range queries work           ❌ HOTSPOTS — the newest shard
-   ✅ Easy to reason about            takes all the new writes
-
-   HASH-BASED        hash(user_id) % N
-   ✅ Even distribution            ❌ Range queries impossible
-                                   ❌ Resharding moves ~everything
-
-   CONSISTENT HASH   ring + virtual nodes
-   ✅ Adding a node moves only 1/N of keys  ← the standard answer
-
-   DIRECTORY         a lookup service maps key → shard
-   ✅ Total flexibility, easy rebalance
-   ❌ The directory is a SPOF and an extra hop
-
-   GEOGRAPHIC        shard by region
-   ✅ Data residency compliance, low local latency
-   ❌ Cross-region queries are painful
-```
 
 ```mermaid
 flowchart TD
@@ -511,13 +432,27 @@ flowchart TD
 
 ### ⚠️ What sharding costs you
 
-```
-   ❌ Cross-shard JOINs          → denormalize, or join in the app
-   ❌ Cross-shard TRANSACTIONS   → sagas, or avoid entirely
-   ❌ Global unique constraints  → a central ID service, or UUIDs
-   ❌ Global secondary indexes   → a separate search cluster
-   ❌ Aggregations over all data → scatter-gather, or a separate OLAP store
-   ❌ RESHARDING                 → the hardest operation you will ever run
+```mermaid
+flowchart LR
+    J["❌ Cross-shard JOINs"] -->|"fix"| Jf["Denormalize, or<br/>join in the app"]
+    T["❌ Cross-shard TRANSACTIONS"] -->|"fix"| Tf["Sagas, or<br/>avoid entirely"]
+    U["❌ Global unique constraints"] -->|"fix"| Uf["Central ID service,<br/>or UUIDs"]
+    I["❌ Global secondary indexes"] -->|"fix"| If["A separate<br/>search cluster"]
+    A["❌ Aggregations over all data"] -->|"fix"| Af["Scatter-gather, or a<br/>separate OLAP store"]
+    R["❌ RESHARDING"] -->|"fix"| Rf["🔴 The hardest operation<br/>you will ever run —<br/>no shortcut"]
+
+    style J fill:#ffcdd2,stroke:#c62828,color:#000
+    style T fill:#ffcdd2,stroke:#c62828,color:#000
+    style U fill:#ffcdd2,stroke:#c62828,color:#000
+    style I fill:#ffcdd2,stroke:#c62828,color:#000
+    style A fill:#ffcdd2,stroke:#c62828,color:#000
+    style R fill:#ffcdd2,stroke:#c62828,stroke-width:3px,color:#000
+    style Jf fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Tf fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Uf fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style If fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Af fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Rf fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
 🏭 **Choosing the shard key is irreversible.** It needs high cardinality, even distribution (watch out for celebrity users), presence in most queries (or every query becomes scatter-gather), and alignment with your transaction boundaries. In B2B SaaS, `tenant_id` is usually the natural answer.
@@ -532,56 +467,25 @@ CAP is widely misquoted as "pick two of three." That's wrong. Partitions are not
 
 > **When a network partition occurs, you must choose between consistency and availability.**
 
-```
-                    A network partition splits your cluster:
-
-           ┌──────────┐         ✂         ┌──────────┐
-           │  Node A  │  ← no messages →  │  Node B  │
-           └──────────┘                   └──────────┘
-```
-
 ```mermaid
 flowchart TD
-    P["✂️ Network partition detected<br/>Node A cannot reach Node B"] --> Choice{"A write arrives<br/>at Node A.<br/>What do you do?"}
-    Choice -->|"Refuse it, return<br/>an error"| CP["🟢 CP — CONSISTENCY<br/>'I'd rather be down<br/>than wrong.'<br/><b>Banking, inventory, locks<br/>etcd, ZooKeeper, HBase</b>"]
-    Choice -->|"Accept locally,<br/>reconcile later"| AP["🟡 AP — AVAILABILITY<br/>'I'd rather be wrong for<br/>a moment than unavailable.'<br/><b>Social feeds, carts, DNS<br/>Cassandra, DynamoDB</b>"]
+    Split["✂️ Network partition splits the cluster<br/>Node A and Node B can no longer<br/>exchange messages"] --> P["A write arrives at Node A.<br/>Node A cannot reach Node B."]
+    P --> Choice{"What do you do?<br/>ONLY two options exist."}
+    Choice -->|"Refuse it, return<br/>an error"| CP["🟢 CP — CONSISTENCY<br/>Refuse the write (or read)<br/>'I'd rather be down<br/>than wrong.'<br/><b>Banking, inventory, locks<br/>etcd, ZooKeeper, HBase</b>"]
+    Choice -->|"Accept locally,<br/>reconcile later"| AP["🟡 AP — AVAILABILITY<br/>Accept the write locally<br/>'I'd rather be wrong for<br/>a moment than unavailable.'<br/><b>Social feeds, carts, DNS<br/>Cassandra, DynamoDB</b>"]
 
-    style P fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
-    style Choice fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Split fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style P fill:#e1f5fe,stroke:#0277bd,color:#000
+    style Choice fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
     style CP fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
     style AP fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
-
-   A write arrives at node A. Node A cannot reach node B.
-   Two options, and ONLY two:
-
-   ┌──────────────────────────────┬──────────────────────────────┐
-   │ CP — choose CONSISTENCY      │ AP — choose AVAILABILITY     │
-   │ Refuse the write (or read).  │ Accept the write locally.    │
-   │ Return an error.             │ Reconcile later.             │
-   │                              │                              │
-   │ "I'd rather be down than     │ "I'd rather be wrong for a   │
-   │  wrong."                     │  moment than unavailable."   │
-   │                              │                              │
-   │ Banking, inventory, locks    │ Social feeds, shopping carts,│
-   │ etcd, ZooKeeper, HBase       │ DNS, Cassandra, DynamoDB     │
-   └──────────────────────────────┴──────────────────────────────┘
 ```
 
 #### PACELC — the more useful version
 
-```
-   IF (Partition)  →  choose Availability or Consistency
-   ELSE            →  choose Latency or Consistency
+`IF (Partition) → choose Availability or Consistency` · `ELSE → choose Latency or Consistency`
 
-   ⭐ The "else" branch is what you actually live with day to day.
-     Partitions are rare. The latency-vs-consistency tradeoff is
-     present in EVERY request.
-
-   DynamoDB   = PA/EL   available under partition, low latency otherwise
-   PostgreSQL = PC/EC   consistent always, accepts the latency
-   Cassandra  = PA/EL   (tunable per query)
-   MongoDB    = PC/EC   (tunable)
-```
+⭐ The "else" branch is what you actually live with day to day. Partitions are rare. The latency-vs-consistency tradeoff is present in **every request**.
 
 ```mermaid
 flowchart TD
@@ -590,8 +494,13 @@ flowchart TD
     PC -->|"Availability"| PA["PA — stay up,<br/>may be inconsistent"]
     PC -->|"Consistency"| PCn["PC — refuse rather<br/>than be wrong"]
     Start -->|"No (the normal case,<br/>EVERY request)"| EL{"choose"}
-    EL -->|"Latency"| ELn["🟢 EL — respond fast,<br/>maybe stale<br/><b>DynamoDB, Cassandra</b>"]
-    EL -->|"Consistency"| ECn["🟡 EC — always consistent,<br/>accept the latency<br/><b>PostgreSQL, MongoDB</b>"]
+    EL -->|"Latency"| ELn["🟢 EL — respond fast,<br/>maybe stale"]
+    EL -->|"Consistency"| ECn["🟡 EC — always consistent,<br/>accept the latency"]
+
+    ELn --> DynamoDB["DynamoDB = PA/EL<br/>available under partition,<br/>low latency otherwise"]
+    ELn --> Cassandra["Cassandra = PA/EL<br/>(tunable per query)"]
+    ECn --> Postgres["PostgreSQL = PC/EC<br/>consistent always,<br/>accepts the latency"]
+    ECn --> Mongo["MongoDB = PC/EC<br/>(tunable)"]
 
     style Start fill:#e1f5fe,stroke:#0277bd,color:#000
     style PC fill:#e1f5fe,stroke:#0277bd,color:#000
@@ -600,6 +509,10 @@ flowchart TD
     style PCn fill:#fff9c4,stroke:#f9a825,color:#000
     style ELn fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
     style ECn fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#000
+    style DynamoDB fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Cassandra fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style Postgres fill:#fff9c4,stroke:#f9a825,color:#000
+    style Mongo fill:#fff9c4,stroke:#f9a825,color:#000
 ```
 
 ---
@@ -609,49 +522,22 @@ flowchart TD
 #### 💬 A spectrum, not a switch
 
 ```
-   STRONGEST ─────────────────────────────────────────▶ WEAKEST
-   (slow, expensive)                           (fast, cheap)
-
-   ┌─────────────────────────────────────────────────────────────┐
-   │ LINEARIZABLE                                                │
-   │ Every read sees the most recent write, globally, instantly. │
-   │ The system behaves as if there's one copy.                  │
-   │ Cost: coordination on every operation.                      │
-   │ Use: distributed locks, leader election, financial ledgers  │
-   ├─────────────────────────────────────────────────────────────┤
-   │ SEQUENTIAL                                                  │
-   │ All nodes see operations in the same order, but that order  │
-   │ may not match real time.                                    │
-   ├─────────────────────────────────────────────────────────────┤
-   │ CAUSAL                                                      │
-   │ Causally-related operations are seen in order by everyone.  │
-   │ Concurrent operations may be seen in any order.             │
-   │ Use: comment threads (a reply never appears before its post)│
-   ├─────────────────────────────────────────────────────────────┤
-   │ READ-YOUR-WRITES                                            │
-   │ You always see your own writes. Others may lag.             │
-   │ Use: profile edits, posting — the minimum users expect      │
-   ├─────────────────────────────────────────────────────────────┤
-   │ MONOTONIC READS                                             │
-   │ Time never goes backwards for a single user.                │
-   ├─────────────────────────────────────────────────────────────┤
-   │ EVENTUAL                                                    │
-   │ If writes stop, all replicas eventually converge.           │
-   │ No guarantee about when.                                    │
-   │ Use: view counts, recommendations, DNS                      │
-   └─────────────────────────────────────────────────────────────┘
-```
+**Strongest (slow, expensive) → weakest (fast, cheap):**
 
 ```mermaid
 flowchart TD
-    Lin["🔴 LINEARIZABLE<br/>every read sees the most<br/>recent write, instantly<br/><b>cost: coordination on<br/>every op</b><br/>locks, leader election, ledgers"]
-    Seq["Sequential<br/>same order for everyone,<br/>not necessarily real-time"]
-    Causal["Causal<br/>causally-related ops ordered;<br/>concurrent ops any order<br/>comment threads"]
-    RYW["Read-your-writes<br/>you see your own writes<br/>profile edits, posting"]
-    Mono["Monotonic reads<br/>time never goes backwards<br/>for one user"]
-    Event["🟢 EVENTUAL<br/>replicas converge eventually,<br/>no timing guarantee<br/><b>view counts, recs, DNS</b>"]
+    Lin["🔴 LINEARIZABLE<br/>every read sees the most<br/>recent write, globally, instantly<br/>system behaves as if there's<br/>ONE copy<br/><b>cost: coordination on every op</b><br/>locks, leader election, ledgers"]
+    Seq["Sequential<br/>all nodes see operations in<br/>the SAME order, but that order<br/>may not match real time"]
+    Causal["Causal<br/>causally-related ops seen in<br/>order by everyone; concurrent<br/>ops may be seen in any order<br/>comment threads — a reply never<br/>appears before its post"]
+    RYW["Read-your-writes<br/>you always see your own writes;<br/>others may lag<br/>profile edits, posting —<br/>the minimum users expect"]
+    Mono["Monotonic reads<br/>time never goes backwards<br/>for a single user"]
+    Event["🟢 EVENTUAL<br/>if writes stop, all replicas<br/>eventually converge<br/><b>no guarantee about when</b><br/>view counts, recs, DNS"]
 
-    Lin --> Seq --> Causal --> RYW --> Mono --> Event
+    Lin -->|"relax:<br/>drop real-time order"| Seq
+    Seq -->|"relax:<br/>only order causal ops"| Causal
+    Causal -->|"relax:<br/>only guarantee own writes"| RYW
+    RYW -->|"relax:<br/>drop write visibility"| Mono
+    Mono -->|"relax:<br/>drop time-ordering too"| Event
 
     style Lin fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
     style Seq fill:#ffe0b2,stroke:#ef6c00,color:#000
@@ -667,25 +553,7 @@ flowchart TD
 
 ## 10. Caching Strategy
 
-```
-   ┌────────────────────────────────────────────────────────┐
-   │ Browser        ~0 ms      per user                     │
-   ├────────────────────────────────────────────────────────┤
-   │ CDN / Edge     ~10-30 ms  global, shared               │
-   ├────────────────────────────────────────────────────────┤
-   │ Load balancer  ~1-5 ms    per datacenter               │
-   ├────────────────────────────────────────────────────────┤
-   │ App in-memory  ~0.001 ms  ⚠️ NOT shared between servers │
-   ├────────────────────────────────────────────────────────┤
-   │ Redis          ~0.5-2 ms  shared across the app tier   │
-   ├────────────────────────────────────────────────────────┤
-   │ DB buffer pool ~0.1 ms    inside the database          │
-   ├────────────────────────────────────────────────────────┤
-   │ Disk           ~100 µs - 10 ms                         │
-   └────────────────────────────────────────────────────────┘
-
-   Rule: cache as close to the user as the freshness budget allows.
-```
+Rule: cache as close to the user as the freshness budget allows.
 
 ```mermaid
 flowchart LR
@@ -741,37 +609,37 @@ stateDiagram-v2
 #### 💬 The core question
 For every operation ask: **does the user need this finished before I respond?**
 
-```
-   SYNCHRONOUS                        ASYNCHRONOUS
-   User waits                         User doesn't wait
+```mermaid
+flowchart LR
+    Q{"Does the user need<br/>this finished before<br/>I respond?"}
+    Q -->|"Yes"| Sync["🔴 SYNCHRONOUS<br/>user waits"]
+    Q -->|"No"| Async["🟢 ASYNCHRONOUS<br/>user doesn't wait"]
 
-   • Payment authorization            • Sending confirmation email
-   • Login                            • Generating a thumbnail
-   • Reading their own data           • Updating analytics
-   • Anything they'll see immediately • Notifying the warehouse
-                                      • Recomputing recommendations
-                                      • Indexing for search
-```
+    Sync --> S1["Payment authorization"]
+    Sync --> S2["Login"]
+    Sync --> S3["Reading their own data"]
+    Sync --> S4["Anything they'll<br/>see immediately"]
 
-```
-   ┌────────┐                    ┌────────┐
-   │  API   │───▶ [ QUEUE ] ───▶ │ WORKER │
-   └────────┘                    └────────┘
-        │                             │
-        └─ responds in 50 ms          └─ takes 5 seconds, nobody waits
+    Async --> A1["Sending confirmation email"]
+    Async --> A2["Generating a thumbnail"]
+    Async --> A3["Updating analytics"]
+    Async --> A4["Notifying the warehouse"]
+    Async --> A5["Recomputing recommendations"]
+    Async --> A6["Indexing for search"]
 
-   WHAT THE QUEUE BUYS YOU
-   ✅ Fast API responses
-   ✅ Traffic spikes get BUFFERED, not shed
-   ✅ Worker downtime delays work, doesn't lose it
-   ✅ Independent scaling of API and workers
-   ✅ Add new consumers without touching the producer
-
-   WHAT IT COSTS
-   ❌ Eventual consistency — it isn't done when you replied
-   ❌ Duplicates (at-least-once delivery is the practical default)
-   ❌ Debugging spans processes and time
-   ❌ Backpressure must be designed, not assumed
+    style Q fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style Sync fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+    style Async fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#000
+    style S1 fill:#fff,stroke:#c62828,color:#000
+    style S2 fill:#fff,stroke:#c62828,color:#000
+    style S3 fill:#fff,stroke:#c62828,color:#000
+    style S4 fill:#fff,stroke:#c62828,color:#000
+    style A1 fill:#fff,stroke:#2e7d32,color:#000
+    style A2 fill:#fff,stroke:#2e7d32,color:#000
+    style A3 fill:#fff,stroke:#2e7d32,color:#000
+    style A4 fill:#fff,stroke:#2e7d32,color:#000
+    style A5 fill:#fff,stroke:#2e7d32,color:#000
+    style A6 fill:#fff,stroke:#2e7d32,color:#000
 ```
 
 ```mermaid
@@ -788,6 +656,8 @@ sequenceDiagram
     Q->>W: deliver job
     W->>W: process (~5 sec)
     Note over W: traffic spikes are BUFFERED,<br/>not shed; worker downtime<br/>delays work, doesn't lose it
+    Note over C,W: ✅ BUYS YOU: fast API responses · independent scaling<br/>of API/workers · add consumers without touching the producer
+    Note over C,W: ❌ COSTS: eventual consistency · duplicates (at-least-once<br/>is the practical default) · debugging spans processes/time ·<br/>backpressure must be designed, not assumed
 ```
 
 ⭐ **The outbox pattern** is the single most important thing to know here: you cannot atomically write to your database *and* publish to a queue. Write both to the database in one transaction, and have a relay publish from the outbox table. Full detail in [Queues & Streaming](../03-backend/queues-streaming.md#10-outbox-pattern).
@@ -801,42 +671,23 @@ At small scale, failure is an exception. At scale, **failure is constant**. With
 
 ### The resilience toolkit
 
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │ TIMEOUT — never wait forever                                 │
-   │   Every network call needs one. A missing timeout is how      │
-   │   one slow dependency exhausts your entire thread pool.       │
-   │   ⭐ Callers must time out FASTER than the callee's own limit  │
-   ├──────────────────────────────────────────────────────────────┤
-   │ RETRY — with exponential backoff + JITTER                    │
-   │   Without jitter, all clients retry in lockstep and hammer    │
-   │   the recovering service back down. ("thundering herd")       │
-   │   ⚠️ Only retry IDEMPOTENT operations                          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ CIRCUIT BREAKER — stop calling a service that's clearly down │
-   │                                                              │
-   │      CLOSED ──failures exceed threshold──▶ OPEN              │
-   │        ▲                                     │               │
-   │        │                              after a cooldown       │
-   │        │                                     ▼               │
-   │        └──── success ──────────────── HALF-OPEN              │
-   │                                    (let one probe through)   │
-   │                                                              │
-   │   Turns a slow cascading failure into a FAST, contained one. │
-   │                                                              │
-   │   (diagrammed below)                                         │
-   ├──────────────────────────────────────────────────────────────┤
-   │ BULKHEAD — isolate resource pools                            │
-   │   Separate thread pools/connection pools per dependency, so   │
-   │   one saturated downstream can't consume everything.          │
-   ├──────────────────────────────────────────────────────────────┤
-   │ RATE LIMIT — protect yourself from clients AND yourself       │
-   ├──────────────────────────────────────────────────────────────┤
-   │ GRACEFUL DEGRADATION — serve something rather than nothing   │
-   │   Recommendations down? Show a static list.                   │
-   │   Cache down? Serve stale.                                    │
-   │   Search down? Show browse categories.                        │
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Toolkit["🧰 RESILIENCE TOOLKIT"]
+    Toolkit --> TO["⏱️ TIMEOUT<br/>never wait forever<br/>a missing timeout is how ONE slow<br/>dependency exhausts your entire<br/>thread pool<br/><b>⭐ callers must time out FASTER<br/>than the callee's own limit</b>"]
+    Toolkit --> RE["🔁 RETRY<br/>exponential backoff + JITTER<br/>without jitter, clients retry in<br/>lockstep and hammer the<br/>recovering service ('thundering herd')<br/><b>⚠️ only retry IDEMPOTENT ops</b>"]
+    Toolkit --> CB["⚡ CIRCUIT BREAKER<br/>stop calling a service that's<br/>clearly down<br/><b>turns a slow cascading failure<br/>into a FAST, contained one</b><br/>(state machine diagrammed below)"]
+    Toolkit --> BH["🚧 BULKHEAD<br/>isolate resource pools<br/>separate thread/connection pools<br/>per dependency, so one saturated<br/>downstream can't consume everything"]
+    Toolkit --> RL["🚦 RATE LIMIT<br/>protect yourself from<br/>clients AND yourself"]
+    Toolkit --> GD["🩹 GRACEFUL DEGRADATION<br/>serve something rather than nothing<br/>recs down → static list<br/>cache down → serve stale<br/>search down → browse categories"]
+
+    style Toolkit fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    style TO fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style RE fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style CB fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    style BH fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style RL fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style GD fill:#c8e6c9,stroke:#2e7d32,color:#000
 ```
 
 ```mermaid
@@ -862,19 +713,7 @@ stateDiagram-v2
 
 #### ⚠️ Cascading failure — how outages actually happen
 
-```
-   1. Service C slows down (a bad deploy, a slow query)
-   2. Service B's calls to C pile up, threads block
-   3. Service B's thread pool exhausts → B stops responding
-   4. Service A's calls to B pile up → A exhausts
-   5. The whole system is down because of ONE slow dependency
-
-   BREAK THE CHAIN:
-   • Timeouts (step 2 never happens)
-   • Circuit breakers (step 3 fails fast instead of blocking)
-   • Bulkheads (step 4 is contained to one pool)
-   • Load shedding (reject early rather than queue forever)
-```
+A slow dependency (bad deploy, slow query) doesn't stay contained — it propagates upstream, one exhausted thread pool at a time, until the whole system is down.
 
 ```mermaid
 flowchart LR
